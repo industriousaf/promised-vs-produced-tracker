@@ -379,6 +379,39 @@ class TestFirstOutputBackfill(Base):
                                                                  include_searched=True)]
         self.assertCountEqual(with_searched, [searched, untouched])
 
+    def test_a_published_row_is_frozen(self):
+        """verify_verified holds a COPY of the cells, not a live reference. A
+        Screen write under a published row fixes the staging table and leaves
+        the published Scoreboard reading 'unconfirmed'. Two of the twenty-two
+        were published before the backfill was ever run."""
+        rid = self.undated()
+        screen.run_check(self.conn, rid)
+        verify.promote(self.conn, rid, verification_tier="V1", flag="Resolved: checked.")
+        with self.assertRaises(screen.RemovalBlocked):
+            screen.set_first_output(self.conn, rid, date="2024",
+                                    source="https://example.com/x")
+        with self.assertRaises(screen.RemovalBlocked):
+            screen.mark_first_output_unresolved(self.conn, rid, "nothing dates it")
+        self.assertEqual(screen.get_extracted(self.conn, rid)["actual_first_output"],
+                         "unconfirmed")
+
+    def test_published_rows_leave_the_queue_and_are_reported(self):
+        """The loop must not pay for a search it cannot record -- but the row
+        still has to be surfaced, because 'unconfirmed' in verify_verified is
+        on the published Scoreboard."""
+        published = self.undated(project="Published Fab")
+        open_row = self.undated(project="Open Fab")
+        screen.run_check(self.conn, published)
+        verify.promote(self.conn, published, verification_tier="V1", flag="Resolved: checked.")
+
+        self.assertEqual([r["id"] for r in screen.undated_produced(self.conn)],
+                         [open_row])
+        self.assertEqual(
+            [r["id"] for r in screen.undated_produced(self.conn, include_searched=True)],
+            [open_row], "published rows stay out even under RETRY_UNRESOLVED")
+        self.assertEqual([r["id"] for r, _vid in screen.published_undated(self.conn)],
+                         [published])
+
     def test_the_new_column_is_provenance_and_url_checked(self):
         """It joined the v0 shape rather than sitting outside it, so the
         checker must hold it to the same rule as the other source columns."""

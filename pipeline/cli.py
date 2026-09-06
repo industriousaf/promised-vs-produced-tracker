@@ -657,7 +657,7 @@ def cmd_screen_date(conn, args):
             return
         r = screen.set_first_output(conn, args.id, date=args.date, source=args.source,
                                     raw=args.raw, note=args.note, force=args.force)
-    except screen.DateOverwriteBlocked as e:
+    except (screen.DateOverwriteBlocked, screen.RemovalBlocked) as e:
         raise SystemExit(f"refused: {e}")
     except ValueError as e:
         raise SystemExit(str(e))

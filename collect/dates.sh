@@ -155,13 +155,23 @@ echo
 echo "done. Rows still undated:"
 "$PY" - <<'PYEOF'
 from pipeline.db import connect
-from pipeline.screen import undated_produced, UNRESOLVED_MARKER
+from pipeline.screen import undated_produced, published_undated, UNRESOLVED_MARKER
 with connect() as conn:
     rows = undated_produced(conn, include_searched=True)
     if not rows:
-        print("  none -- every produced row now carries a date.")
+        print("  none -- every unpublished produced row now carries a date.")
     for r in rows:
         searched = UNRESOLVED_MARKER in (r["flag"] or "")
         print(f"  #{r['id']:<4} {'searched, none found' if searched else 'not attempted'}"
               f"  {r['project'][:52]}")
+
+    pub = published_undated(conn)
+    if pub:
+        print()
+        print(f"  {len(pub)} PUBLISHED row(s) are still undated. This loop cannot")
+        print("  touch them -- Verify is a human gate. Each needs one command:")
+        for r, vid in pub:
+            print(f"    scoreboard.py verify-edit --id {vid} \\")
+            print(f"        --set actual_first_output=YYYY-MM --set actual_date_source=URL \\")
+            print(f"        --desc \"first output dated from <source>\"   # {r['project'][:44]}")
 PYEOF

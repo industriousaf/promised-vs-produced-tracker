@@ -203,6 +203,33 @@ class DateOverwriteBlocked(Exception):
     """The Screen row already carries a dated actual first output."""
 
 
+def published_as(conn: sqlite3.Connection, screen_id: int) -> list[int]:
+    """Verify row ids that were promoted from this Screen row."""
+    return [r["id"] for r in conn.execute(
+        "SELECT id FROM verify_verified WHERE screen_extracted_id = ?", (screen_id,)
+    ).fetchall()]
+
+
+def _refuse_if_published(conn: sqlite3.Connection, screen_id: int, project: str) -> None:
+    """A published row is frozen at Screen. `remove_extracted` already refuses
+    on the same ground: `verify_verified` holds a COPY of the cells, not a live
+    reference, so a Screen write under a published row silently leaves the
+    published copy saying something else. Verify is a human-only gate, so the
+    fix is a person running `verify-edit`, not this command reaching past it."""
+    published = published_as(conn, screen_id)
+    if not published:
+        return
+    ids = ", #".join(str(v) for v in published)
+    raise RemovalBlocked(
+        f"screen #{screen_id} ({project}) was published as verify #{ids}. "
+        f"Writing the date here would fix the Screen row and leave the "
+        f"published one reading 'unconfirmed'. Verify is a human gate:\n"
+        f"    scoreboard.py verify-edit --id {published[0]} "
+        f"--set actual_first_output=YYYY-MM --set actual_date_source=URL "
+        f"--desc \"first output dated from <source>\""
+    )
+
+
 def _append_flag(existing, addition: str) -> str:
     """Add a sentence to `flag` without destroying what is already there.
 
@@ -288,6 +315,7 @@ def set_first_output(conn: sqlite3.Connection, screen_id: int, date: str,
     row = get_extracted(conn, screen_id)
     if row is None:
         raise ValueError(f"no screen_extracted row with id {screen_id}")
+    _refuse_if_published(conn, screen_id, row["project"])
     if row["actual_first_output_dt"] and not force:
         raise DateOverwriteBlocked(
             f"screen #{screen_id} ({row['project']}) already has "
@@ -317,6 +345,7 @@ def mark_first_output_unresolved(conn: sqlite3.Connection, screen_id: int,
     row = get_extracted(conn, screen_id)
     if row is None:
         raise ValueError(f"no screen_extracted row with id {screen_id}")
+    _refuse_if_published(conn, screen_id, row["project"])
     if not (note or "").strip():
         raise ValueError("--unresolved needs a reason: what was searched, and what was found instead.")
     return _first_output_update(conn, screen_id, {
@@ -333,6 +362,10 @@ def undated_produced(conn: sqlite3.Connection,
     This is only PRODUCED_UNDATED (-4.0) -- an event whose date is missing.
     Largest capital first, the same order review proceeds in.
 
+    A published row is left out always: it is frozen at Screen, so the loop
+    would pay for a search it could not record. `published_undated` lists those
+    separately -- they are a person's work, through `verify-edit`.
+
     A row already carrying UNRESOLVED_MARKER is left out by default. It stays
     at -4.0 either way -- marking it changes no date cell -- so without this the
     queue would re-offer every dead end on every run, and the second search
@@ -345,6 +378,7 @@ def undated_produced(conn: sqlite3.Connection,
         "NULLS LAST, id",
         (PRODUCED_UNDATED,),
     ).fetchall()
+    rows = [r for r in rows if not published_as(conn, r["id"])]
     if include_searched:
         return rows
     return [r for r in rows if UNRESOLVED_MARKER not in (r["flag"] or "")]
@@ -447,6 +481,24 @@ def list_extracted(conn: sqlite3.Connection,
             "NULLS LAST, id"
         ).fetchall()
     return conn.execute("SELECT * FROM screen_extracted ORDER BY id").fetchall()
+
+
+def published_undated(conn: sqlite3.Connection) -> list[tuple[sqlite3.Row, int]]:
+    """(screen row, verify id) for undated rows that have already been published.
+
+    The backfill cannot touch these, and they are the ones that matter most:
+    'unconfirmed' in `verify_verified` is on the published Scoreboard, not in a
+    staging table. Returned so the run says so at the end instead of leaving
+    them to be noticed.
+    """
+    out = []
+    for r in conn.execute(
+        "SELECT * FROM screen_extracted WHERE lag_years = ? ORDER BY id",
+        (PRODUCED_UNDATED,),
+    ).fetchall():
+        for vid in published_as(conn, r["id"]):
+            out.append((r, vid))
+    return out
 
 
 def get_extracted(conn: sqlite3.Connection, screen_id: int) -> sqlite3.Row | None:
