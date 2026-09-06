@@ -204,7 +204,7 @@ def run_source_ai(conn: sqlite3.Connection) -> tuple[int, dict]:
 
 
 def run_screen_ai(conn: sqlite3.Connection, source_id: int) -> tuple[int, dict]:
-    """AI Screen pt-1: extract a 17-column row from a stored Source lead.
+    """AI Screen pt-1: extract a 18-column row from a stored Source lead.
 
     Returns (screen_id, row_dict). Raises llm.LLMUnavailable on failure.
     """

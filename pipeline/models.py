@@ -33,7 +33,7 @@ import os
 # already in the database under another name.
 SOURCE = "claude-opus-4-8"
 
-# Reading two sources and filling the 17 columns. Mechanical on its face, but
+# Reading two sources and filling the 18 columns. Mechanical on its face, but
 # it is also the only stage that catches the Source stage asserting something
 # its own cited pages do not say -- which happened three times in twenty rows.
 # That check is the reason this is not automatically the cheap-model slot.

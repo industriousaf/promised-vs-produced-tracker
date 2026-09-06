@@ -60,6 +60,8 @@ python3 scoreboard.py screen-extract --source-id N                # needs a key
 python3 scoreboard.py screen-check --id N          # or --all
 python3 scoreboard.py screen-list [--by-capital]
 python3 scoreboard.py screen-show --id N
+python3 scoreboard.py screen-date --id N --date "2021-12" --source URL [--raw "..."] [--note "..."]
+python3 scoreboard.py screen-date --id N --unresolved "what was searched, and what was found"
 
 # Verify  (the human gate)
 python3 scoreboard.py review [--id N]              # guided, one row at a time

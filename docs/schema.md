@@ -47,6 +47,14 @@ later is a mechanical translation.
   unchanged into Verify); the `*_dt` and lag/slip cells are read-only in the Verify edit form —
   edit a date token and they recompute automatically. If no `*_raw` is supplied, the token
   is stored as the raw.
+- **Two `*_date_source` columns, because one URL rarely carries two facts:**
+  `promise_source` shows a promise was made and `promised_date_source` shows when
+  it was for; `status_source` shows the plant runs today and `actual_date_source`
+  shows when it first produced. Both date-source columns are optional — most rows
+  need neither, because one link states both halves. Twenty-two of the first 112
+  rows needed the actual-side one: a Q4-2025 earnings release proves a mill is at
+  volume and can never also date its 2021 first coil, so recording the date meant
+  overwriting the evidence of operation. `screen-date` is the writer.
 - **Sectors are a defined, extensible vocabulary (not agnostic):** the checker ERRORs on a
   sector outside the vocabulary. Add a genuinely new manufacturing sector by editing
   `SECTORS` in `pipeline/schema.py` (Claude Code) or via `sectors-add` /

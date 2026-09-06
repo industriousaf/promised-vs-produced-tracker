@@ -49,7 +49,7 @@ python3 -m pipeline.cli screen-prompt --source-id N
 
 That output is `prompt_screen_extracted.md` + the live sector vocabulary + this
 lead's links + the exact JSON hand-back format. It is the single source of truth for
-the 17 fields, the `*_raw → token → *_dt` date rules, and what the deterministic
+the 18 fields, the `*_raw → token → *_dt` date rules, and what the deterministic
 checker enforces. Follow it verbatim.
 
 One part of that prompt gets misread often: the **sector vocabulary is closed**. Use

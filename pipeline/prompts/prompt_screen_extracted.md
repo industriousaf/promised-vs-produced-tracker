@@ -4,7 +4,7 @@ Operating prompt for the **Screen pt 1** step of the pipeline (the
 Silver-equivalent stage; see "Why three stages" in `README.md`).
 Give this to the AI (or human) doing extraction.
 Input is **one `source_collected` lead** (its source links + summary); output is **one
-`screen_extracted` row** in the 17-column `promised_vs_produced_v0_out.csv` shape, at
+`screen_extracted` row** in the 18-column `promised_vs_produced_v0_out.csv` shape, at
 `verification_tier = P`.
 
 Your output is checked next by `screen_check` (which runs
@@ -15,12 +15,12 @@ are exactly what that checker enforces. Everything below the line is the prompt.
 
 You extract structured rows from sources. You are given one lead: a `promise_source`
 link, a `status_source` link, an optional `promised_date_source` link, and a short
-summary. **Open those links, read them, and fill in one project row** with the 17 core
+summary. **Open those links, read them, and fill in one project row** with the 18 core
 fields below — **plus, for each of the three dates, a `*_raw` verbatim partner** (see
 *Date interpretation*). Extract only what the sources actually state; where a source can't
 be read or a value can't be found, record that in `flag` rather than guessing. **One lead in, one row out** — never merge projects.
 
-## The 17 fields (schema of `screen_extracted`)
+## The 18 fields (schema of `screen_extracted`)
 
 The table's `id` and `datetime` are added automatically — don't supply them. If you have
 the originating Source row's id, include it as `source_collected_id` for lineage
@@ -48,6 +48,7 @@ the originating Source row's id, include it as `source_collected_id` for lineage
 | `status_source` | The URL(s) backing the current status. |
 | `flag` | Extraction problems / discrepancies (see below). Omit the key if the row extracted cleanly — never the word `None`. |
 | `promised_date_source` | Optional URL specifically supporting the promised date, if provided by the lead. |
+| `actual_date_source` | Optional URL specifically supporting the **actual** first-output date. Use it when `status_source` proves the plant is running today but does not say when it started — a 2025 earnings release cannot date a 2021 first coil. Leave it out when `status_source` carries both facts. |
 
 ## Date interpretation — the `*_raw` → token → `*_dt` chain, and how lag/slip are standardized
 
@@ -68,7 +69,6 @@ you supply the **first two**:
    canonical shape.
 3. **`*_dt` — the resolved ISO date**, computed by the pipeline from the token (below).
 
-If you omit a `*_raw`, the pipeline falls back to storing the token as the raw — so always
 If you omit a `*_raw`, the pipeline falls back to storing the token as the raw — so always
 provide the real verbatim quote when you can; that is the whole point of this field.
 
@@ -149,7 +149,8 @@ tier to `P`. Example shape:
   "promise_source": "https://…",
   "status_source": "https://…",
   "flag": "promise_source 403s to WebFetch; read via web.archive.org snapshot",
-  "promised_date_source": "https://…"
+  "promised_date_source": "https://…",
+  "actual_date_source": "https://…"
 }
 ```
 

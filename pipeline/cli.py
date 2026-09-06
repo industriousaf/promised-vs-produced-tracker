@@ -43,7 +43,7 @@ from pipeline.db import (  # noqa: E402
     DEFAULT_DB, TABLES, connect, db_path, init_db, table_counts,
 )
 from pipeline import models, quality  # noqa: E402
-from pipeline.dates import enrich as enrich_dates  # noqa: E402
+from pipeline.dates import enrich as enrich_dates, lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
@@ -633,6 +633,41 @@ def cmd_screen_remove(conn, args):
           f" and {gone['checks']} check(s)")
 
 
+def cmd_screen_date(conn, args):
+    """Record the first-output date for one Screen row -- or that none was found.
+
+    The backfill's only writer. It changes the actual-side date cells and
+    nothing else, which is the whole reason it exists rather than reusing
+    `screen-add --replace`: that takes the entire row, and a row here is
+    already right everywhere except one cell.
+    """
+    if bool(args.unresolved) == bool(args.date):
+        raise SystemExit(
+            "screen-date records one of two outcomes: a date that was found "
+            "(--date with --source), or that none exists (--unresolved REASON). "
+            "Give exactly one."
+        )
+    if args.date and not args.source:
+        raise SystemExit("--date needs --source: a date with no citation is a guess.")
+    try:
+        if args.unresolved:
+            r = screen.mark_first_output_unresolved(conn, args.id, args.unresolved)
+            print(f"screen #{r['id']} ({r['project']}): recorded as unresolved -- "
+                  f"{screen.UNRESOLVED_MARKER}")
+            return
+        r = screen.set_first_output(conn, args.id, date=args.date, source=args.source,
+                                    raw=args.raw, note=args.note, force=args.force)
+    except screen.DateOverwriteBlocked as e:
+        raise SystemExit(f"refused: {e}")
+    except ValueError as e:
+        raise SystemExit(str(e))
+    b, a = r["before"], r["after"]
+    print(f"screen #{r['id']} ({r['project']})")
+    print(f"  actual_first_output  {b['actual_first_output']!r} -> {a['actual_first_output']!r}")
+    print(f"  lag_years            {lag_label(b['lag_years'])} -> {lag_label(a['lag_years'])}")
+    print(f"  slip_years           {lag_label(b['slip_years'])} -> {lag_label(a['slip_years'])}")
+
+
 def cmd_quality(conn, args):
     """Five measures of whether this corpus can carry the claim.
 
@@ -1099,7 +1134,7 @@ def _epilog(prog: str) -> str:
     return f"""\
 {_H}the three stages{_H}
   SOURCE   the two links, collected           AI or human
-  SCREEN   the 17-column row and a check      AI or human, then the checker
+  SCREEN   the 18-column row and a check      AI or human, then the checker
   VERIFY   the published row                  human only
 
 {_H}examples{_H}  (written as `{ENTRY}`; the `-m` form takes the same arguments)
@@ -1194,7 +1229,7 @@ def _epilog(prog: str) -> str:
 {_H}further reading{_H}
   docs/cli.md             every command in one list, the module map, and a
                           walkthrough on a copy of the database
-  docs/schema.md          the five tables, the 17 columns, and the date handling
+  docs/schema.md          the five tables, the 18 columns, and the date handling
   docs/collecting.md      every knob the collection loops take
   docs/verify_methods.md  what to look for before publishing a row
 
@@ -1216,7 +1251,7 @@ def _command_examples() -> dict:
   source_collected    SOURCE  one lead: the two source links, an optional
                               date link, a summary, and how it was found.
                               No figures yet.
-  screen_extracted    SCREEN  one extracted project row: the 17 columns,
+  screen_extracted    SCREEN  one extracted project row: the 18 columns,
                               plus each date's resolved _dt and verbatim
                               _raw partner. Always tier P.
   screen_check        SCREEN  one checker run over one row above: FAIL,
@@ -1590,6 +1625,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--yes", action="store_true", required=True,
                    help="required: this deletes a row, and there is no undo")
     s.set_defaults(fn=cmd_screen_remove)
+
+    s = sub.add_parser("screen-date",
+                       help="record the actual first-output date on a Screen row")
+    s.add_argument("--id", type=int, required=True, help="the screen_extracted id")
+    s.add_argument("--date", help="the normalized token, e.g. 2021-12 or 2022-Q3")
+    s.add_argument("--source", help="URL that states that date (actual_date_source)")
+    s.add_argument("--raw", help="the verbatim sentence the date was read from")
+    s.add_argument("--note", help="anything else worth recording in flag")
+    s.add_argument("--unresolved", metavar="REASON",
+                   help="no dated source exists: record that it was searched for")
+    s.add_argument("--force", action="store_true",
+                   help="overwrite a date the row already has (it is probably wrong)")
+    s.set_defaults(fn=cmd_screen_date)
 
     s = sub.add_parser("quality",
                        help="five measures of whether the corpus can carry the claim")

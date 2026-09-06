@@ -16,8 +16,9 @@ Design notes
   admissible but not yet publishable (a verified tier with no inline sources, or
   an open/unresolved flag). ERRORs fail the run; WARNs fail only under --strict.
 - The schema mirrors promised_vs_produced_v0_out.csv (the enriched/"screen"
-  shape with provenance columns). The four provenance columns are OPTIONAL as
-  columns, but their absence downgrades what verifiability the checker can prove.
+  shape with provenance columns), plus `actual_date_source`. The five provenance
+  columns are OPTIONAL as columns, but their absence downgrades what
+  verifiability the checker can prove.
 
 Usage
 -----
@@ -63,11 +64,20 @@ REQUIRED_COLUMNS = [
 
 # Provenance columns (the enriched "screen" shape). Optional as columns, but a
 # verified tier that lacks them can only ever be trusted on faith.
+#
+# The two `*_date_source` columns exist because one URL often cannot carry two
+# facts. `promise_source` says a promise was made; `promised_date_source` says
+# when it was for. `status_source` says the plant runs today; `actual_date_source`
+# says when it first produced. Twenty-two of the first 112 rows needed exactly
+# that split -- a 2025 earnings release proves a mill is at volume and can never
+# also date its 2021 first coil -- and without the second column the only way to
+# record the date was to overwrite the evidence of current operation.
 PROVENANCE_COLUMNS = [
     "promise_source",
     "status_source",
     "flag",
     "promised_date_source",
+    "actual_date_source",
 ]
 
 KNOWN_COLUMNS = set(REQUIRED_COLUMNS) | set(PROVENANCE_COLUMNS)
@@ -392,7 +402,8 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
         add("verification_tier", ERROR, m)
 
     # provenance URL shape (only if the columns exist at all)
-    for col in ("promise_source", "status_source", "promised_date_source"):
+    for col in ("promise_source", "status_source",
+                "promised_date_source", "actual_date_source"):
         if has_prov[col] and (m := check_url(row.get(col, ""))):
             add(col, ERROR, m)
 

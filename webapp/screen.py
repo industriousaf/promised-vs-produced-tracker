@@ -300,6 +300,10 @@ FIELD_HINTS = {
         "only if the promised date came from a different document than "
         "promise_source. Leave empty otherwise."
     ),
+    "actual_date_source": (
+        "only if status_source proves the plant runs today but does not say "
+        "when it started. Leave empty otherwise."
+    ),
 }
 
 

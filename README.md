@@ -142,7 +142,7 @@ is the same exporter as a command; `--out-dir` works there too.
 | Stage | Holds | Who does it |
 |---|---|---|
 | **Source** | the source links and a one-line summary. No figures are recorded yet. | AI or human |
-| **Screen** | the 17-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
+| **Screen** | the 18-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
 | **Verify** | the published row. Later corrections are logged with a reason. | human only |
 
 A `FAIL` at Screen blocks promotion. A `PASS` means the row is shaped correctly
@@ -283,7 +283,7 @@ function, so the choice is only about how you would rather read the sources.
 | | Needs | Best for |
 |---|---|---|
 | `python3 scoreboard.py review` | nothing | working the queue in order. Prints each row's figures and both links, then asks about them one at a time. |
-| `python3 scoreboard.py webapp` | `pip install` | reading a row *beside* its sources in a browser, and correcting any of the 17 cells in a form. |
+| `python3 scoreboard.py webapp` | `pip install` | reading a row *beside* its sources in a browser, and correcting any of the 18 cells in a form. |
 | `verify-promote` by hand | nothing | one particular row, or a script. |
 
 The rest of this section is the third route, which is also what the other two

@@ -264,6 +264,136 @@ class TestQualityAndQueue(Base):
 
 
 # --------------------------------------------------------------------------- #
+class TestFirstOutputBackfill(Base):
+    """screen-date -- the narrow writer for the 22 produced-but-undated rows.
+
+    It exists because the only other way to change a stored row is
+    `screen-add --replace`, which takes the whole row. These rows are correct
+    everywhere except one cell, so the risk being tested is collateral damage:
+    a writer that repairs one cell and quietly moves another.
+    """
+
+    def undated(self, **over) -> int:
+        """A row in the backfill population: produced, no date, -4.0."""
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(
+            actual_first_output="unconfirmed",
+            current_status="IN FULL OPERATION",
+            flag="status source confirms operation but states no first-output date.",
+            **over), source_collected_id=sid)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["lag_years"],
+                         dates.PRODUCED_UNDATED)
+        return rid
+
+    def test_a_date_produces_lag_and_slip(self):
+        rid = self.undated()
+        screen.set_first_output(self.conn, rid, date="2024-09",
+                                source="https://example.com/first-coil",
+                                raw="produced its first coil in September 2024")
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["actual_first_output"], "2024-09")
+        self.assertEqual(row["actual_date_source"], "https://example.com/first-coil")
+        self.assertEqual(row["actual_first_output_dt"], "2024-09-15")
+        self.assertGreater(row["lag_years"], 0)
+        self.assertGreater(row["slip_years"], 0)
+
+    def test_no_other_cell_moves(self):
+        """The whole argument for a narrow writer. Everything outside the
+        actual-side date cells must be byte-identical afterwards."""
+        rid = self.undated()
+        before = dict(screen.get_extracted(self.conn, rid))
+        screen.set_first_output(self.conn, rid, date="2024-09",
+                                source="https://example.com/x")
+        after = dict(screen.get_extracted(self.conn, rid))
+        expected = {"actual_first_output", "actual_first_output_raw",
+                    "actual_first_output_dt", "actual_date_source",
+                    "lag_years", "slip_years", "flag"}
+        moved = {k for k in before if before[k] != after[k]}
+        self.assertEqual(moved, expected, f"unexpected cells changed: {moved - expected}")
+
+    def test_the_old_flag_survives(self):
+        """The extractor's note explains WHY the date was missing. Overwriting
+        it to record the fix would delete the evidence the fix was needed."""
+        rid = self.undated()
+        before = screen.get_extracted(self.conn, rid)["flag"]
+        screen.set_first_output(self.conn, rid, date="2024", source="https://e.com/x")
+        after = screen.get_extracted(self.conn, rid)["flag"]
+        self.assertIn(before, after)
+        self.assertIn("Resolved", after)
+
+    def test_a_sentinel_is_not_a_date(self):
+        """Writing 'unconfirmed' here would record 'we found the date' while
+        leaving the row undated -- the exact state being repaired."""
+        rid = self.undated()
+        for token in ("unconfirmed", "pending", "tbd", "n/a"):
+            with self.assertRaises(ValueError):
+                screen.set_first_output(self.conn, rid, date=token,
+                                        source="https://example.com/x")
+
+    def test_a_date_needs_a_url(self):
+        rid = self.undated()
+        with self.assertRaises(ValueError):
+            screen.set_first_output(self.conn, rid, date="2024",
+                                    source="the company press release")
+        with self.assertRaises(ValueError):
+            screen.set_first_output(self.conn, rid, date="2024", source="")
+
+    def test_an_existing_date_is_protected(self):
+        """Every row in the population is undated, so landing on a dated one
+        means the id is wrong -- and the stored date is real research data."""
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(actual_first_output="2023-05"),
+                                      source_collected_id=sid)
+        with self.assertRaises(screen.DateOverwriteBlocked):
+            screen.set_first_output(self.conn, rid, date="2024",
+                                    source="https://example.com/x")
+        self.assertEqual(screen.get_extracted(self.conn, rid)["actual_first_output"],
+                         "2023-05")
+        screen.set_first_output(self.conn, rid, date="2024",
+                                source="https://example.com/x", force=True)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["actual_first_output"],
+                         "2024")
+
+    def test_unresolved_leaves_the_dates_alone(self):
+        rid = self.undated()
+        screen.mark_first_output_unresolved(self.conn, rid, "searched 2022-2024, nothing dates it")
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["actual_first_output"], "unconfirmed")
+        self.assertEqual(row["lag_years"], dates.PRODUCED_UNDATED)
+        self.assertIn(screen.UNRESOLVED_MARKER, row["flag"])
+
+    def test_the_queue_drops_what_is_done(self):
+        """Both exits must remove a row from the queue, or the loop pays for
+        the same dead end on every run. Only RETRY_UNRESOLVED brings it back."""
+        resolved = self.undated(project="Resolved Fab")
+        searched = self.undated(project="Searched Fab")
+        untouched = self.undated(project="Untouched Fab")
+
+        screen.set_first_output(self.conn, resolved, date="2024",
+                                source="https://example.com/x")
+        screen.mark_first_output_unresolved(self.conn, searched, "nothing dates it")
+
+        ids = [r["id"] for r in screen.undated_produced(self.conn)]
+        self.assertEqual(ids, [untouched])
+        with_searched = [r["id"] for r in screen.undated_produced(self.conn,
+                                                                 include_searched=True)]
+        self.assertCountEqual(with_searched, [searched, untouched])
+
+    def test_the_new_column_is_provenance_and_url_checked(self):
+        """It joined the v0 shape rather than sitting outside it, so the
+        checker must hold it to the same rule as the other source columns."""
+        self.assertIn("actual_date_source", sc.PROVENANCE_COLUMNS)
+        self.assertIn("actual_date_source", sc.V0_COLUMNS)
+        bad = sc.check_row(a_row(actual_date_source="not a url"))
+        self.assertEqual(bad["result_status"], "FAIL")
+        ok = sc.check_row(a_row(actual_date_source="https://example.com/x"))
+        self.assertNotEqual(ok["result_status"], "FAIL")
+        # Empty stays legal: 90 of the 112 rows never need it.
+        blank = sc.check_row(a_row(actual_date_source=""))
+        self.assertNotEqual(blank["result_status"], "FAIL")
+
+
+# --------------------------------------------------------------------------- #
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 

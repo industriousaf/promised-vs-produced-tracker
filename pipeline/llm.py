@@ -205,7 +205,7 @@ def render_source_prompt(
 def render_screen_prompt(lead: dict) -> str:
     """The full Screen pt-1 operating prompt for a specific Source lead.
 
-    Paste into Claude Code; it opens the lead's links, extracts the 17-column
+    Paste into Claude Code; it opens the lead's links, extracts the 18-column
     row, and ends with a single JSON object you ingest with `screen-add --json`
     (CLI) or the Screen "Add from JSON" box (web).
     """
@@ -437,7 +437,7 @@ def collect_source_lead(
 
 
 def extract_screen_row(lead: dict) -> dict:
-    """[API flavour] Extract one 17-column row from a Source lead."""
+    """[API flavour] Extract one 18-column row from a Source lead."""
     research = _research(render_screen_prompt(lead))
     row = _structure(
         research,

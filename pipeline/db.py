@@ -328,7 +328,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
 # DDL -- the five tables (Source / Screen x2 / Verify x2)                        #
 # --------------------------------------------------------------------------- #
 
-# The 17 v0 columns as SQL fragments, plus each date's derived *_dt and verbatim
+# The 18 v0 columns as SQL fragments, plus each date's derived *_dt and verbatim
 # *_raw partners. Capital and jobs are INTEGER; lag_years/slip_years are REAL
 # (computed floats with -1/-2 sentinels); the normalized date *tokens* stay TEXT
 # (the checker owns what they may hold). Every date cell carries a TEXT *_dt
@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS source_collected (
 );
 
 -- SCREEN pt 1 -------------------------------------------------------------- --
--- One extracted *project* row in the 17-column v0_out shape. Always tier 'P'.
+-- One extracted *project* row in the 18-column v0_out shape. Always tier 'P'.
 CREATE TABLE IF NOT EXISTS screen_extracted (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     datetime              TEXT NOT NULL,                 -- extracted-at
@@ -427,6 +427,16 @@ def init_db(conn: sqlite3.Connection) -> None:
     No-ops on a legacy-vocabulary database: running the DDL there would add five
     empty Source/Screen/Verify tables alongside the Bronze/Silver/Gold ones,
     quietly changing a file we only ever read."""
+    if READ_ONLY:
+        # $SCOREBOARD_READONLY=1 means this process may not write, and `main()`
+        # calls this on EVERY command -- so without this line the whole read-only
+        # mode stops working the moment a migration is pending. That is not
+        # hypothetical: adding `actual_date_source` put every existing database
+        # one ALTER behind, and `status` under READ_ONLY went from working to
+        # refusing. A read-only session has nothing to migrate for; the first
+        # ordinary command afterwards does the migration and this never fires
+        # again.
+        return
     names = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'")}
     if "bronze_collected" in names and "source_collected" not in names:
@@ -434,7 +444,11 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     # Both extracted/verified tables carry the derived *_dt and verbatim *_raw
     # date partners; add them to any pre-existing table that lacks them.
-    date_partner_cols = list(DERIVED_DATE_COLUMNS) + list(RAW_DATE_COLUMNS)
+    # `actual_date_source` joins them here rather than in the DDL alone, because
+    # it was added to the v0 shape after 112 rows already existed -- the DDL
+    # covers a new database, this covers every one already on disk.
+    date_partner_cols = (list(DERIVED_DATE_COLUMNS) + list(RAW_DATE_COLUMNS)
+                         + ["actual_date_source"])
     for table in ("screen_extracted", "verify_verified"):
         _ensure_columns(conn, table, date_partner_cols)
     # Source gained a provenance column (which entry path collected the lead);

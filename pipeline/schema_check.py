@@ -33,7 +33,7 @@ _spec.loader.exec_module(pvp_schema)
 
 # Re-export the pieces the rest of the package needs from the ONE source of truth.
 REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 13 core columns
-PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 4 provenance columns
+PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 5 provenance columns
 ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
 
@@ -54,9 +54,10 @@ SECTORS = pvp_schema.SECTORS
 all_sectors = pvp_schema.all_sectors
 register_sector = pvp_schema.register_sector
 
-# The full 17-column "v0_out" shape, in CSV-header order. REQUIRED (…, notes)
-# then PROVENANCE (promise_source, status_source, flag, promised_date_source)
-# reproduces the header of promised_vs_produced_v0_out.csv exactly.
+# The full 18-column "v0_out" shape, in CSV-header order. REQUIRED (…, notes)
+# then PROVENANCE (promise_source, status_source, flag, promised_date_source,
+# actual_date_source) reproduces the header of promised_vs_produced_v0_out.csv
+# plus the actual-side date source that file never had.
 V0_COLUMNS: list[str] = list(REQUIRED_COLUMNS) + list(PROVENANCE_COLUMNS)
 
 # The two columns stored as integers in SQL.
@@ -83,7 +84,7 @@ DERIVED_DATE_COLUMNS = [
 # *_dt, giving a full raw -> token -> dt provenance chain per date. The canonical
 # checker does NOT validate these (they are free verbatim text); they exist for
 # audit and reproducibility. Like the *_dt columns, they are pipeline-stage
-# additions and are NOT part of the 17-column v0_out shape.
+# additions and are NOT part of the 18-column v0_out shape.
 RAW_DATE_COLUMNS = [
     "announced_raw",
     "promised_first_output_raw",
@@ -94,7 +95,7 @@ RAW_DATE_COLUMNS = [
 def check_row(row: dict) -> dict:
     """Run the canonical checker against one extracted row.
 
-    `row` is a mapping of the 17 v0 columns to values (missing keys are treated
+    `row` is a mapping of the 18 v0 columns to values (missing keys are treated
     as empty). Returns the persisted `screen_check` shape:
 
         {
