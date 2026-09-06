@@ -1,3 +1,5 @@
 id,datetime,verify_verified_id,edit_description
 1,2026-09-05T23:43:54Z,10,"""Commercial production to begin 1H 2025 with annual capacity of 300,000 units"" found in original announcement."
 2,2026-09-06T00:06:03Z,18,"""Rivian plans to begin production in 2024 at..."" meaning that it was originally meant for 2024."
+3,2026-09-06T14:55:26Z,21,https://www.biospace.com/press-releases/fujifilm-biotechnologies-selected-in-fda-precheck-pilot-program-to-advance-u-s-drug-manufacturing says not entirely finished but is an implication that active production is happening to some extent.
+4,2026-09-06T15:24:26Z,25,"https://www.wpr.org/news/eli-lilly-company-announce-expansion-kenosha-county-manufacturing-facility ---- ""A spokesperson for the company said they plan to start producing drugs at the expanded facility in 2028."
