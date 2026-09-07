@@ -81,6 +81,50 @@ Your job is only to extract each date's **verbatim `*_raw`** and its **clean tok
 accurately (and surface any date discrepancy in `flag`). Don't compute or supply lag/slip
 or the `*_dt` cells yourself — if you do, they're overwritten.
 
+## When the two sources do not date first output
+
+This is the one place you go **beyond the lead's links**, and only for one cell.
+
+About one row in five comes out of this stage with `actual_first_output = unconfirmed`:
+the sources prove the plant is running — `IN FULL OPERATION`, `PRODUCING`, `AT VOLUME` —
+and neither of them says *when* it started. That is not your mistake. It is one URL being
+asked to carry two facts: a Q4-2025 earnings release proves a mill is at volume and can
+never also date its 2021 first coil.
+
+So when, and only when, the cited sources establish that the plant **has produced** but
+give no date for it: **search for a third source that dates it, and cite that source in
+`actual_date_source`.** Take exactly one of three exits.
+
+**(a) You found a dated source.** Put the token in `actual_first_output`, the verbatim
+sentence in `actual_first_output_raw`, and the URL in `actual_date_source`. The phrasings
+that actually date first output: *first coil*, *first slab*, *first vehicle*, *first
+cell*, *first module*, *start of production*, *SOP*, *began commercial production*,
+*rolled off the line*.
+
+**(b) You searched and no source dates it.** Leave `actual_first_output = unconfirmed`
+and say in `flag` what you searched and what you found instead. This is a good outcome —
+it records that someone looked, which is a different fact from nobody having looked.
+
+**(c) The question is wrong for this row.** Some plants never produced the thing they
+promised: the promised product was cancelled and the site makes something else, a
+mothballed mill was restarted rather than started, or the "plant" is an expansion of a
+line that was already running. Leave `unconfirmed` and say **which** of those it is in
+`flag`. Picking a date silently is worse than leaving it open.
+
+Three traps, each of which has caught a real row:
+
+- **A later product line is not first output.** A plant that began building one model in
+  2021 and another in 2026 has a first output of 2021, and a source dating only the
+  second is exit (b).
+- **Opening is not production.** "Opened", "completed", "commissioned", "began hiring"
+  and "slated to produce" are not first output.
+- **Restart vs. expansion.** If the promise was to restart an idled line, that restart's
+  first output IS the answer. If the promise added capacity to a line already running,
+  it is exit (c).
+
+Everything else on the row still comes from the lead's own sources. Do **not** search for
+capital, jobs, the announcement date, or the promised date.
+
 ## The size floor still applies
 
 A row is out of scope unless `promised_capital_usd ≥ 100,000,000` ($100M) **OR**
@@ -88,6 +132,12 @@ A row is out of scope unless `promised_capital_usd ≥ 100,000,000` ($100M) **OR
 below **both**). Leads from Source should already meet this; if what you extract clears
 neither floor, put that in `flag` — the row will fail the check. (Apply the same
 **direct-jobs** rule as `promised_jobs` above when judging the 200 floor.)
+
+**Either figure alone settles it, so leave the other empty if no source states it.** A
+project with 500 promised jobs is in scope whether or not anyone published a dollar
+figure, and the checker now reads it that way. Never reach for a number the sources do
+not give in order to fill the cell — an empty `promised_capital_usd` is a fact about the
+reporting, and an invented one is a defect in the data.
 
 ## Re-announcement discipline (one site = one project)
 
@@ -118,7 +168,10 @@ just recorded:
 ## Principles
 
 - **Extract, don't infer.** Record what the sources state. Don't fill gaps with outside
-  knowledge or characterize outcomes beyond what's cited.
+  knowledge or characterize outcomes beyond what's cited. Searching for a first-output
+  date (above) is not an exception to this: you are finding a source and citing it, not
+  supplying the date yourself. A date you cannot cite in `actual_date_source` does not
+  go in the row.
 - **Prefer honest over complete.** Being explicit about what is shaky (via `flag`) is worth
   more than a row that looks finished.
 

@@ -7,7 +7,10 @@ You are running as a single Claude Code call. You have been shown
 `python3 -m pipeline.cli ...`.
 
 **You must use web fetch / scraping** to read the lead's links — extract only what
-the sources actually state, never from in-model knowledge.
+the sources actually state, never from in-model knowledge. The printed prompt names one
+narrow exception (`actual_first_output` when the lead's own sources prove the plant
+produced but do not date it); follow it as written there, and note that it is still a
+rule about *citing a source you found*, not about supplying a date yourself.
 
 **You must run the real pipeline code** — Screen is entered and checked only via the
 existing `screen-add` and `screen-check` commands. Do not invent scripts, and do not
@@ -61,6 +64,10 @@ you name the candidate in `flag` — never a sector name you coined, never an ed
 
 1. `web_fetch` the lead's `promise_source` / `status_source` (and
    `promised_date_source`, if present) and read them.
+   If between them they establish that the plant **has produced** but neither gives a
+   date for it, follow the printed prompt's "When the two sources do not date first
+   output" section — search for a source that dates it and cite that in
+   `actual_date_source`. That section is the whole rule, including when NOT to.
 2. Produce the one JSON row in the shape the printed prompt specifies — each date as
    both a normalized **token** and its verbatim **`*_raw`** partner; digits only for
    `promised_capital_usd` / `promised_jobs`; surface any problem in `flag`. A clean

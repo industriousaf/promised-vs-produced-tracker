@@ -498,6 +498,46 @@ class TestSizeFloor(Base):
 
 
 # --------------------------------------------------------------------------- #
+class TestScreenPromptContract(unittest.TestCase):
+    """The rendered Screen prompt must still carry the rules a row depends on.
+
+    These are not tests of prose. Each string below is load-bearing: if the
+    renderer stops including the operating prompt, or someone rewrites it
+    without the section, the failure is silent and shows up as a corpus with a
+    fifth of its rows undated -- which is exactly the state the N=100 run left
+    behind before this was folded in.
+    """
+
+    def setUp(self):
+        from pipeline import llm
+        self.prompt = llm.render_screen_prompt({
+            "id": 1, "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s",
+            "promised_date_source": None, "summary": "a test lead"})
+
+    def test_it_carries_the_first_output_search_rule(self):
+        self.assertIn("When the two sources do not date first output", self.prompt)
+        self.assertIn("actual_date_source", self.prompt)
+
+    def test_it_carries_all_three_exits(self):
+        """Finding a date, finding none, and the row where the question itself
+        is wrong. Dropping the third is how a restart or a cancelled product
+        line silently acquires a date that measures something else."""
+        for exit_text in ("You found a dated source",
+                          "no source dates it",
+                          "The question is wrong for this row"):
+            self.assertIn(exit_text, self.prompt)
+
+    def test_it_says_an_empty_capital_figure_is_legal(self):
+        """Paired with the size-floor fix: either figure alone puts a row in
+        scope, so the extractor must not reach for a number no source states."""
+        self.assertIn("Either figure alone settles it", self.prompt)
+
+    def test_the_search_is_scoped_to_one_cell(self):
+        self.assertIn("Do **not** search for", self.prompt)
+
+
+# --------------------------------------------------------------------------- #
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 
