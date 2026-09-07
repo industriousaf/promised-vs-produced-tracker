@@ -447,6 +447,57 @@ class TestFirstOutputBackfill(Base):
 
 
 # --------------------------------------------------------------------------- #
+class TestSizeFloor(Base):
+    """The inclusion rule is an OR, and the checker used to enforce an AND.
+
+    capital >= $100M OR jobs >= 200 puts a row in scope, so either figure alone
+    settles it. validate_row required BOTH cells to parse before it would look
+    at the floor, so a project clearly over the jobs line failed for want of a
+    dollar figure no source had printed. Two rows of the N=100 run went that
+    way: ES Foundry Greenwood (500 jobs) and Meyer Burger Goodyear (250).
+    """
+
+    def verdict(self, **over):
+        return sc.check_row(a_row(**over))["result_status"]
+
+    def errors(self, **over):
+        return [i for i in sc.check_row(a_row(**over))["report"] if i["level"] == "ERROR"]
+
+    def test_jobs_alone_carries_the_row(self):
+        """ES Foundry: 500 jobs, no capital figure in any source."""
+        self.assertNotEqual(
+            self.verdict(promised_capital_usd="", promised_jobs="500"), "FAIL")
+
+    def test_capital_alone_carries_the_row(self):
+        self.assertNotEqual(
+            self.verdict(promised_capital_usd="500000000", promised_jobs=""), "FAIL")
+
+    def test_a_missing_figure_is_fatal_only_when_it_would_settle_the_floor(self):
+        """Röhm (70 jobs) and SunOpta (185) are under the line with no capital
+        figure, so nothing shows them in scope -- and the error has to say that
+        rather than 'required numeric cell is empty', which named the symptom."""
+        errs = self.errors(promised_capital_usd="", promised_jobs="70")
+        self.assertTrue(errs)
+        self.assertIn("size floor cannot be established", errs[0]["message"])
+
+    def test_both_below_still_fails_on_the_inclusion_rule(self):
+        errs = self.errors(promised_capital_usd="5000000", promised_jobs="10")
+        self.assertTrue(any("inclusion rule fails" in e["message"] for e in errs))
+
+    def test_an_unreadable_figure_is_still_an_error(self):
+        """A cell holding something nobody can parse is a bad value, not a
+        missing one, and a healthy jobs count does not excuse it."""
+        errs = self.errors(promised_capital_usd="about $500 million",
+                           promised_jobs="500")
+        self.assertTrue(any(e["column"] == "promised_capital_usd" for e in errs))
+
+    def test_both_empty_names_both_cells(self):
+        cols = {e["column"] for e in self.errors(promised_capital_usd="",
+                                                 promised_jobs="")}
+        self.assertEqual(cols, {"promised_capital_usd", "promised_jobs"})
+
+
+# --------------------------------------------------------------------------- #
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 

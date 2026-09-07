@@ -357,20 +357,53 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
     if (m := check_year_month(row.get("announced", ""))):
         add("announced", ERROR, m)
 
-    # capital + jobs, then the inclusion floor
-    capital, cap_err = check_int(row.get("promised_capital_usd", ""))
-    if cap_err:
+    # capital + jobs, then the inclusion floor.
+    #
+    # The floor is an OR -- capital >= $100M OR jobs >= 200 -- so EITHER figure
+    # on its own can put a row in scope. This used to demand both cells parse
+    # before it would evaluate that OR, which made a missing figure fatal even
+    # when the other one settled the question. Two rows of the N=100 run were
+    # rejected that way: ES Foundry Greenwood (500 jobs) and Meyer Burger
+    # Goodyear (250 jobs), both clearly over the jobs floor, both failed because
+    # no source printed a dollar figure. The extractor was right to leave the
+    # cell empty; the checker was wrong to call that a defect.
+    cap_raw = str(row.get("promised_capital_usd", "") or "").strip()
+    jobs_raw = str(row.get("promised_jobs", "") or "").strip()
+    capital, cap_err = check_int(cap_raw)
+    jobs, jobs_err = check_int(jobs_raw)
+
+    # A cell that HOLDS something unreadable is always an error -- that is a bad
+    # value, not a missing one, and no other cell can excuse it.
+    if cap_raw and cap_err:
         add("promised_capital_usd", ERROR, cap_err)
-    jobs, jobs_err = check_int(row.get("promised_jobs", ""))
-    if jobs_err:
+    if jobs_raw and jobs_err:
         add("promised_jobs", ERROR, jobs_err)
-    if capital is not None and jobs is not None:
-        if capital < CAPITAL_FLOOR_USD and jobs < JOBS_FLOOR:
+
+    # An EMPTY cell is fatal only when the row cannot be shown to be in scope
+    # without it. One figure over its floor is the whole test.
+    clears = ((capital is not None and capital >= CAPITAL_FLOOR_USD)
+              or (jobs is not None and jobs >= JOBS_FLOOR))
+    if not clears:
+        if capital is not None and jobs is not None:
             add(
                 "promised_capital_usd", ERROR,
                 f"inclusion rule fails: requires capital >= ${CAPITAL_FLOOR_USD:,} "
                 f"OR jobs >= {JOBS_FLOOR:,}; got capital ${capital:,} and jobs {jobs:,}",
             )
+        else:
+            # Neither known figure clears the floor and at least one is missing,
+            # so the row may or may not qualify. Say that, on the cell that would
+            # settle it -- "required numeric cell is empty" pointed at the
+            # symptom and left the reader to work out why it mattered.
+            known = (f"capital ${capital:,}" if capital is not None else
+                     f"jobs {jobs:,}" if jobs is not None else "neither figure")
+            for col, val in (("promised_capital_usd", capital),
+                             ("promised_jobs", jobs)):
+                if val is None:
+                    add(col, ERROR,
+                        f"size floor cannot be established: needs capital >= "
+                        f"${CAPITAL_FLOOR_USD:,} OR jobs >= {JOBS_FLOOR:,}, and "
+                        f"{known} is below it with this cell empty")
 
     # first-output cells
     if (m := check_flexible_date(row.get("promised_first_output", ""))):
