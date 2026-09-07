@@ -19,7 +19,7 @@ from __future__ import annotations
 import sqlite3
 
 from pipeline.db import now_iso
-from pipeline.dates import enrich as enrich_dates
+from pipeline.dates import enrich as enrich_dates, DATE_TRIPLES
 from pipeline.schema_check import (
     V0_COLUMNS,
     INT_COLUMNS,
@@ -38,7 +38,22 @@ DERIVED_FIELDS = {"lag_years", "slip_years"} | set(DERIVED_DATE_COLUMNS)
 DATE_STRING_COLUMNS = {"announced", "promised_first_output", "actual_first_output"}
 
 # Columns a human may edit on a Verify row (identity/lineage AND derived excluded).
-EDITABLE_COLUMNS = [c for c in V0_COLUMNS if c not in DERIVED_FIELDS]
+#
+# RAW_DATE_COLUMNS is here deliberately. It used to be absent -- not by decision
+# but because this list was derived from V0_COLUMNS alone, and the *_raw cells
+# are a pipeline-stage addition that sits outside the v0 shape. The effect was
+# that a human could correct a date at the Verify gate and could NOT correct the
+# verbatim quote the date was supposedly read from. Verify #8 (TSMC Arizona Fab
+# 1) ended up reading actual_first_output = '2024-Q4' with
+# actual_first_output_raw = 'unconfirmed': the cell, its resolved date and its
+# citation all correct, and the one field claiming to be the source text saying
+# the opposite. For a corpus whose whole argument is provenance, that is the
+# worst cell to have wrong.
+EDITABLE_COLUMNS = [c for c in list(V0_COLUMNS) + list(RAW_DATE_COLUMNS)
+                    if c not in DERIVED_FIELDS]
+
+# token -> its verbatim partner, for the consistency notice in edit().
+_RAW_PARTNER = {token: raw for raw, token, _dt in DATE_TRIPLES}
 
 
 class PromotionBlocked(Exception):
@@ -145,13 +160,20 @@ def edit(
     verify_verified_id: int,
     changes: dict,
     edit_description: str,
-) -> None:
-    """Apply an edit to a Verify row AND log it, atomically.
+) -> list[str]:
+    """Apply an edit to a Verify row AND log it, atomically. Returns any notices.
 
-    `changes` maps editable v0 columns to new values. `edit_description` is the
+    `changes` maps editable columns to new values. `edit_description` is the
     provenance note. The verify_verified.datetime (last-modified) is bumped, and a
     verify_edits row is written in the same transaction -- the two always move
     together.
+
+    Returns a list of human-readable notices about the edit -- currently one per
+    date token changed without its `*_raw` partner. That case is NOT refused,
+    because both readings are legitimate: the quote may have been misread (the
+    raw was right, the token wrong) or a different source may now be in play (the
+    raw needs replacing). Only the person making the edit knows which, so the
+    command asks rather than guesses.
     """
     if not edit_description or not edit_description.strip():
         raise ValueError("edit_description is required (data provenance)")
@@ -190,6 +212,18 @@ def edit(
                 f"verification_tier on Verify must stay verified ({sorted(VERIFY_TIERS)})"
             )
 
+    # A date token that moved without its verbatim partner. Surface it here,
+    # while the person who made the change is still looking.
+    notices: list[str] = []
+    for token, raw_col in _RAW_PARTNER.items():
+        if token in clean and raw_col not in clean:
+            stored = row[raw_col] if raw_col in row.keys() else None
+            notices.append(
+                f"{token} changed to {clean[token]!r} but {raw_col} still reads "
+                f"{(stored or '(empty)')!r}. If that quote does not support the new "
+                f"value, correct it:  --set {raw_col}=\"the sentence it came from\""
+            )
+
     ts = now_iso()
     try:
         if clean:
@@ -214,6 +248,7 @@ def edit(
     except Exception:
         conn.rollback()
         raise
+    return notices
 
 
 def list_verified(conn: sqlite3.Connection) -> list[sqlite3.Row]:

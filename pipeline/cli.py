@@ -866,8 +866,10 @@ def cmd_verify_promote(conn, args):
 
 def cmd_verify_edit(conn, args):
     changes = _parse_set(args.set)
-    verify.edit(conn, args.id, changes, edit_description=args.desc)
+    notices = verify.edit(conn, args.id, changes, edit_description=args.desc)
     print(f"edited verify_verified #{args.id}; logged in verify_edits")
+    for n in notices:
+        print(f"  note: {n}")
 
 
 def cmd_verify_list(conn, args):

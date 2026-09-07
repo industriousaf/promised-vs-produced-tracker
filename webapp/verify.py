@@ -215,9 +215,14 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
         <input type="text" value="{esc(_cell(r, c))}" disabled></div>"""
         for c in DERIVED_DATE_COLUMNS
     )
+    # Editable, not disabled. These were read-only next to the derived *_dt
+    # cells, which put them in the wrong category: a *_dt is COMPUTED and must
+    # never be hand-set, while a *_raw is the quote a human is most likely to
+    # need to correct -- it is the evidence for the date sitting right above it.
+    # Locked, a corrected date left its own source text contradicting it.
     raw_display = "".join(
-        f"""<div><label>{esc(c)} <small>(verbatim source)</small></label>
-        <input type="text" value="{esc(_cell(r, c))}" disabled></div>"""
+        f"""<div><label>{esc(c)} <small>(verbatim source — edit if you change the date)</small></label>
+        <input type="text" name="{esc(c)}" value="{esc(_cell(r, c))}"></div>"""
         for c in RAW_DATE_COLUMNS
     )
     history = "".join(
@@ -261,7 +266,7 @@ async def verify_edit(verify_id: int, request: Request):
         if current is None:
             raise ValueError("no such verify row")
         changes = {}
-        for c in V0_COLUMNS:
+        for c in list(V0_COLUMNS) + list(RAW_DATE_COLUMNS):
             new = form.get(c)
             if new is None:
                 continue
@@ -272,8 +277,10 @@ async def verify_edit(verify_id: int, request: Request):
         if not changes:
             msg = "No cells changed — nothing to record."
         else:
-            verify.edit(conn, verify_id, changes, edit_description=desc)
+            notices = verify.edit(conn, verify_id, changes, edit_description=desc)
             msg = f"Saved {len(changes)} change(s) to Verify #{verify_id}."
+            if notices:
+                msg += " " + " ".join(notices)
     except Exception as e:
         msg = f"Error: {e}"
     finally:

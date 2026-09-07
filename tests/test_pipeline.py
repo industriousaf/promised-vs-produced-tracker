@@ -538,6 +538,71 @@ class TestScreenPromptContract(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+class TestVerbatimQuotesAtVerify(Base):
+    """A human at the Verify gate must be able to correct the *_raw cells.
+
+    EDITABLE_COLUMNS was derived from V0_COLUMNS alone, and the *_raw columns
+    are a pipeline-stage addition outside the v0 shape -- so they were locked,
+    not by decision but by inheritance. The result was that correcting a date
+    left the one field claiming to be its source text saying something else.
+    Verify #8 (TSMC Fab 1) read actual_first_output = '2024-Q4' with
+    actual_first_output_raw = 'unconfirmed'.
+    """
+
+    def published(self, **over) -> int:
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(
+            actual_first_output="unconfirmed",
+            actual_first_output_raw="unconfirmed",
+            current_status="IN FULL OPERATION", **over), source_collected_id=sid)
+        screen.run_check(self.conn, rid)
+        return verify.promote(self.conn, rid, verification_tier="V1",
+                              flag="Resolved: checked.")
+
+    def test_a_raw_cell_can_be_corrected(self):
+        vid = self.published()
+        verify.edit(self.conn, vid,
+                    {"actual_first_output": "2024-Q4",
+                     "actual_first_output_raw": "began high-volume production in Q4 2024"},
+                    edit_description="dated from the company's own page")
+        row = verify.get_verified(self.conn, vid)
+        self.assertEqual(row["actual_first_output"], "2024-Q4")
+        self.assertEqual(row["actual_first_output_raw"],
+                         "began high-volume production in Q4 2024")
+        self.assertEqual(row["actual_first_output_dt"], "2024-11-15")
+
+    def test_a_token_moved_without_its_quote_is_reported(self):
+        """Not refused -- both readings are legitimate. The quote may have been
+        misread (raw right, token wrong) or the source may have changed (raw
+        needs replacing), and only the editor knows which."""
+        vid = self.published()
+        notices = verify.edit(self.conn, vid, {"actual_first_output": "2024-Q4"},
+                              edit_description="dated")
+        self.assertEqual(len(notices), 1)
+        self.assertIn("actual_first_output_raw", notices[0])
+        self.assertIn("unconfirmed", notices[0])
+        # The edit still lands: this is a notice, not a veto.
+        self.assertEqual(
+            verify.get_verified(self.conn, vid)["actual_first_output"], "2024-Q4")
+
+    def test_no_notice_when_both_move_together(self):
+        vid = self.published()
+        notices = verify.edit(self.conn, vid,
+                              {"actual_first_output": "2024-Q4",
+                               "actual_first_output_raw": "production began in Q4 2024"},
+                              edit_description="dated")
+        self.assertEqual(notices, [])
+
+    def test_derived_cells_are_still_locked(self):
+        """The *_dt and lag/slip cells are COMPUTED. Opening *_raw must not have
+        opened those -- they would drift from the strings they summarise."""
+        vid = self.published()
+        for col in ("lag_years", "slip_years", "actual_first_output_dt"):
+            with self.assertRaises(ValueError):
+                verify.edit(self.conn, vid, {col: "3"}, edit_description="x")
+
+
+# --------------------------------------------------------------------------- #
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 
