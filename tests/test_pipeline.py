@@ -409,8 +409,28 @@ class TestFirstOutputBackfill(Base):
         self.assertEqual(
             [r["id"] for r in screen.undated_produced(self.conn, include_searched=True)],
             [open_row], "published rows stay out even under RETRY_UNRESOLVED")
-        self.assertEqual([r["id"] for r, _vid in screen.published_undated(self.conn)],
-                         [published])
+        pub = screen.published_undated(self.conn)
+        self.assertEqual(len(pub), 1)
+        self.assertEqual(pub[0][0]["project"], "Published Fab")
+
+    def test_a_fixed_verify_row_stops_being_reported(self):
+        """published_undated keys on the Verify row, not the Screen row it came
+        from. Verify holds a copy, so verify-edit leaves the Screen row at -4.0
+        forever -- and keying on Screen kept naming rows already fixed. TSMC
+        Fab 1 was reported as outstanding while verify #8 held a 2024-Q4 date."""
+        rid = self.undated(project="Fixed Fab")
+        screen.run_check(self.conn, rid)
+        vid = verify.promote(self.conn, rid, verification_tier="V1",
+                             flag="Resolved: checked.")
+        self.assertEqual(len(screen.published_undated(self.conn)), 1)
+
+        verify.edit(self.conn, vid, {"actual_first_output": "2024-Q4"},
+                    edit_description="dated from a source")
+        self.assertEqual(screen.published_undated(self.conn), [],
+                         "a fixed published row must drop out of the report")
+        self.assertEqual(screen.get_extracted(self.conn, rid)["lag_years"],
+                         dates.PRODUCED_UNDATED,
+                         "the Screen row stays -4.0; that is why Verify is the key")
 
     def test_the_new_column_is_provenance_and_url_checked(self):
         """It joined the v0 shape rather than sitting outside it, so the

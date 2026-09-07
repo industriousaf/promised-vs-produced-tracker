@@ -3,3 +3,5 @@ id,datetime,verify_verified_id,edit_description
 2,2026-09-06T00:06:03Z,18,"""Rivian plans to begin production in 2024 at..."" meaning that it was originally meant for 2024."
 3,2026-09-06T14:55:26Z,21,https://www.biospace.com/press-releases/fujifilm-biotechnologies-selected-in-fda-precheck-pilot-program-to-advance-u-s-drug-manufacturing says not entirely finished but is an implication that active production is happening to some extent.
 4,2026-09-06T15:24:26Z,25,"https://www.wpr.org/news/eli-lilly-company-announce-expansion-kenosha-county-manufacturing-facility ---- ""A spokesperson for the company said they plan to start producing drugs at the expanded facility in 2028."
+5,2026-09-07T15:43:11Z,8,First output dated from TSMC's own TSMC Arizona page: 'First Fab: High-volume production on N4 process technology started in Q4 2024.' The previously cited status source discussed Fab 2 only.
+6,2026-09-07T15:50:45Z,7,Searched for a dated first-output source and found none; recorded the Jan 24 - Apr 2 2022 bracket and its two primary sources. actual_first_output stays 'unconfirmed'.

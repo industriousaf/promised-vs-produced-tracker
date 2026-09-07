@@ -484,21 +484,24 @@ def list_extracted(conn: sqlite3.Connection,
 
 
 def published_undated(conn: sqlite3.Connection) -> list[tuple[sqlite3.Row, int]]:
-    """(screen row, verify id) for undated rows that have already been published.
+    """(verify row, verify id) for PUBLISHED rows that still carry no date.
 
     The backfill cannot touch these, and they are the ones that matter most:
     'unconfirmed' in `verify_verified` is on the published Scoreboard, not in a
     staging table. Returned so the run says so at the end instead of leaving
     them to be noticed.
+
+    Keyed on the Verify row's own lag_years, not the Screen row it came from.
+    Verify holds a copy, so fixing the published row through `verify-edit`
+    leaves the Screen row at -4.0 forever -- and keying on Screen meant a row
+    that had already been fixed kept being reported as outstanding. TSMC Fab 1
+    was: verify #8 carried a 2024-Q4 date and lag 4.5 while this function was
+    still naming it as work to do.
     """
-    out = []
-    for r in conn.execute(
-        "SELECT * FROM screen_extracted WHERE lag_years = ? ORDER BY id",
+    return [(r, r["id"]) for r in conn.execute(
+        "SELECT * FROM verify_verified WHERE lag_years = ? ORDER BY id",
         (PRODUCED_UNDATED,),
-    ).fetchall():
-        for vid in published_as(conn, r["id"]):
-            out.append((r, vid))
-    return out
+    ).fetchall()]
 
 
 def get_extracted(conn: sqlite3.Connection, screen_id: int) -> sqlite3.Row | None:
