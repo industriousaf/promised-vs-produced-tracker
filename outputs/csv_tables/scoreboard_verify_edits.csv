@@ -6,3 +6,5 @@ id,datetime,verify_verified_id,edit_description
 5,2026-09-07T15:43:11Z,8,First output dated from TSMC's own TSMC Arizona page: 'First Fab: High-volume production on N4 process technology started in Q4 2024.' The previously cited status source discussed Fab 2 only.
 6,2026-09-07T15:50:45Z,7,Searched for a dated first-output source and found none; recorded the Jan 24 - Apr 2 2022 bracket and its two primary sources. actual_first_output stays 'unconfirmed'.
 7,2026-09-07T16:35:58Z,8,"Verbatim quote from the cited TSMC Arizona page (actual_date_source). The raw cell was not editable when the date was set, so it still held the pre-correction 'unconfirmed'."
+8,2026-09-08T12:08:47Z,28,Flag changed from “Resolved: human-verified and promoted from screen_extracted #27” to “Resolved: human-verified and promoted from screen_extracted #27 (testing flag edit)”
+9,2026-09-08T12:16:21Z,30,"In CBS article, explained that ""with an opening scheduled for 2024""."
