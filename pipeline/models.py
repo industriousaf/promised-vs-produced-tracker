@@ -6,6 +6,12 @@ carrying a default of their own. Before it existed the same name was pinned in
 three files under two different environment variables, so "switch the model"
 meant knowing all three and remembering the odd one out.
 
+Four stages, and they are not all the same size of job. `source` and `screen`
+collect, `api` is those two over the direct API, and `agent` is the review
+screen's check against a row's own links -- one question about one cell, with a
+person waiting for the answer. That last one is deliberately the smaller model;
+see the note on AGENT below.
+
 For a single run, override without editing anything:
 
     MODEL=claude-sonnet-5 bash collect/all.sh     # every stage, this run
@@ -43,6 +49,14 @@ SCREEN = "claude-opus-4-8"
 # which needs ANTHROPIC_API_KEY and is not what the collection loops use.
 API = "claude-opus-4-8"
 
+# The agentic check on the review screen: "does the cited page actually say
+# this, and if not, where is the right answer?" Deliberately the cheaper, faster
+# model. It is run interactively, one row and a couple of cells at a time, while
+# a person waits for the answer -- and it is not deciding anything, only pointing
+# a human at a passage they then read themselves. Sonnet is the right size for
+# that; the collection stages above are not, which is why they keep Opus.
+AGENT = "claude-sonnet-5"
+
 # Reasoning effort for the loops: low | medium | high. The print-mode CLI flag
 # takes no value above `high`.
 EFFORT = "high"
@@ -71,6 +85,10 @@ def api() -> str:
     return _pick("PIPELINE_MODEL", API)
 
 
+def agent() -> str:
+    return _pick("AGENT_MODEL", AGENT)
+
+
 def effort() -> str:
     return os.getenv("EFFORT") or EFFORT
 
@@ -82,6 +100,7 @@ def in_effect() -> dict[str, tuple[str, str]]:
         ("source", "SOURCE_MODEL", SOURCE, source),
         ("screen", "SCREEN_MODEL", SCREEN, screen),
         ("api", "PIPELINE_MODEL", API, api),
+        ("agent", "AGENT_MODEL", AGENT, agent),
     ):
         if os.getenv(var):
             why = f"${var}"

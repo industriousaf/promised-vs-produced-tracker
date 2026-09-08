@@ -47,18 +47,18 @@ one. The list is **closed**: never invent a sector name to fit a project you lik
 project that would need one is either **other** or not manufacturing, and
 non-manufacturing projects are out regardless.
 
-### Prioritise $1B and above — but keep what you find below it
+### The floor is $1B capital **or** 2,000 direct jobs
 
-The Scoreboard is being made **complete at $1B first**, then lowered in later
-phases. So when choosing between candidates, prefer the larger: a $3B plant is
-worth more to this phase than a $300M one.
+The Scoreboard is being made **complete at $1B first**, and that is now the
+inclusion floor rather than a preference: a project qualifies only if the
+announcement promised **≥ $1,000,000,000 in capital** *or* **≥ 2,000 direct
+jobs**. Either one alone clears it; a project is out only if it falls below
+**both**. 
 
-This is a priority, **not a filter**. The inclusion floor is still $100M capital
-**or** 200 direct jobs. If you come across a qualifying project below $1B, collect
-it — do not discard it and do not go looking for a bigger one instead. Those rows
-cost nothing sitting in Source, and they are what makes the next phase cheap.
+Above the floor, still prefer the larger: a $12B fab is worth more to this phase
+than a $1.2B one.
 
-What you must never do is loosen the $100M / 200-job floor to reach a number. The
+What you must never do is loosen the $1B / 2,000-job floor to reach a number. The
 rule against forcing a weak result outranks both the ceiling of five and this
 preference for size.
 
@@ -71,7 +71,7 @@ preference for size.
    That renders `prompt_source_collected.md` **plus the live "do not collect these"
    lists** (published + already collected — including every lead you added earlier
    in this same call). It defines what qualifies: U.S. single facility; announced
-   capital ≥ $100M **OR** ≥ 200 direct jobs; announced Jan 2017–today; one of the
+   capital ≥ $1B **OR** ≥ 2,000 direct jobs; announced Jan 2017–today; one of the
    defined manufacturing sectors. Follow it; do not restate or weaken it.
 2. **Find ONE genuinely new qualifying project** — via `web_search` / `web_fetch`,
    not in-model knowledge — that is **not** in the refreshed lists above.

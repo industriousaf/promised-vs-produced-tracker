@@ -1148,9 +1148,9 @@ def _epilog(prog: str) -> str:
     {ENTRY} screen-list --by-capital      the review queue
     {ENTRY} screen-show --id 42           a row and its two sources
     {ENTRY} sectors-list                  the sector vocabulary
-    {ENTRY} filter --capital 1000000000   rows over $1B
+    {ENTRY} filter --capital 5000000000   rows over $5B
     {ENTRY} filter --jobs 2000 --capital 5000000000 --op OR
-    {ENTRY} filter --stage screen --jobs 1000
+    {ENTRY} filter --stage screen --jobs 5000
 
   {_H}review and publish (the human gate){_H}
     {ENTRY} screen-list --by-capital      -> marks an unverified row
@@ -1479,13 +1479,13 @@ def _command_examples() -> dict:
   goes into verify_edits with its reason. Read it back with verify-show.
 """,
         "filter": f"""{_H}examples{_H}
-  {ENTRY} filter --capital 1000000000     rows over $1B
-  {ENTRY} filter --jobs 2000              2000+ promised jobs
+  {ENTRY} filter --capital 5000000000     rows over $5B
+  {ENTRY} filter --jobs 5000              5,000+ promised jobs
   {ENTRY} filter --jobs 2000 --capital 5000000000 --op OR
-  {ENTRY} filter --stage screen --capital 500000000
+  {ENTRY} filter --stage screen --capital 10000000000
 
   These flags query rows already in the database. What qualifies a project
-  in the first place ($100M or 200 jobs) is set in schema.py.
+  in the first place ($1B or 2,000 jobs) is set in schema.py.
 
   --op AND (the default) requires both thresholds; OR requires either.
   --stage screen queries rows before publication.
@@ -1650,7 +1650,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("models",
                        help="which model each stage runs, and what decided it")
     s.add_argument("--for", dest="For", choices=("source", "screen", "api",
-                                                 "SOURCE", "SCREEN", "API"),
+                                                 "agent", "SOURCE", "SCREEN",
+                                                 "API", "AGENT"),
                    help="print just this stage's model, for the shell loops")
     s.add_argument("--effort", action="store_true",
                    help="with --for, print the reasoning effort instead")

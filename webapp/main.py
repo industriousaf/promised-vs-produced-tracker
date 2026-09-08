@@ -44,7 +44,13 @@ from pipeline.db import (  # noqa: E402
     connect, init_db, is_read_only, set_active_db, table_counts,
 )
 
-from webapp import screen as screen_pages, source as source_pages, verify as verify_pages  # noqa: E402
+from webapp import (  # noqa: E402
+    agent as agent_pane,
+    evidence as evidence_pane,
+    screen as screen_pages,
+    source as source_pages,
+    verify as verify_pages,
+)
 from webapp.shared import _conn, _page, esc  # noqa: E402
 
 app = FastAPI(title="Promised vs. Produced — Source → Verify Pipeline")
@@ -215,3 +221,10 @@ carried no signal. Same numbers in a terminal:
 app.include_router(source_pages.router)
 app.include_router(screen_pages.router)
 app.include_router(verify_pages.router)
+
+# The two review panes. Not stages: they render no rows of their own and write
+# nothing. Each serves a standalone page that the review screen embeds in an
+# iframe, so a slow fetch or a half-minute model call never blocks the form the
+# reviewer is typing into.
+app.include_router(evidence_pane.router)
+app.include_router(agent_pane.router)

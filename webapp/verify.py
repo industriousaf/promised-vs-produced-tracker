@@ -27,6 +27,8 @@ from pipeline.db import (  # noqa: E402
 )
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
+    CAPITAL_FLOOR_USD,
+    JOBS_FLOOR,
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
@@ -35,9 +37,11 @@ from pipeline.schema_check import (  # noqa: E402
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 
+from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
     _cell, _conn, _db_bar, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
+    flag_only_reason,
 )
 
 router = APIRouter()
@@ -123,14 +127,15 @@ def verify_page(
     filter_panel = f"""
 <h2>Explore-filter — capital / jobs thresholds</h2>
 <div class="card">
-  <p>Probe thresholds beyond the fixed inclusion floor ($100M <b>OR</b> 200 jobs)
-  without changing the gate. Runs a plain SQL query
+  <p>Probe thresholds beyond the fixed inclusion floor
+  (${CAPITAL_FLOOR_USD:,} <b>OR</b> {JOBS_FLOOR:,} jobs) without changing the gate.
+  Runs a plain SQL query
   <code>WHERE promised_capital_usd ≥ ? {{AND|OR}} promised_jobs ≥ ?</code>.
-  Try <code>$1B OR 2000 jobs</code>, or <code>$500M AND 400 jobs</code>.</p>
+  Try <code>$5B OR 5000 jobs</code>, or <code>$5B AND 5000 jobs</code>.</p>
   <form method="get" action="/verify">
     <div class="grid2">
-      <div><label>min capital (USD)</label><input type="text" name="fcap" value="{esc(fcap or '')}" placeholder="1000000000"></div>
-      <div><label>min jobs</label><input type="text" name="fjobs" value="{esc(fjobs or '')}" placeholder="2000"></div>
+      <div><label>min capital (USD)</label><input type="text" name="fcap" value="{esc(fcap or '')}" placeholder="5000000000"></div>
+      <div><label>min jobs</label><input type="text" name="fjobs" value="{esc(fjobs or '')}" placeholder="5000"></div>
       <div><label>combine</label>
         <select name="fop"><option{_sel(combiner, 'AND')}>AND</option><option{_sel(combiner, 'OR')}>OR</option></select></div>
       <div><label>stage</label>
@@ -230,31 +235,49 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
         for e in edits
     ) or "<tr><td colspan='2'><small>no edits yet</small></td></tr>"
 
+    # Same review layout as the Screen inspect page: a published row is edited
+    # for exactly the reason an unpublished one is corrected -- a source says
+    # something other than what the cell holds -- so the source belongs on screen
+    # in both places rather than in another tab in one of them.
     body = f"""
 <h2>Verify #{r['id']} — {esc(r['project'])}</h2>
 <p><small>created {esc(r['created_at'])} · last-modified {esc(r['datetime'])} ·
 from screen_extracted #{esc(r['screen_extracted_id'])}</small></p>
 
-<div class="card"><form method="post" action="/verify/{r['id']}/edit">
-  <p>Edit any cell below. Only changed cells are written; every save is recorded
-  in <code>verify_edits</code> with the reason you give. <b>lag_years / slip_years
-  and the <code>*_dt</code> columns are derived</b> from the date strings — edit
-  <code>announced</code> / <code>promised_first_output</code> /
-  <code>actual_first_output</code> and they recompute automatically.</p>
-  <div class="grid2">{fields}</div>
-  <p><small>Verbatim source text (read-only) — the exact page text each date came from:</small></p>
-  <div class="grid2">{raw_display}</div>
-  <p><small>Derived DATETIME interpretations (read-only):</small></p>
-  <div class="grid2">{dt_display}</div>
-  <label>Reason for this edit * (goes to verify_edits)</label>
-  <input type="text" name="edit_description" required>
-  <p><button class="primary" type="submit">Save edit</button></p>
-</form></div>
+<div class="review">
+  <div class="doccol">
+    {evidence.pane_html("verify", r["id"], r)}
+  </div>
+  <div class="formcol">
+    <div class="card"><form method="post" action="/verify/{r['id']}/edit">
+      <p>Edit any cell below. Only changed cells are written; every save is
+      recorded in <code>verify_edits</code> with the reason you give.
+      <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
+      from the date strings — edit <code>announced</code> /
+      <code>promised_first_output</code> / <code>actual_first_output</code> and
+      they recompute automatically.</p>
+      <div class="grid2">{fields}</div>
+      <p><small>Verbatim source text — the exact page text each date came from.
+      This is what the pane searches for first:</small></p>
+      <div class="grid2">{raw_display}</div>
+      <p><small>Derived DATETIME interpretations (read-only):</small></p>
+      <div class="grid2">{dt_display}</div>
+      <label>Reason for this edit (goes to <code>verify_edits</code>) — required,
+      except when <code>flag</code> is the only cell you changed: that one writes
+      its own reason.</label>
+      <input type="text" name="edit_description">
+      <p><button class="primary" type="submit">Save edit</button></p>
+    </form></div>
+  </div>
+</div>
+
+<h2>Ask a model to check it against the links</h2>
+<div class="card">{agent_pane.picker_html("verify", r["id"], r)}</div>
 
 <h2>Edit history</h2>
 <table><tr><th>when</th><th>edit_description</th></tr>{history}</table>
 """
-    return _page(f"Verify #{verify_id}", body, msg)
+    return _page(f"Verify #{verify_id}", body, msg, wide=True)
 
 
 @router.post("/verify/{verify_id}/edit")
@@ -273,9 +296,17 @@ async def verify_edit(verify_id: int, request: Request):
             old = "" if current[c] is None else str(current[c])
             if new != old:
                 changes[c] = new
-        desc = form.get("edit_description", "")
+        desc = (form.get("edit_description") or "").strip()
+        # A change to `flag` and nothing else is its own reason -- see
+        # flag_only_reason(). Any other cell, alone or alongside the flag, still
+        # has to be explained, and verify.edit refuses a blank description.
+        if changes and not desc:
+            desc = flag_only_reason(changes, current["flag"]) or ""
         if not changes:
             msg = "No cells changed — nothing to record."
+        elif not desc:
+            msg = ("You changed " + ", ".join(sorted(changes))
+                   + " — enter a reason before saving; it goes to verify_edits.")
         else:
             notices = verify.edit(conn, verify_id, changes, edit_description=desc)
             msg = f"Saved {len(changes)} change(s) to Verify #{verify_id}."

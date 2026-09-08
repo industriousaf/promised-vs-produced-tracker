@@ -450,12 +450,21 @@ class TestFirstOutputBackfill(Base):
 class TestSizeFloor(Base):
     """The inclusion rule is an OR, and the checker used to enforce an AND.
 
-    capital >= $100M OR jobs >= 200 puts a row in scope, so either figure alone
-    settles it. validate_row required BOTH cells to parse before it would look
-    at the floor, so a project clearly over the jobs line failed for want of a
-    dollar figure no source had printed. Two rows of the N=100 run went that
-    way: ES Foundry Greenwood (500 jobs) and Meyer Burger Goodyear (250).
+    capital >= the capital floor OR jobs >= the jobs floor puts a row in scope,
+    so either figure alone settles it. validate_row required BOTH cells to parse
+    before it would look at the floor, so a project clearly over the jobs line
+    failed for want of a dollar figure no source had printed. Two rows of the
+    N=100 run went that way: ES Foundry Greenwood and Meyer Burger Goodyear.
+
+    Every figure below is derived from CAPITAL_FLOOR_USD / JOBS_FLOOR rather
+    than written out, because these are tests of the OR, not of where the line
+    sits. Hard-coded amounts made the whole class fail the day the floor was
+    raised from $100M/200 to $1B/2,000 — the rule under test had not changed at
+    all.
     """
+
+    CAP = sc.pvp_schema.CAPITAL_FLOOR_USD
+    JOBS = sc.pvp_schema.JOBS_FLOOR
 
     def verdict(self, **over):
         return sc.check_row(a_row(**over))["result_status"]
@@ -464,32 +473,47 @@ class TestSizeFloor(Base):
         return [i for i in sc.check_row(a_row(**over))["report"] if i["level"] == "ERROR"]
 
     def test_jobs_alone_carries_the_row(self):
-        """ES Foundry: 500 jobs, no capital figure in any source."""
+        """ES Foundry, in the shape of the incident: comfortably over the jobs
+        floor, and no capital figure in any source."""
         self.assertNotEqual(
-            self.verdict(promised_capital_usd="", promised_jobs="500"), "FAIL")
+            self.verdict(promised_capital_usd="",
+                         promised_jobs=str(self.JOBS * 2)), "FAIL")
 
     def test_capital_alone_carries_the_row(self):
         self.assertNotEqual(
-            self.verdict(promised_capital_usd="500000000", promised_jobs=""), "FAIL")
+            self.verdict(promised_capital_usd=str(self.CAP * 2),
+                         promised_jobs=""), "FAIL")
 
     def test_a_missing_figure_is_fatal_only_when_it_would_settle_the_floor(self):
-        """Röhm (70 jobs) and SunOpta (185) are under the line with no capital
-        figure, so nothing shows them in scope -- and the error has to say that
-        rather than 'required numeric cell is empty', which named the symptom."""
-        errs = self.errors(promised_capital_usd="", promised_jobs="70")
+        """Röhm and SunOpta are under the line with no capital figure, so
+        nothing shows them in scope -- and the error has to say that rather than
+        'required numeric cell is empty', which named the symptom."""
+        errs = self.errors(promised_capital_usd="",
+                           promised_jobs=str(self.JOBS // 4))
         self.assertTrue(errs)
         self.assertIn("size floor cannot be established", errs[0]["message"])
 
     def test_both_below_still_fails_on_the_inclusion_rule(self):
-        errs = self.errors(promised_capital_usd="5000000", promised_jobs="10")
+        errs = self.errors(promised_capital_usd=str(self.CAP // 100),
+                           promised_jobs=str(self.JOBS // 100))
         self.assertTrue(any("inclusion rule fails" in e["message"] for e in errs))
 
     def test_an_unreadable_figure_is_still_an_error(self):
         """A cell holding something nobody can parse is a bad value, not a
         missing one, and a healthy jobs count does not excuse it."""
         errs = self.errors(promised_capital_usd="about $500 million",
-                           promised_jobs="500")
+                           promised_jobs=str(self.JOBS * 2))
         self.assertTrue(any(e["column"] == "promised_capital_usd" for e in errs))
+
+    def test_exactly_at_the_floor_is_in_scope(self):
+        """The rule reads '>=', not '>'. Worth pinning: a floor written as a
+        constant is easy to move, and easy to move to a '>' while moving it."""
+        self.assertNotEqual(
+            self.verdict(promised_capital_usd=str(self.CAP),
+                         promised_jobs=""), "FAIL")
+        self.assertNotEqual(
+            self.verdict(promised_capital_usd="",
+                         promised_jobs=str(self.JOBS)), "FAIL")
 
     def test_both_empty_names_both_cells(self):
         cols = {e["column"] for e in self.errors(promised_capital_usd="",

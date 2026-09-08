@@ -43,30 +43,16 @@ from pathlib import Path
 _SCOREBOARD_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCOREBOARD_ROOT))
 
-# config.env sits in the scoreboard directory, beside scoreboard.py, because that is
-# where every command is run from. It is gitignored.
-_CONFIG_ENV_PATH = _SCOREBOARD_ROOT / "config.env"
+import pipeline  # noqa: E402  (must follow the sys.path line above)
 
-
-def _load_config_env(path: Path = _CONFIG_ENV_PATH) -> None:
-    """Load simple KEY=VALUE lines from `config.env` into os.environ.
-
-    Stdlib-only (no python-dotenv dependency -- the rest of the pipeline runs on
-    the standard library alone, see requirements.txt). Uses `setdefault` so a real
-    exported shell variable always wins over the file; comments (#) and blank
-    lines are skipped, and surrounding quotes on the value are stripped.
-    """
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            os.environ.setdefault(key, value)
+# config.env sits in the scoreboard directory, beside scoreboard.py, because that
+# is where every command is run from. It is gitignored, and `import pipeline`
+# above has already loaded it -- this file used to own that loader, back when it
+# was the only thing that needed a key. These two names are kept because
+# --dry-run reports the path it looked in, and the call below is harmless
+# (setdefault) and says out loud that the settings are in place.
+_CONFIG_ENV_PATH = pipeline.CONFIG_ENV
+_load_config_env = pipeline.load_config_env
 
 # The pipeline prints operating prompts containing non-ASCII (>=, ~); the Windows
 # console defaults to cp1252, so force UTF-8 like cli.py does.

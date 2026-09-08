@@ -71,8 +71,8 @@ python3 tools/gather.py --n-source 10 --n-screen 3    # 10 leads, extract the fi
 ```
 
 Needs `ANTHROPIC_API_KEY`, either exported or in a `config.env` beside
-`scoreboard.py` (a real shell variable wins; the file is gitignored). It stops at
-Screen, like everything else that is not a person.
+`scoreboard.py` — see [Where the API key goes](../README.md#where-the-api-key-goes).
+It stops at Screen, like everything else that is not a person.
 
 The `collect` command needs no API key and is the usual way to collect.
 
@@ -92,7 +92,9 @@ python3 scoreboard.py coverage --against <reference.csv> --stage verify
 `python3 tools/coverage.py` takes the same flags and still works.
 
 The reference CSV needs `project` and `state` columns; `promised_capital_usd`
-enables `--min-capital`, which is how the Phase 1 (≥$1B) line is measured.
+enables `--min-capital`, which is how the Phase 1 (≥$1B) line is measured. That
+is now the inclusion floor itself, so the flag's real use is trimming a reference
+list that reaches further down than this Scoreboard does.
 `--stage` picks whether you are measuring what has been collected (`screen`,
 the default) or what has been published (`verify`).
 

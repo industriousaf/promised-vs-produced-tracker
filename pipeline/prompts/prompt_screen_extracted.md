@@ -127,14 +127,14 @@ capital, jobs, the announcement date, or the promised date.
 
 ## The size floor still applies
 
-A row is out of scope unless `promised_capital_usd ≥ 100,000,000` ($100M) **OR**
-`promised_jobs ≥ 200` — clearing **either** floor is enough (a row is out only if it falls
+A row is out of scope unless `promised_capital_usd ≥ 1,000,000,000` ($1B) **OR**
+`promised_jobs ≥ 2,000` — clearing **either** floor is enough (a row is out only if it falls
 below **both**). Leads from Source should already meet this; if what you extract clears
 neither floor, put that in `flag` — the row will fail the check. (Apply the same
-**direct-jobs** rule as `promised_jobs` above when judging the 200 floor.)
+**direct-jobs** rule as `promised_jobs` above when judging the 2,000 floor.)
 
 **Either figure alone settles it, so leave the other empty if no source states it.** A
-project with 500 promised jobs is in scope whether or not anyone published a dollar
+project with 3,000 promised jobs is in scope whether or not anyone published a dollar
 figure, and the checker now reads it that way. Never reach for a number the sources do
 not give in order to fill the cell — an empty `promised_capital_usd` is a fact about the
 reporting, and an invented one is a defect in the data.

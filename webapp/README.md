@@ -1,7 +1,7 @@
 # webapp
 
 The browser interface. It is the friendliest way to do the **review workflow**:
-open a Screen row beside its two sources, correct cells, and promote it to Verify
+read a Screen row *inside* its sources, correct cells, and promote it to Verify
 with the reason recorded.
 
 If you only want to *read* the data, you do not need this. Two other routes need
@@ -11,6 +11,7 @@ Scoreboard](../README.md#see-the-scoreboard) in the main README.
 **Contents**
 
 - [Run it](#run-it)
+- [The review screen](#the-review-screen)
 - [What each file holds](#what-each-file-holds)
 - [How the pieces fit](#how-the-pieces-fit)
 
@@ -52,25 +53,70 @@ python3 -m uvicorn webapp.main:app --port 8100
 Server-rendered HTML and plain form posts. No build step and no JavaScript
 framework, so it works with the browser alone.
 
+## The review screen
+
+`/screen/N/inspect` — "Inspect & promote" — is what this app is for, and it is
+built like a signing flow rather than like a form with links on it.
+
+**The pages are in the screen, not behind it.** Every link the row cites becomes
+a tab, and the page underneath renders inside the review screen. Two links in one
+cell get two tabs; one page cited by two columns gets one tab, because that is
+one document.
+
+**The row's claims are highlighted in the page.** The announcement date, the
+promised first-output date, the capital and the jobs on the promise side; the
+actual first-output date and the status language on the status side. The
+verbatim `*_raw` quote is looked for first, then the ways a publication would
+actually print the value — `2022-01` finds "Jan. 21, 2022"; 1,600,000,000 finds
+"$1.6 billion", "$1.6B" and "1,600,000,000".
+
+**Arrows at the foot of the pane walk the highlights**, one at a time, with ← →
+as well; a chip walks one cell only. The pane opens on the first highlight, so
+the page arrives scrolled to the sentence in question.
+
+**Two checks, and they answer different questions.**
+
+| | Asks | Costs |
+|---|---|---|
+| the deterministic check (`screen_check`, which *is* `pipeline/schema.py`) | is the row well-*formed*: real `YYYY-MM` anchor, sector in vocabulary, size floor cleared, dates parse, sources URL-shaped | nothing; blocks promotion on `FAIL` |
+| the agentic check | does the cited page actually *say* this — and if not, where is the value | an API call; blocks nothing, stores nothing |
+
+**A check keeps running across a reload, and a repeat answer is free.** It takes
+20–60 seconds, and you can do whatever you want (e.g. reload) in the page in the meantime. 
+Answers are kept in `outputs/agent_cache/` (gitignored), one JSON file each. The key is a
+fingerprint of the row, the ticked cells, **their current values**, the `*_raw`
+quotes, the source URLs and the model — so correcting `announced` after a check
+does not serve the old "CONFIRMED" back for a value the row no longer holds.
+Answers go stale after two weeks; a status page is cited because it changes.
+
 ## What each file holds
 
 | File | Holds |
 |---|---|
-| `main.py` | creates the app, mounts the three stage modules, and serves the dashboard plus the database picker |
+| `main.py` | creates the app, mounts the stage modules and the two panes, and serves the dashboard plus the database picker |
 | `shared.py` | the stylesheet, the page skeleton, the database picker bar, and the small formatting helpers every page uses |
 | `source.py` | the Source pages: the lead list, the rendered collection prompt, and the three ways to add a lead |
-| `screen.py` | the Screen pages: the row list, the extraction prompt, the checker, and the inspect view where a row is read against its sources |
+| `screen.py` | the Screen pages: the row list, the extraction prompt, the checker with its rule-by-rule panel, and the review screen |
 | `verify.py` | the Verify pages: the published rows, the capital/jobs filter, the sector vocabulary, and the edit form |
+| `evidence.py` | the document pane: fetching a cited page, stripping it to safe text, and marking the row's claims in it |
+| `agent.py` | the agentic-check pane: the cell picker, and the model's answer rendered |
+| `agent_cache.py` | that check's background jobs and its cached answers — and what makes two questions the same question |
 
 ## How the pieces fit
 
-Only `main.py` creates a server. The three stage modules each collect their pages
-on a `router`, which `main.py` mounts. So none of them runs on its own, and the
+Only `main.py` creates a server. Every other module collects its pages on a
+`router`, which `main.py` mounts. So none of them runs on its own, and the
 dependency runs one way with no cycles:
 
 ```
-shared.py  <-  source.py / screen.py / verify.py  <-  main.py
+shared.py  <-  evidence.py / agent.py  <-  source.py / screen.py / verify.py  <-  main.py
 ```
+
+`evidence.py` and `agent.py` are not stages: they render no rows of their own and
+write nothing. Each serves a standalone page that the review screen embeds in an
+`<iframe>`, which is the whole reason a fetch that takes ten seconds or a model
+call that takes thirty never blocks the form — or costs a reviewer the
+corrections they had half-typed into it.
 
 The pipeline itself lives in
 [`../pipeline/`](../pipeline/).

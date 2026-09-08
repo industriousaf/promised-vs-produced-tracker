@@ -37,6 +37,13 @@ PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 5 provenance co
 ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
 
+# The inclusion floor, re-exported from the ONE source of truth so no surface
+# has to quote a number of its own. The web app prints these; the explore-filter
+# blurb used to carry "$100M OR 200 jobs" as literal prose and went stale the
+# day the floor moved.
+CAPITAL_FLOOR_USD: int = pvp_schema.CAPITAL_FLOOR_USD
+JOBS_FLOOR: int = pvp_schema.JOBS_FLOOR
+
 # Missing values that arrived as text ('None', 'null', ...). The insert
 # paths use this to blank them; the checker uses it to catch any that
 # reached the database by some other route.

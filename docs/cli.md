@@ -40,6 +40,7 @@ It is gitignored. The database defaults to `outputs/scoreboard.db`.
 python3 scoreboard.py                       # counts, and where to go next
 python3 scoreboard.py status                # row counts per stage
 python3 scoreboard.py initdb                # create the five tables
+python3 scoreboard.py models                # which model each stage runs, and why
 python3 scoreboard.py --help                # all of the below, with examples
 
 # Collect  (needs the claude CLI; spends money)
@@ -72,7 +73,7 @@ python3 scoreboard.py verify-list
 
 # Read, export, measure
 python3 scoreboard.py filter --capital 1000000000 --jobs 2000 --op OR --stage verify
-python3 scoreboard.py filter --capital 500000000  --jobs 400  --op AND --stage screen
+python3 scoreboard.py filter --capital 5000000000 --jobs 5000 --op AND --stage screen
 python3 scoreboard.py export [--out-dir DIR]       # five CSVs
 python3 scoreboard.py coverage --against ref.csv [--stage verify] [--min-capital N]
 python3 scoreboard.py coverage --selftest          # needs no database
@@ -81,7 +82,8 @@ python3 scoreboard.py coverage --selftest          # needs no database
 python3 scoreboard.py sectors-list
 python3 scoreboard.py sectors-add "Cement"
 
-# The browser interface
+# The browser interface  (the review screen: sources rendered in the page,
+# the row's claims highlighted in them, and an optional agentic check)
 python3 scoreboard.py webapp [--port 8100] [--reload]
 
 # Batch collection over the direct API  (needs a key)

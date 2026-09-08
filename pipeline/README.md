@@ -31,7 +31,8 @@ python3 scoreboard.py --help    # every command
 | `schema_check.py` | the adapter that runs `schema.py` against one stored row and saves the verdict |
 | `verify.py` | the promotion gate, and the edit log that records every change afterwards |
 | `dates.py` | turns the extracted date text into real dates and computes `lag_years` / `slip_years` |
-| `llm.py` | the AI steps, in two forms: a prompt you paste into Claude Code, or a direct API call |
+| `llm.py` | the AI steps, each in two forms: a prompt you paste into Claude Code, or a direct API call. Two of them collect (Source, Screen); the third checks what was collected against its own links, for the review screen. |
+| `models.py` | which Claude model each stage runs. The one place the names live. |
 | `orchestrate.py` | the moves between the stages, used by both interfaces |
 | `prompts/` | the operating prompts `llm.py` renders for the Source and Screen steps |
 

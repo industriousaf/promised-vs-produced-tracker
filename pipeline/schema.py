@@ -178,11 +178,16 @@ NULL_STRINGS = {"none", "null", "nan", "nil", "undefined", "n/a", "na", "-", "--
 DATE_COLUMN_NULL_STRINGS = NULL_STRINGS - DATE_SENTINELS
 
 # The inclusion floor (updated per prompts/prompt_source_collected.md): a project must
-# clear EITHER announced capital >= $100M OR >= 200 promised jobs. A row is out
+# clear EITHER announced capital >= $1B OR >= 2,000 promised jobs. A row is out
 # of scope only if it falls below BOTH floors. (This is the looser OR rule; the
 # prototype's explore-filter lets you probe AND / other thresholds separately.)
-CAPITAL_FLOOR_USD = 100_000_000
-JOBS_FLOOR = 200
+#
+# This is the ONE place the floor is a number. Every other surface -- the
+# checker's own messages, the web app's explore-filter blurb, the collection
+# prompts, the README scope table -- either reads these constants or quotes them
+# in prose, so moving the floor starts here.
+CAPITAL_FLOOR_USD = 1_000_000_000
+JOBS_FLOOR = 2_000
 
 YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
@@ -359,14 +364,15 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
 
     # capital + jobs, then the inclusion floor.
     #
-    # The floor is an OR -- capital >= $100M OR jobs >= 200 -- so EITHER figure
+    # The floor is an OR -- capital >= $1B OR jobs >= 2,000 -- so EITHER figure
     # on its own can put a row in scope. This used to demand both cells parse
     # before it would evaluate that OR, which made a missing figure fatal even
     # when the other one settled the question. Two rows of the N=100 run were
-    # rejected that way: ES Foundry Greenwood (500 jobs) and Meyer Burger
-    # Goodyear (250 jobs), both clearly over the jobs floor, both failed because
-    # no source printed a dollar figure. The extractor was right to leave the
-    # cell empty; the checker was wrong to call that a defect.
+    # rejected that way -- ES Foundry Greenwood and Meyer Burger Goodyear, both
+    # clearly over the jobs floor of the day, both failing because no source
+    # printed a dollar figure. The extractor was right to leave the cell empty;
+    # the checker was wrong to call that a defect. That reasoning is about the
+    # OR, not about where the floor sits, so it survives the floor moving.
     cap_raw = str(row.get("promised_capital_usd", "") or "").strip()
     jobs_raw = str(row.get("promised_jobs", "") or "").strip()
     capital, cap_err = check_int(cap_raw)

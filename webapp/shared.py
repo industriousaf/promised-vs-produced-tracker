@@ -111,6 +111,47 @@ code { background: #8882; padding: 0 .2rem; border-radius: 3px; }
     padding: .1rem .45rem; font-weight: 600; }
 .dbbar .rw { background: #15803d; color: #fff; border-radius: 4px;
     padding: .1rem .45rem; font-weight: 600; }
+
+/* ---- the review screen ------------------------------------------------- */
+/* Two columns: the cited page on the left, the row's cells on the right. The
+   left column is sticky, because the whole point is to keep the document in
+   view while you work down the fields -- scrolling the article out of sight to
+   reach the cell it proves is the exact problem this layout exists to remove.
+   Below 1100px they stack, document first. */
+.review { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem;
+    align-items: start; margin-top: .6rem; }
+@media (max-width: 1100px) { .review { grid-template-columns: 1fr; } }
+.review .doccol { position: sticky; top: .5rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .35rem; }
+.tabs a { text-decoration: none; color: inherit; font-size: .8rem;
+    padding: .25rem .6rem; border: 1px solid #8887; border-radius: 6px 6px 0 0;
+    border-bottom-color: transparent; }
+.tabs a.on { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.tabs a small { opacity: .7; }
+.pane { width: 100%; border: 1px solid #8887; border-radius: 0 8px 8px 8px;
+    background: Canvas; display: block; }
+.pane.tall { height: 74vh; min-height: 440px; }
+.pane.short { height: 26rem; }
+.panehint { font-size: .78rem; color: #8889; margin: .3rem 0 0; }
+
+/* The deterministic-check panel: rule, this row's value, verdict. A table
+   rather than a list because the middle column is the point -- "announced is a
+   real YYYY-MM anchor" says nothing until it is sitting next to 2022-01. */
+table.rules td { vertical-align: top; font-size: .82rem; }
+table.rules td.val { font-family: ui-monospace, monospace; word-break: break-all; }
+table.rules td.ok { color: #2f855a; font-weight: 600; white-space: nowrap; }
+table.rules td.err { color: #c0392b; font-weight: 600; white-space: nowrap; }
+table.rules td.warn { color: #b7791f; font-weight: 600; white-space: nowrap; }
+details.explain { margin: .5rem 0 0; }
+details.explain summary { cursor: pointer; font-size: .85rem; color: #8889; }
+details.explain[open] summary { margin-bottom: .5rem; }
+
+/* The agentic-check picker: cells across, one line, before the pane. */
+.cells { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin: .4rem 0 .6rem; }
+.cells label { display: inline-flex; align-items: baseline; gap: .3rem;
+    margin: 0; font-size: .85rem; color: inherit; }
+.cells input { width: auto; }
+.cells code { font-size: .95em; }
 """
 
 
@@ -139,11 +180,16 @@ def _db_bar() -> str:
 <small>{html.escape(str(current))}</small></form>"""
 
 
-def _page(title: str, body: str, msg: str | None = None) -> HTMLResponse:
+def _page(title: str, body: str, msg: str | None = None,
+          wide: bool = False) -> HTMLResponse:
+    """The page skeleton. `wide` lifts the 1000px reading measure for the review
+    screen, which puts a cited article beside the row it is evidence for and
+    needs the room; every other page keeps the narrow column."""
     banner = f'<div class="msg">{html.escape(msg)}</div>' if msg else ""
+    widen = "<style>body { max-width: 1560px; }</style>" if wide else ""
     doc = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title><style>{_CSS}</style></head><body>
+<title>{html.escape(title)}</title><style>{_CSS}</style>{widen}</head><body>
 <h1>Promised vs. Produced — Source → Verify Pipeline</h1>
 <nav><a href="/">Dashboard</a><a href="/source">Source</a>
 <a href="/screen">Screen</a><a href="/verify">Verify</a></nav>
@@ -256,4 +302,39 @@ def _to_int(v) -> int | None:
         return int(str(v).replace(",", "").replace("$", "").strip())
     except (ValueError, TypeError):
         return None
+
+
+# --------------------------------------------------------------------------- #
+# "The flag IS the reason"                                                     #
+# --------------------------------------------------------------------------- #
+
+def flag_only_reason(changes: dict, old_flag) -> str | None:
+    """The provenance note a flag-only edit writes for itself, or None.
+
+    Every write to a Verify row needs a reason in `verify_edits`; that rule is
+    what makes the published Scoreboard auditable and it is not moving. But when
+    the ONLY cell that changed is `flag`, the required reason had become a tax
+    on the exact case that least needs one. The flag is free text whose entire
+    job is to say what is unresolved about the row — so typing "resolved the
+    flag" into a second box beside it records nothing the first box does not
+    already hold, and it was being typed on every pass through the queue.
+
+    So a flag-only edit is its own reason: this returns the note, quoting both
+    the old text and the new so the history reads as a change and not just as a
+    new assertion.
+
+    The narrowness matters. The moment any other cell moves — with or without
+    the flag moving too — this returns None and the reviewer must say why. A
+    changed date is a changed fact about the world, and nothing in the `flag`
+    cell can be relied on to explain it.
+    """
+    if set(changes) != {"flag"}:
+        return None
+    was = ("" if old_flag is None else str(old_flag)).strip()
+    now = (changes["flag"] or "").strip()
+    if not now:
+        return f"Flag cleared (was: {was})" if was else "Flag cleared"
+    if not was:
+        return f"Flag set: {now}"
+    return f"Flag changed from “{was}” to “{now}”"
 

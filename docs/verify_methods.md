@@ -7,13 +7,21 @@ Making that judgment *is* the human gate; nothing reaches Verify without it.
 
 The machine has already done its part. `screen-check` (Screen pt-2) checks the
 **shape** of a row: required cells present, `announced` is a real `YYYY-MM`
-anchor, sector/state in vocabulary, the inclusion floor ($100M **or** 200 jobs)
+anchor, sector/state in vocabulary, the inclusion floor ($1B **or** 2,000 jobs)
 is cleared, date cells parse, tiers are valid tokens, sources look like URLs, and
 any open `flag` is surfaced. A `FAIL` there blocks promotion — fix it first.
 
 So this review is **not** re-checking shape. It is the one thing the checker
 can't do: reading each source and confirming it actually supports the claim.
 `PASS`/`CLEAN` means "well-formed," not "true" — that last step is yours.
+
+The web app's review screen (`/screen/N/inspect`) is built for exactly that step.
+The cited pages render *in* the screen, one tab per link, with the row's claimed
+values highlighted in them and arrows to step from one to the next; the check
+panel lists every rule the checker applied against this row's values, and what it
+cannot test; and an optional agentic check will open the links and say whether
+they carry the value or where it actually is. All of it is a reading aid. None of
+it promotes anything — see [`webapp/`](../webapp/README.md#the-review-screen).
 
 ## What a promised-vs-produced row is
 
@@ -77,6 +85,12 @@ Use `--set col=value` to correct a cell at promotion time (e.g. fix a date the
 checker flagged), and `--tier V1/P` when the announcement is verified but first
 output is still provisional. Use `V2` only when you checked two genuinely
 independent sources.
+
+Every change to a published row is written to `verify_edits` with a reason. The
+one exception is a change to `flag` and nothing else: that writes its own reason,
+quoting the old text and the new, because the flag *is* a statement of what is
+unresolved and a second box saying "resolved the flag" recorded nothing. Change
+any other cell — with or without the flag — and the reason is required.
 
 **The guided queue always writes V1.** `review` and the web app's inspect page
 both show you the promise and the status — two documents covering two halves of

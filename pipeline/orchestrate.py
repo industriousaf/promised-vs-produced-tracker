@@ -157,10 +157,11 @@ def filter_by_thresholds(
 ) -> list[sqlite3.Row]:
     """Explore-filter: rows clearing a capital and/or jobs threshold.
 
-    The inclusion floor in the checker is fixed ($100M OR 200 jobs). This lets
-    you *explore* alternative thresholds and combinators over what's already
-    collected -- e.g. "$1B AND 2,000 jobs", or "$500M AND 400 jobs" -- WITHOUT
-    changing that gate. It is a plain parameterised SQL query:
+    The inclusion floor in the checker is fixed ($1B OR 2,000 jobs -- see
+    CAPITAL_FLOOR_USD / JOBS_FLOOR in schema.py). This lets you *explore*
+    alternative thresholds and combinators over what's already collected --
+    e.g. "$1B AND 2,000 jobs", or "$5B OR 5,000 jobs" -- WITHOUT changing that
+    gate. It is a plain parameterised SQL query:
 
         SELECT * FROM <table>
         WHERE promised_capital_usd >= ?  <AND|OR>  promised_jobs >= ?

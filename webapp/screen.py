@@ -27,6 +27,8 @@ from pipeline.db import (  # noqa: E402
 )
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
+    CAPITAL_FLOOR_USD,
+    JOBS_FLOOR,
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
@@ -35,9 +37,11 @@ from pipeline.schema_check import (  # noqa: E402
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 
+from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
     _cell, _conn, _db_bar, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
+    flag_only_reason,
 )
 
 router = APIRouter()
@@ -307,6 +311,108 @@ FIELD_HINTS = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# What the deterministic check is actually doing                               #
+#                                                                              #
+# It reported a verdict and two counts -- "PASS, 0 errors, 2 warnings" -- which  #
+# is a result with no question attached. A reviewer could not tell what had been #
+# tested, and so could not tell what a PASS was worth or which of their own      #
+# concerns it had already settled. The rules below are the same ones            #
+# schema.validate_row applies, in the order it applies them, each shown against  #
+# THIS ROW'S value: "announced is a strict YYYY-MM anchor" means nothing until   #
+# it is sitting next to 2022-01.                                                #
+#                                                                              #
+# The list is prose about code, so it can drift from the code. What keeps it    #
+# honest is the third column: every verdict comes from the stored check report,  #
+# never from re-deciding the rule here. A rule this list describes wrongly still #
+# shows the checker's own answer.                                               #
+# --------------------------------------------------------------------------- #
+
+CHECK_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("project",), "a project name is present"),
+    (("sector",), "sector is one of the defined manufacturing sectors"),
+    (("state",), "state is a real US state or territory"),
+    (("announced",), "announced is a strict <code>YYYY-MM</code> anchor — every "
+                     "lag and slip figure is measured from it"),
+    (("promised_capital_usd", "promised_jobs"),
+     f"the size floor: capital ≥ ${CAPITAL_FLOOR_USD:,} <b>OR</b> jobs ≥ "
+     f"{JOBS_FLOOR:,} (either one alone puts the row in scope)"),
+    (("promised_first_output",),
+     "promised_first_output holds a 4-digit year or a sentinel"),
+    (("actual_first_output",),
+     "actual_first_output holds a 4-digit year or a sentinel "
+     "(<code>pending</code> / <code>never</code> / <code>unconfirmed</code>)"),
+    (("current_status",), "current_status is not empty"),
+    (("lag_years",), "the derived lag parses as a number or a sentinel"),
+    (("verification_tier",), "the tier is a valid token (P / V1 / V2, or a pair)"),
+    (("promise_source", "status_source", "promised_date_source",
+      "actual_date_source"),
+     "every source cell that holds anything is URL-shaped"),
+    (("flag",), "an unresolved flag is surfaced as a warning"),
+]
+
+# The other half of the panel, and the reason the agentic check exists. Every
+# line here is something a reviewer could reasonably think a green CLEAN had
+# covered.
+CHECK_BLIND_SPOTS = [
+    "whether the cited page <b>says</b> any of this — it never opens a link",
+    "whether the link resolves at all, or 404s",
+    "whether the status is <b>current</b>, or two years stale",
+    "whether the two sources are about the same facility",
+    "whether the project is real",
+]
+
+
+def _check_panel(r, chk) -> str:
+    """The check, as rules-with-values rather than a verdict and two counts."""
+    report = []
+    if chk is not None:
+        try:
+            report = json.loads(chk["report"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            report = []
+    worst: dict[str, tuple[str, str]] = {}
+    for issue in report:
+        col, level = issue.get("column", ""), issue.get("level", "")
+        if col not in worst or level == "ERROR":
+            worst[col] = (level, issue.get("message", ""))
+
+    rows = ""
+    for cols, text in CHECK_RULES:
+        vals = " · ".join(
+            f"{c}={_cell(r, c) if _cell(r, c) not in (None, '') else '—'}"
+            for c in cols
+        ) if len(cols) > 1 else str(_cell(r, cols[0]) or "—")
+        hits = [worst[c] for c in cols if c in worst]
+        if chk is None:
+            cls, mark, why = "", "not run", ""
+        elif not hits:
+            cls, mark, why = "ok", "✓", ""
+        else:
+            level = "ERROR" if any(h[0] == "ERROR" for h in hits) else "WARN"
+            cls = "err" if level == "ERROR" else "warn"
+            mark = "✗ error" if level == "ERROR" else "! warning"
+            why = "<br><small>" + esc("; ".join(h[1] for h in hits)) + "</small>"
+        rows += (f"<tr><td>{text}{why}</td>"
+                 f'<td class="val">{esc(vals[:120])}</td>'
+                 f'<td class="{cls}">{mark}</td></tr>')
+
+    blind = "".join(f"<li>{b}</li>" for b in CHECK_BLIND_SPOTS)
+    return f"""<details class="explain">
+<summary>What the deterministic check tested on this row — and what it cannot test</summary>
+<p><small>It reads the <b>shape</b> of the row. Every rule below is
+<code>pipeline/schema.py</code> applied to the cells as they stand, and each
+verdict is the checker's own, read back from the stored report — not re-decided
+here.</small></p>
+<table class="rules"><tr><th>rule</th><th>this row</th><th></th></tr>{rows}</table>
+<p style="margin-top:.7rem"><b>It cannot test:</b></p>
+<ul>{blind}</ul>
+<p><small><b>PASS / CLEAN means well-formed, not true.</b> Everything in that
+list is the human gate's job — and the pane on the left, plus the agentic check
+below, are the tools for it.</small></p>
+</details>"""
+
+
 @router.get("/screen/{screen_id}/inspect", response_class=HTMLResponse)
 def screen_inspect(screen_id: int, msg: Optional[str] = None):
     conn = _conn()
@@ -369,7 +475,9 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
     <p class="msg">Publishes as <b>tier V1</b> — one source checked. For V2, find a
     second independent source, then run
     <code>verify-promote --screen-id N --tier V2</code>.</p>
-    <label>Reason — required only if you changed a cell (recorded in <code>verify_edits</code>)</label>
+    <label>Reason — required if you changed a cell (recorded in
+      <code>verify_edits</code>). A change to <code>flag</code> and nothing else
+      writes its own reason, so leave this empty for that.</label>
     <input type="text" name="edit_description"
            placeholder="e.g. corrected announced date to match the filing">
     <p><button class="primary" type="submit">Promote to Verify</button></p>"""
@@ -385,6 +493,10 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
         if chk else "<small> — not checked yet</small>"
     )
 
+    # The document pane leads and the form follows it, in that order, because
+    # that is the order of the work: you read the page, then you say what the row
+    # should hold. The two sit in one sticky two-column grid so neither ever
+    # scrolls the other off the screen.
     body = f"""
 <p><a href="/screen">← back to Screen</a></p>
 <h2>Screen #{r['id']} — {esc(r['project'])}
@@ -395,28 +507,40 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 <div class="card">
   <form class="inline" method="post" action="/screen/check">
     <input type="hidden" name="screen_id" value="{r['id']}">
-    <button type="submit">Run check</button></form>
+    <button type="submit">Run the deterministic check</button></form>
   {check_note}
+  {_check_panel(r, chk)}
 </div>
 
-<h2>Fields — review before promoting</h2>
-<div class="card">
-  <p>Inspect every extracted cell before it becomes research-grade. Any cell you
-  change is applied to the new Verify row on promotion and logged in
-  <code>verify_edits</code> — the same editing scheme as a published Verify row.
-  <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b> from
-  the date strings and recompute automatically when you edit a date.</p>
-  <form method="post" action="/screen/{r['id']}/promote">
-    <div class="grid2">{fields}</div>
-    <p><small>Verbatim source text (read-only) — the exact page text each date came from:</small></p>
-    <div class="grid2">{raw_display}</div>
-    <p><small>Derived cells (read-only):</small></p>
-    <div class="grid2">{derived}{dt_display}</div>
-    {promote_controls}
-  </form>
+<div class="review">
+  <div class="doccol">
+    {evidence.pane_html("screen", r["id"], r)}
+  </div>
+
+  <div class="formcol">
+    <div class="card">
+      <p>Confirm every cell against the pane, then promote. Any cell you change
+      is applied to the new Verify row and logged in <code>verify_edits</code>.
+      <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
+      from the date strings and recompute when you edit a date.</p>
+      <form method="post" action="/screen/{r['id']}/promote">
+        <div class="grid2">{fields}</div>
+        <p><small>Verbatim source text — the exact page text each date came
+        from. This is what the pane searches for first, so a quote that lights
+        up nothing is worth looking at:</small></p>
+        <div class="grid2">{raw_display}</div>
+        <p><small>Derived cells (read-only):</small></p>
+        <div class="grid2">{derived}{dt_display}</div>
+        {promote_controls}
+      </form>
+    </div>
+  </div>
 </div>
+
+<h2>Ask a model to check it against the links</h2>
+<div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
 """
-    return _page(f"Screen #{screen_id}", body, msg)
+    return _page(f"Screen #{screen_id}", body, msg, wide=True)
 
 
 @router.post("/screen/{screen_id}/promote")
@@ -441,7 +565,12 @@ async def screen_inspect_promote(screen_id: int, request: Request):
             if new != old:
                 changes[c] = new
 
-        # An edit needs its provenance reason before we touch Verify.
+        # An edit needs its provenance reason before we touch Verify -- unless
+        # the only cell that moved is `flag`, which is already a written
+        # statement of what is unresolved about the row and so is its own reason.
+        # See flag_only_reason() for why that exemption stops exactly there.
+        if changes and not desc:
+            desc = flag_only_reason(changes, src["flag"]) or ""
         if changes and not desc:
             msg = ("You changed " + ", ".join(sorted(changes))
                    + " — enter a reason (it goes to verify_edits) before promoting.")

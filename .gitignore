@@ -55,6 +55,15 @@ logs/*.log
 # arrive untracked-but-not-ignored and get staged by a plain `git add`.
 logs/*.jsonl
 
+# Answers from the review screen's agentic check, one JSON file each, so asking
+# the same question twice costs one API call. The only thing under outputs/ that
+# is NOT part of the data product, and the exception is deliberate: it sits
+# beside the row it is about, and it is a cache, not a record. What a model said
+# while a person was deciding is not evidence -- verify_verified holds what the
+# person concluded, and that is what gets committed. Delete this directory at any
+# time; the only consequence is that the next check pays full price.
+outputs/agent_cache/
+
 # Working files from collect/. Each run writes the lead or row it is about to
 # ingest as JSON, then calls source-add / screen-add on it. Once the command
 # returns, the database holds the content and the file is just the envelope it

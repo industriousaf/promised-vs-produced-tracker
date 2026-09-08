@@ -39,11 +39,11 @@ A project is in scope when **all** of these hold:
 |---|---|
 | **Where** | a single physical facility in the United States |
 | **When** | announced January 2017 or later |
-| **Size** | announced capital **≥ $100,000,000** **OR** **≥ 200** direct promised jobs (either one qualifies) |
+| **Size** | announced capital **≥ $1,000,000,000** **OR** **≥ 2,000** direct promised jobs (either one qualifies) |
 | **Sector** | one of these ten:<br>1. Aerospace and Defense<br>2. Auto Assembly<br>3. Battery<br>4. Chemicals and Plastics<br>5. Food and Beverage<br>6. Machinery<br>7. Pharmaceuticals<br>8. Semiconductors<br>9. Solar<br>10. Steel<br><br>…or `Other`, for a manufacturing project that genuinely fits none of the ten. `Other` is a last resort, not a bucket: if it starts filling up, the list above is wrong. |
 
 Direct jobs only. "Regional," "supported," "induced," and construction-phase job
-claims do not count toward the 200.
+claims do not count toward the 2,000.
 
 These rules are enforced in code by
 [`pipeline/schema.py`](pipeline/schema.py).
@@ -114,10 +114,14 @@ source changes, and `--db` composes, so `python3 scoreboard.py --db /tmp/try.db
 webapp` reviews a copy instead of the real data.
 
 Reading the data is the *least* of what this is for. Its real job is the
-**review workflow**: putting a Screen row beside its two sources so you can check
-them, correct cells, and promote it to Verify with the reason recorded. If you
-just want to look, options 1 and 2 are faster and need no install. See
-[`webapp/`](webapp/).
+**review workflow**, and it is not "here is the row, here are two links". The
+cited pages are *rendered in the page*, one tab each, with the values the row
+claims highlighted in them and arrows to step from one highlight to the next —
+so a row is confirmed a sentence at a time rather than by reading two articles
+end to end. Beside it, a check that can do what the deterministic one cannot:
+open the links and say whether they really carry the value, or where it actually
+lives. If you just want to look, options 1 and 2 are faster and need no install.
+See [`webapp/`](webapp/).
 
 The CSVs in option 1 carry every column of their table, in table order, sorted by
 `id`, with NULLs as empty cells. Three hold the Scoreboard; the two named
@@ -223,11 +227,12 @@ something goes wrong while you were asleep. It goes to its own file rather than
 into the transcript, so the readable log stays readable — the three files a run
 writes are described under **What a run costs** below.
 
-### Four ways in, and only two of them need Anthropic
+### Five ways in, and only two of them need Anthropic to collect anything
 
-Collection is the only part of the Scoreboard that touches a model at all. The
-data model, the checker, the human gate, the review loop, the exports and the
-coverage measure are standard-library Python with no provider anywhere.
+Collection is the only part of the Scoreboard that touches a model on its own.
+The data model, the checker, the human gate, the exports and the coverage measure
+are standard-library Python with no provider anywhere; the review screen's
+agentic check is optional, advisory, and stores nothing.
 
 | Path | What you run | Needs | Works with |
 |---|---|---|---|
@@ -235,6 +240,37 @@ coverage measure are standard-library Python with no provider anywhere.
 | **prompt** | `source-prompt`, `screen-prompt` | nothing, no key | **any assistant that can search the web** |
 | **direct API** | `source-collect`, `screen-extract`, `tools/gather.py` | `ANTHROPIC_API_KEY` | Anthropic only |
 | **loops** | `collect` | the `claude` CLI, logged in | Claude Code only |
+| **review check** | "Ask Claude" on the review screen | `ANTHROPIC_API_KEY`, else it prints the prompt | Anthropic, or any assistant via the prompt |
+
+### Where the API key goes
+
+Two places, and a real shell variable always wins over the file:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...          # this shell only
+```
+
+or, to stop typing it, a **`config.env` in this directory** — beside
+`scoreboard.py`, not inside `pipeline/` or `webapp/`:
+
+```
+# config.env  (gitignored; never commit a key)
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+It is loaded on `import pipeline`, so every entry point sees it: the CLI, the web
+app's agentic check, `tools/gather.py`, and the collection scripts. `SCOREBOARD_DB`,
+`MODEL` and `EFFORT` can live there too. Simple `KEY=value` lines; `#` comments and
+blank lines are ignored; a missing file is not an error. Confirm it is being read
+without printing it:
+
+```bash
+python3 tools/gather.py --n-source 1 --dry-run    # says "api key  found" or "NOT FOUND"
+```
+
+`.gitignore` already covers `config.env` and `.env`. Nothing in this project logs,
+prints or transmits the value — it goes into `os.environ` for the Anthropic SDK
+and nowhere else.
 
 The **prompt** row is the one worth knowing about. `source-prompt` prints text
 and nothing else. Paste it into ChatGPT, Gemini, Perplexity, Claude, or read it
@@ -242,10 +278,12 @@ yourself and do the searching by hand; whatever comes back is one JSON object,
 and `source-add --json` ingests it. Nothing in that loop is Anthropic-specific,
 and the operating prompts say nothing about which model is reading them.
 
-The two automated paths are the Anthropic-specific ones. They are faster, not
-more capable: all four write the same rows through the same functions and face
-the same schema check and the same human gate. Nothing reaches Verify without a
-person, by any route.
+The two automated collection paths are the Anthropic-specific ones. They are
+faster, not more capable: all four write the same rows through the same functions
+and face the same schema check and the same human gate. The fifth row writes
+nothing at all — it is a reading aid on the review screen, and it degrades to a
+printed prompt without a key. Nothing reaches Verify without a person, by any
+route.
 
 Per-stage settings are in [`docs/collecting.md`](docs/collecting.md). The manual
 and copy-the-prompt paths are in [`docs/cli.md`](docs/cli.md).
@@ -283,7 +321,7 @@ function, so the choice is only about how you would rather read the sources.
 | | Needs | Best for |
 |---|---|---|
 | `python3 scoreboard.py review` | nothing | working the queue in order. Prints each row's figures and both links, then asks about them one at a time. |
-| `python3 scoreboard.py webapp` | `pip install` | reading a row *beside* its sources in a browser, and correcting any of the 18 cells in a form. |
+| `python3 scoreboard.py webapp` | `pip install` | reading a row *inside* its sources: the cited pages render in the review screen with the row's claims highlighted in them, and any of the 18 cells is editable in the form beside. |
 | `verify-promote` by hand | nothing | one particular row, or a script. |
 
 The rest of this section is the third route, which is also what the other two

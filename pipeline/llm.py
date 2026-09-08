@@ -266,8 +266,13 @@ def _client():
         raise LLMUnavailable(f"could not construct Anthropic client: {e}") from e
 
 
-def _research(instruction: str, max_loops: int = 8) -> str:
-    """Phase 1: run the model with web tools until it produces a final answer."""
+def _research(instruction: str, max_loops: int = 8, model: str | None = None) -> str:
+    """Phase 1: run the model with web tools until it produces a final answer.
+
+    `model` overrides the collection default. The review-screen check passes the
+    smaller model here: it is a person waiting on one question about one cell,
+    not a collection run.
+    """
     client = _client()
     import anthropic
 
@@ -276,7 +281,7 @@ def _research(instruction: str, max_loops: int = 8) -> str:
     for _ in range(max_loops):
         try:
             resp = client.messages.create(
-                model=MODEL,
+                model=model or MODEL,
                 max_tokens=8000,
                 thinking={"type": "adaptive"},
                 output_config={"effort": EFFORT},
@@ -480,3 +485,186 @@ def _looks_like_no_result(text: str) -> bool:
         or "no qualifying" in low
         or "unable to find" in low
     ) and "http" not in low
+
+
+# --------------------------------------------------------------------------- #
+# Flavour C -- the review-screen check: "does the cited page actually say this?"
+#
+# Neither of the two flavours above. Source and Screen COLLECT; this one CHECKS
+# what they collected, on demand, while a person is looking at the row. It runs
+# on the smaller model (models.agent()): it answers one question about one or
+# two cells, a human reads the answer, it writes nothing, and no promotion
+# depends on it.
+#
+# It exists because the deterministic check cannot answer the question a
+# reviewer actually has. schema_check reads SHAPE -- is `announced` a real
+# YYYY-MM, does the row clear the size floor, is status_source URL-shaped. It
+# cannot open the page. So a date can be perfectly well-formed, pass CLEAN, and
+# still be a date the cited article never printed; finding that out meant
+# reading two articles end to end looking for a number that might be in neither.
+# --------------------------------------------------------------------------- #
+
+# Which source column(s) should hold the evidence for each checkable cell, most
+# specific first. `promised_date_source` and `actual_date_source` lead where they
+# apply: they exist precisely for when a date came from somewhere other than the
+# main announcement or status page.
+VERIFY_TARGETS: dict[str, tuple[str, ...]] = {
+    "announced": ("promise_source", "promised_date_source"),
+    "promised_first_output": ("promised_date_source", "promise_source"),
+    "promised_capital_usd": ("promise_source",),
+    "promised_jobs": ("promise_source",),
+    "actual_first_output": ("actual_date_source", "status_source"),
+    "current_status": ("status_source",),
+}
+
+# What to call each cell in the prompt.
+_VERIFY_LABELS = {
+    "announced": "the announcement date (`announced`, YYYY-MM)",
+    "promised_first_output": "the PROMISED first-output date (`promised_first_output`)",
+    "promised_capital_usd": "the promised capital, in USD (`promised_capital_usd`)",
+    "promised_jobs": "the promised direct jobs (`promised_jobs`)",
+    "actual_first_output": "the PRODUCED first-output date (`actual_first_output`)",
+    "current_status": "the current status (`current_status`)",
+}
+
+_RAW_PARTNERS = {
+    "announced": "announced_raw",
+    "promised_first_output": "promised_first_output_raw",
+    "actual_first_output": "actual_first_output_raw",
+}
+
+# Tokens that mean "no calendar date recorded". Worth naming in the prompt: a
+# cell reading `pending` is not a wrong date, it is an ABSENT one, and the useful
+# answer there is "here is where the date is, if it exists anywhere" rather than
+# "the page does not say 2025".
+_NO_DATE_TOKENS = {"pending", "never", "unconfirmed", "n/a", "tbd", "open", ""}
+
+
+def _cellval(row, col) -> str:
+    """A cell of a sqlite3.Row / dict that may not exist on this row."""
+    if not col:
+        return ""
+    try:
+        v = row[col]
+    except (IndexError, KeyError, TypeError):
+        return ""
+    return "" if v is None else str(v).strip()
+
+
+def render_verify_prompt(row, fields: list[str]) -> str:
+    """Instructions for checking `fields` of one row against that row's sources.
+
+    Deliberately narrow. It names the cells to check, the value recorded in each,
+    the verbatim text the extractor claims to have copied, and the URL that is
+    supposed to prove it -- and forbids everything else. An open-ended "verify
+    this row" would re-research the project, cost minutes, and answer a question
+    nobody asked; the reviewer is looking at one cell and wants to know whether
+    the link under it holds it up.
+
+    The two-sided framing is the point. A promised date and a produced date are a
+    pair, so BOTH links are shown every time, even when only one cell is being
+    checked -- the answer to "the status page gives no first-output date" is
+    often sitting in the other document, or in a later article neither column
+    cites yet. That is why the instructions end by asking for a URL rather than
+    a verdict: the useful output of this check is a place to look.
+    """
+    fields = [f for f in fields if f in VERIFY_TARGETS] or ["announced"]
+
+    lines = [
+        "You are checking a small number of cells in ONE row of a US "
+        "manufacturing-project scoreboard against the pages that row cites. You "
+        "are not collecting, re-researching, or scoring the project, and you "
+        "must not check any cell that is not listed below.",
+        "",
+        "## The row",
+        "",
+        f"- project: {_cellval(row, 'project')}",
+        f"- state: {_cellval(row, 'state')}  ·  sector: {_cellval(row, 'sector')}",
+        f"- promise_source (the announcement): {_cellval(row, 'promise_source') or '(none)'}",
+        f"- status_source (where it stands now): {_cellval(row, 'status_source') or '(none)'}",
+    ]
+    for extra in ("promised_date_source", "actual_date_source"):
+        if _cellval(row, extra):
+            lines.append(f"- {extra}: {_cellval(row, extra)}")
+    lines += [
+        "",
+        "Both links are given every time, even when only one cell is in "
+        "question: the promised date and the produced date are two halves of one "
+        "claim, and a date missing from one document is often in the other.",
+        "",
+        "## The cells to check",
+        "",
+    ]
+
+    for f in fields:
+        value = _cellval(row, f)
+        raw = _cellval(row, _RAW_PARTNERS.get(f, ""))
+        cites = [c for c in VERIFY_TARGETS[f] if _cellval(row, c)]
+        cite_txt = (", ".join(f"{c} = {_cellval(row, c)}" for c in cites)
+                    or "(this cell cites no source at all -- say so)")
+        lines.append(f"### {_VERIFY_LABELS.get(f, f)}")
+        if f in _RAW_PARTNERS and value.lower() in _NO_DATE_TOKENS:
+            lines.append(
+                f"- recorded value: **`{value or '(empty)'}`** -- a sentinel, not "
+                "a date. The row is claiming that no source gives a calendar date "
+                "here. Your job is to find out whether that is true."
+            )
+        else:
+            lines.append(f"- recorded value: **{value or '(empty)'}**")
+        if raw:
+            lines.append(f"- the verbatim text the extractor says it copied: “{raw}”")
+        lines.append(f"- should be provable from: {cite_txt}")
+        lines.append("")
+
+    lines += [
+        "## What to do, for each cell",
+        "",
+        "1. **Open the cited page** with `web_fetch` and read it. If it will not "
+        "load, work the fetch ladder at the end of this prompt before giving up "
+        "on it.",
+        "2. **Open with one of these three words, in bold:**",
+        "   - **CONFIRMED** -- the page states the recorded value. Quote the "
+        "sentence, and say *where in the page* it sits (the section heading, "
+        "“the fourth paragraph”, “the table under Investment”) so the person "
+        "reading this can go and look at it.",
+        "   - **NOT ON THIS PAGE** -- the page is about the right project but "
+        "states this value nowhere.",
+        "   - **CONTRADICTED** -- the page states a *different* value. Quote it.",
+        "3. **If it is not CONFIRMED, go and find the value**, in this order:",
+        "   - elsewhere in the same article -- say where, and quote it;",
+        "   - in the row's *other* cited page (the promise/status pair above);",
+        "   - anywhere else on the internet -- one `web_search`, and **give the "
+        "full URL** as well as the sentence that carries the value. A source a "
+        "person cannot click is not an answer.",
+        "4. **If you cannot settle it, say so plainly.** “No source I could reach "
+        "gives a first-output date” is a useful answer and a correct one; an "
+        "invented date is neither. Never answer from memory of the project: "
+        "everything you assert must come from a page you actually opened in this "
+        "reply.",
+        "",
+        "## How to answer",
+        "",
+        "Markdown prose, one short section per cell, headed with the cell name. A "
+        "few sentences each -- the reader has the row and the article open side "
+        "by side and wants the verdict, the quote, and where to look. No "
+        "preamble, no summary table, no JSON, and no recommendation about whether "
+        "to publish the row: that judgment is the reviewer's, not yours.",
+    ]
+
+    ladder = (_PROMPT_DIR / _FETCH_LADDER).read_text(encoding="utf-8").strip()
+    return "\n".join(lines) + "\n\n" + ladder
+
+
+def run_verify_check(row, fields: list[str]) -> str:
+    """[API flavour] Run render_verify_prompt and return the model's prose reply.
+
+    Markdown-ish text for a human to read, not a structured verdict, and it
+    writes nothing anywhere. Deliberate: a stored machine verdict on a provenance
+    question becomes a thing people cite, and the whole design of this Scoreboard
+    is that only a person's reading promotes a row.
+    """
+    return _research(
+        render_verify_prompt(row, fields),
+        max_loops=6,
+        model=models.agent(),
+    )
