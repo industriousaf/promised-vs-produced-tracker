@@ -19,7 +19,7 @@ projects carry similar names. Comparing names alone fails in both directions:
     Nucor plate mill Brandenburg (KY) != Nucor Steel Mill (WV)       different sites
     Intel New Albany (OH)          != Intel Chandler Expansion (AZ)  different sites
 
-Measured on the historical hand-built corpus, exact-name matching reports 0/10
+Measured on the historical hand-built dataset, exact-name matching reports 0/10
 and naive substring matching reports 9/10. The truth is 7/10. A recall figure
 built on either would be wrong, and wrong in the direction that flatters the
 pipeline.

@@ -110,7 +110,7 @@ def render_source_prompt(
     `orchestrate.announced_year_coverage`. It is rendered as its own section so
     the collector can see the shape of what it has already produced. Without it
     the exclusion lists remove individual sites but never a vintage, and the
-    corpus drifts toward whichever period is most heavily reported.
+    Scoreboard drifts toward whichever period is most heavily reported.
 
     `avoid_published` is the list of projects already published;
     `avoid_unpublished` the ones collected but not published yet (see the two
@@ -158,7 +158,7 @@ def render_source_prompt(
             )
         else:
             prompt += (
-                "This is the corpus you are adding to, counted by announcement "
+                "This is the Scoreboard you are adding to, counted by announcement "
                 "year:\n\n```\n" + bars + "\n```\n\n"
                 "The eligible window is January 2017 to today and every year in it "
                 "is equally eligible. Heavily reported projects cluster in a few "
@@ -175,7 +175,7 @@ def render_source_prompt(
                 "\n\nThis is a preference, not a quota, and it never outranks the "
                 "inclusion rules. If a year genuinely has no qualifying project you "
                 "can source and verify, move to the next-thinnest rather than "
-                "lowering the bar or inventing one — a corpus balanced by year but "
+                "lowering the bar or inventing one — a Scoreboard balanced by year but "
                 "padded with weak rows is worse than an unbalanced one."
             )
 

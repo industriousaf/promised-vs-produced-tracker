@@ -59,7 +59,7 @@ def _shorten_summary(summary: str, floor: int = 80, cap: int = 140) -> str:
     one Eli Lilly plant from another. A title shorter than `floor` is not
     trusted to stand alone ("Nucor plate mill" leaves the town on the far side
     of the dash), so those read on to the floor instead; measured over the
-    archived corpus that lifts entries keeping a place name from 46% to 73%,
+    archived hand-built dataset that lifts entries keeping a place name from 46% to 73%,
     at 42% of the full summary length rather than 30%. Summaries written in
     some other shape fall back to the first sentence, then to a word-boundary
     cut at `cap`.
@@ -121,7 +121,7 @@ def announced_year_coverage(conn: sqlite3.Connection,
     """{announcement year: rows collected}, across the eligible window.
 
     Every Source lead that has reached Screen has a parsed `announced_dt`, so
-    this counts what the corpus actually covers rather than what it meant to.
+    this counts what the Scoreboard actually covers rather than what it meant to.
 
     It exists because the first N=20 batch came back 70% announced in 2021-2022
     and empty in three years of the window. Nobody chose that: the prompt says
@@ -131,7 +131,7 @@ def announced_year_coverage(conn: sqlite3.Connection,
 
     Note what this does and does not claim. Some of that concentration is real;
     there genuinely were more announcements in 2021-2022. The problem is that
-    the corpus cannot tell you which part is the world and which is the search,
+    the Scoreboard cannot tell you which part is the world and which is the search,
     and a reader will ask. Showing the collector its own coverage makes the
     year distribution a decision rather than a residue.
     """

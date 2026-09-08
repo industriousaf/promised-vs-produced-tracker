@@ -4,7 +4,7 @@ Every test here is a real incident. The Scoreboard had no tests until 2026-09-05
 and the defects found by hand in the days before that are the specification: a
 duplicate row that made a run report success one project short, a slip sentinel
 that marked produced projects as censored, an export that overwrote the real
-corpus from a scratch database, the literal string "None" stored as data.
+CSVs from a scratch database, the literal string "None" stored as data.
 
 Two of them were introduced while fixing the others, which is the actual
 argument for this file. Hand-verification caught both, but only because the
@@ -49,7 +49,7 @@ def a_row(**over) -> dict:
 
 class Base(unittest.TestCase):
     """Each test gets its own database. Never the real one -- three of this
-    project's incidents were verification steps writing to the live corpus."""
+    project's incidents were verification steps writing to the live database."""
 
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -503,7 +503,7 @@ class TestScreenPromptContract(unittest.TestCase):
 
     These are not tests of prose. Each string below is load-bearing: if the
     renderer stops including the operating prompt, or someone rewrites it
-    without the section, the failure is silent and shows up as a corpus with a
+    without the section, the failure is silent and shows up as a Scoreboard with a
     fifth of its rows undated -- which is exactly the state the N=100 run left
     behind before this was folded in.
     """
@@ -612,7 +612,7 @@ class TestConfig(unittest.TestCase):
 
     def test_export_goes_beside_its_own_database(self):
         """A variable source and a fixed destination: exporting a scratch
-        database overwrote the real corpus's CSVs."""
+        database overwrote the real database's CSVs."""
         self.assertEqual(export_dir(db="/tmp/scratch/x.db"), Path("/tmp/scratch/csv_tables"))
 
     def test_out_dir_still_wins(self):

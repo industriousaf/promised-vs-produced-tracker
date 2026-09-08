@@ -90,7 +90,7 @@ def export_dir(out_dir: str | Path | None = None,
 
     Defined once and used both to write and to report, so the path printed can
     never be a different path from the one written to -- which is the failure
-    mode that let a scratch export land on the real corpus unnoticed.
+    mode that let a scratch export land on the real database unnoticed.
     """
     if out_dir is not None:
         return Path(out_dir)
@@ -108,7 +108,7 @@ def export_all(db: str | Path | None = None, out_dir: str | Path | None = None) 
 
     What changes is every other case. The source honoured $SCOREBOARD_DB and
     --db while the destination did not, so exporting a scratch database wrote
-    its rows straight over the real corpus's CSVs, with no warning and nothing
+    its rows straight over the real database's CSVs, with no warning and nothing
     in the output naming the file it had just overwritten. It is a quiet way to
     replace a 25-row published export with a 1-row test fixture, and it is how
     this bug was found. pipeline/db.py already refuses the same thing on the

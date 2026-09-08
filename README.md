@@ -362,7 +362,7 @@ Longer reference, kept out of this file:
   or `--db` on any command. Most commands open it read-write.
 - `SCOREBOARD_READONLY=1` opens it read-only for that command: everything that reads
   still works, everything that writes refuses and says which flag to unset. Use it
-  when you are checking on the corpus rather than changing it — poking at a research
+  when you are checking on the Scoreboard rather than changing it — poking at a research
   dataset to confirm something is fine should not be able to alter it. Cheaper and
   more certain than copying the file first.
 - Keep the database on a local disk. SQLite locking is unreliable over network

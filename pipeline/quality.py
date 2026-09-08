@@ -1,6 +1,6 @@
 """quality.py -- is this Scoreboard any good?
 
-Row counts cannot answer that. "23 screened" is a finished corpus or a 23-item
+Row counts cannot answer that. "23 screened" is a finished Scoreboard or a 23-item
 backlog depending on facts the counts do not carry, and the question a reader of
 the paper will actually ask is not how many rows there are but how many of them
 can carry the claim.
@@ -8,7 +8,7 @@ can carry the claim.
 So this measures five things, and deliberately does NOT blend them into one
 score. A single number invites an argument about the weights, and a referee will
 ask what is in it. Five bars, each with the rows behind it, is a triage screen:
-it says which rows to go fix, not what grade the corpus deserves.
+it says which rows to go fix, not what grade the Scoreboard deserves.
 
 The measures, in the order they matter for publication:
 

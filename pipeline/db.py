@@ -290,7 +290,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
         # $SCOREBOARD_READONLY=1 -- every command in this process can read and
         # none can write. It exists because checking something is not supposed
         # to change it, and repeatedly did: a `screen-check --all` run to prove
-        # the CLI still worked wrote 23 rows into the corpus, and an `export`
+        # the CLI still worked wrote 23 rows into the real database, and an `export`
         # from a scratch database overwrote the real CSVs. Both were verification
         # steps. SQLite enforces this at the file handle, so it holds for any
         # code path, including ones that forget to ask.

@@ -166,8 +166,8 @@ Or work the same queue in a terminal with <code>python3 scoreboard.py review</co
 def _quality_card(m: dict) -> str:
     """Five bars, and no blended score.
 
-    The counts on the tiles above cannot say whether the corpus is any good --
-    "23 screened" is a finished corpus or a backlog depending on facts they do
+    The counts on the tiles above cannot say whether the Scoreboard is any good --
+    "23 screened" is a finished Scoreboard or a backlog depending on facts they do
     not carry. These five say it. They are shown side by side rather than
     combined because a single number invites an argument about the weights, and
     a referee will ask what is in it.
@@ -190,7 +190,7 @@ def _quality_card(m: dict) -> str:
     f = m["flags"]
     n_prov, n_subst = len(f["provenance"]), len(f["substantive"])
     return f"""
-<div class="card"><h2>Can this corpus carry the claim?</h2>
+<div class="card"><h2>Can this Scoreboard carry the claim?</h2>
 {rows}
 <p style="margin-top:1rem"><b>Open questions.</b> {n_prov + n_subst} of {m['total']}
 rows carry an unresolved flag, of two very different kinds:</p>

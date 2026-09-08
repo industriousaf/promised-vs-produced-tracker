@@ -142,7 +142,7 @@ fi
 # Every run tees its own output to logs/. The transcript is the only record of
 # what a run actually did: which model and effort, how many turns, which
 # iterations failed, why it stopped. The database says what was collected but
-# not how, and for a corpus that will be cited, how is part of the claim.
+# not how, and for a Scoreboard that will be cited, how is part of the claim.
 #
 # LOG=0 turns it off. LOG=<path> picks the file.
 #

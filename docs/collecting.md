@@ -4,7 +4,7 @@
 
 This is the ongoing collection: shell loops that find new projects and extract
 them into rows, one per iteration. It is the counterpart to the one-off bulk
-import that seeded an earlier corpus, which is archived outside this directory
+import that seeded an earlier dataset, which is archived outside this directory
 under `reference/bulk-import-experiment/`. The short version is in the
 [scoreboard README](../README.md#add-data); this is the full set of controls.
 Bookkeeping is below, and the full methodology is in

@@ -98,7 +98,7 @@ the default) or what has been published (`verify`).
 
 **It does not compare names.** The same project appears under different names in
 different sources, and different projects appear under similar ones. On the
-historical hand-built corpus, exact-name matching scores 0 of 10 and naive
+historical hand-built dataset, exact-name matching scores 0 of 10 and naive
 substring matching scores 9 of 10; the truth is 7. Matching is therefore gated on
 **state** first — a project is a company plus a physical site — and only scored
 on name overlap within that state. That is what separates `TSMC Fab 1 Phoenix`

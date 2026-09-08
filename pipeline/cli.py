@@ -669,7 +669,7 @@ def cmd_screen_date(conn, args):
 
 
 def cmd_quality(conn, args):
-    """Five measures of whether this corpus can carry the claim.
+    """Five measures of whether this Scoreboard can carry the claim.
 
     Deliberately five numbers and not one. A blended score invites an argument
     about the weights, and a referee will ask what is in it; five bars with the
@@ -1642,7 +1642,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_screen_date)
 
     s = sub.add_parser("quality",
-                       help="five measures of whether the corpus can carry the claim")
+                       help="five measures of whether the Scoreboard can carry the claim")
     s.add_argument("--rows", action="store_true",
                    help="list the row ids each measure is missing")
     s.set_defaults(fn=cmd_quality)

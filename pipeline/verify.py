@@ -47,7 +47,7 @@ DATE_STRING_COLUMNS = {"announced", "promised_first_output", "actual_first_outpu
 # 1) ended up reading actual_first_output = '2024-Q4' with
 # actual_first_output_raw = 'unconfirmed': the cell, its resolved date and its
 # citation all correct, and the one field claiming to be the source text saying
-# the opposite. For a corpus whose whole argument is provenance, that is the
+# the opposite. For a Scoreboard whose whole argument is provenance, that is the
 # worst cell to have wrong.
 EDITABLE_COLUMNS = [c for c in list(V0_COLUMNS) + list(RAW_DATE_COLUMNS)
                     if c not in DERIVED_FIELDS]
