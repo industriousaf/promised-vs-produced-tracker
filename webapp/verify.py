@@ -25,7 +25,7 @@ from pipeline.db import (  # noqa: E402
     connect, db_path, discover_databases, init_db, is_read_only, set_active_db,
     table_counts,
 )
-from pipeline.criteria import active as _crit  # noqa: E402
+from pipeline.settings import active as _crit  # noqa: E402
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,

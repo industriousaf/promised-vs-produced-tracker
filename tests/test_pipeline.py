@@ -24,7 +24,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline import criteria, dates, models, quality, screen, source, verify  # noqa: E402
+from pipeline import dates, quality, screen, source, verify  # noqa: E402
+from pipeline import settings  # noqa: E402
+# One module now; these aliases keep each test naming the concern it covers.
+criteria = models = run_cfg = settings
 from pipeline import schema_check as sc  # noqa: E402
 from pipeline.db import connect, init_db  # noqa: E402
 from tools.export_tables import export_dir  # noqa: E402
@@ -712,6 +715,57 @@ class TestCriteria(Base):
         self.assertFalse(hasattr(sc, "register_sector"))
         self.assertFalse((Path(__file__).resolve().parent.parent
                           / "pipeline" / "sector_registry.json").exists())
+
+
+# --------------------------------------------------------------------------- #
+class TestLoopSettings(unittest.TestCase):
+    """One definition per loop setting, shared by both shell scripts.
+
+    Each of these lived twice, once in source.sh and once in all.sh, because
+    all.sh launches source.sh with an explicit environment and had to supply a
+    value for every knob. That is this repository's most repeated bug and it had
+    already happened here: all.sh's flat MAX_ITERS of 200 shadowed source.sh's
+    scaling default, so a run asking for 300 rows capped at 200 in silence.
+    """
+
+    def tearDown(self):
+        for k in ("MAX_STALL", "SOURCE_MAX_STALL", "LEADS_PER_CALL", "VERBOSE"):
+            os.environ.pop(k, None)
+
+    def test_max_iters_scales_and_has_a_floor(self):
+        self.assertEqual(run_cfg.max_iters(100), 300)
+        self.assertEqual(run_cfg.max_iters(400), 1200)
+        self.assertEqual(run_cfg.max_iters(5), run_cfg.MIN_ITERS)
+
+    def test_a_bad_row_target_cannot_cap_the_loop_at_zero(self):
+        """BSD `seq 1 0` counts DOWN, so a cap of 0 would run two turns with
+        i=1 then i=0 rather than none."""
+        for bad in ("", "abc", None, "-4"):
+            self.assertGreaterEqual(run_cfg.max_iters(bad), run_cfg.MIN_ITERS)
+
+    def test_the_global_override_wins_over_the_default(self):
+        os.environ["MAX_STALL"] = "9"
+        self.assertEqual(run_cfg.max_stall(), 9)
+
+    def test_a_stage_override_wins_over_the_global(self):
+        os.environ["MAX_STALL"] = "9"
+        os.environ["SOURCE_MAX_STALL"] = "7"
+        self.assertEqual(run_cfg.max_stall("SOURCE"), 7)
+        self.assertEqual(run_cfg.max_stall("SCREEN"), 9, "another stage still sees the global")
+
+    def test_it_reports_what_decided_each_value(self):
+        self.assertEqual(run_cfg.run_source("MAX_STALL"), "settings.py")
+        os.environ["MAX_STALL"] = "9"
+        self.assertEqual(run_cfg.run_source("MAX_STALL"), "$MAX_STALL")
+        os.environ["SOURCE_MAX_STALL"] = "7"
+        self.assertEqual(run_cfg.run_source("MAX_STALL", "SOURCE"), "$SOURCE_MAX_STALL")
+
+    def test_the_two_methodological_settings_are_present(self):
+        """leads_per_call and max_stall decide what a run MEANS, so both must be
+        reportable -- they belong in the run header and the write-up."""
+        eff = settings.run_in_effect()
+        self.assertIn("leads_per_call", eff)
+        self.assertIn("max_stall", eff)
 
 
 # --------------------------------------------------------------------------- #

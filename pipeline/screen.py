@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from pipeline import criteria
+from pipeline import settings as criteria
 from pipeline.db import now_iso
 from pipeline.dates import (
     enrich as enrich_dates, interpret_date, DATE_TRIPLES, PRODUCED_UNDATED,

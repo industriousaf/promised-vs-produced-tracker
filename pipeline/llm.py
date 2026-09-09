@@ -29,8 +29,9 @@ import json
 import os
 from pathlib import Path
 
-from pipeline import models
-from pipeline import criteria
+from pipeline import settings
+from pipeline import settings as models
+from pipeline import settings as criteria
 from pipeline.schema_check import all_sectors
 
 # Models newer than Opus 4.6 support the _20260209 web tools with dynamic

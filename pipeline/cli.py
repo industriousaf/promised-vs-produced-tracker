@@ -42,7 +42,8 @@ from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E
 from pipeline.db import (  # noqa: E402
     DEFAULT_DB, TABLES, connect, db_path, init_db, table_counts,
 )
-from pipeline import models, quality, criteria  # noqa: E402
+from pipeline import quality, settings  # noqa: E402
+from pipeline import settings as models, settings as criteria, settings as run_cfg  # noqa: E402
 from pipeline.dates import enrich as enrich_dates, lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
@@ -724,7 +725,7 @@ def cmd_models(conn, args):
         return
     print("Model per stage        (edit pipeline/models.py to change)")
     print("=" * 56)
-    for stage, (name, why) in models.in_effect().items():
+    for stage, (name, why) in settings.models_in_effect().items():
         print(f"  {stage:8} {name:24} <- {why}")
     print(f"  {'effort':8} {models.effort():24} <- "
           f"{'$EFFORT' if os.getenv('EFFORT') else 'models.py'}")
@@ -750,7 +751,7 @@ def cmd_criteria(conn, args):
 
     colour = _use_colour()
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
-    print(f"What counts as a project      phase {bold(c.id)}  <- {criteria.why()}")
+    print(f"What counts as a project      phase {bold(c.id)}  <- {settings.criteria_source()}")
     print("=" * 62)
     print(f"  {'SIZE':8} {c.describe()}")
     print(f"  {'WHEN':8} announced {c.announced_from} or later")
@@ -786,6 +787,70 @@ def cmd_criteria(conn, args):
             print("Screen rows by the phase that admitted them:")
             for r in rows:
                 print(f"    {r['c']:12} {r['n']:>5}")
+
+
+def cmd_config(conn, args):
+    """Everything configurable, in one place, with what set each value.
+
+    Three modules answer three questions -- criteria.py what counts as a project,
+    models.py which model runs each stage, collection_settings.py how a run
+    behaves -- and
+    before this there was no way to see all of it at once. `criteria` and
+    `models` remain as focused views; this is the whole picture.
+    """
+    KEYS = {
+        "capital": lambda: criteria.active().capital_usd,
+        "jobs": lambda: criteria.active().jobs,
+        "op": lambda: criteria.active().op,
+        "announced-from": lambda: criteria.active().announced_from,
+        "countries": lambda: ",".join(criteria.active().countries),
+        "criteria-id": lambda: criteria.active().id,
+        "leads-per-call": lambda: run_cfg.leads_per_call(args.stage),
+        "max-stall": lambda: run_cfg.max_stall(args.stage),
+        "verbose": lambda: run_cfg.verbose(args.stage),
+        "max-iters": lambda: run_cfg.max_iters(args.add),
+    }
+    if args.For:
+        print(KEYS[args.For]())
+        return
+
+    colour = _use_colour()
+    bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
+    dim = (lambda t: f"{_ANSI['dim']}{t}{_ANSI['off']}") if colour and 'dim' in _ANSI else (lambda t: t)
+    c = settings.active()
+
+    def row(label, value, src, const=None):
+        # When the value comes from this file, cite the LINE rather than the
+        # filename: "where do I change this" should be answered on screen, not
+        # be a search away. An env override names the variable instead, because
+        # that is where the value is really coming from.
+        if const and src == "settings.py":
+            src = settings.where(const)
+        print(f"    {label:<18} {str(value):<28} <- {src}")
+
+    print(f"Configuration in effect{'  (stage ' + args.stage + ')' if args.stage else ''}")
+    print("=" * 74)
+    print(bold("  WHAT COUNTS AS A PROJECT") + "        methodology")
+    row("phase", c.id, settings.criteria_source(), "ACTIVE")
+    row("size", c.describe(), "the phase")
+    row("announced from", c.announced_from, "the phase")
+    row("countries", ", ".join(c.countries), "the phase")
+    row("sectors", f"{len(c.sectors)} (closed)", "settings.py", "SECTORS")
+    print()
+    print(bold("  WHICH MODEL RUNS EACH STAGE"))
+    for stage, (name, src) in settings.models_in_effect().items():
+        row(stage, name, src, stage.upper())
+    row("effort", settings.effort(),
+        "$EFFORT" if os.getenv("EFFORT") else "settings.py", "EFFORT")
+    print()
+    print(bold("  HOW A COLLECTION RUN BEHAVES"))
+    for k, (v, src) in settings.run_in_effect(args.stage).items():
+        row(k, v, src, k.upper())
+    row("max_iters", settings.max_iters(args.add), "settings.py", "ITERS_PER_ROW")
+    print()
+    print("  Everything above is defined in pipeline/settings.py. Override any of")
+    print("  it for one run without editing anything:")
+    print("    CRITERIA=100M-or-200-jobs MAX_STALL=8 bash collect/all.sh")
 
 
 def cmd_recompute(conn, args):
@@ -1695,6 +1760,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--effort", action="store_true",
                    help="with --for, print the reasoning effort instead")
     s.set_defaults(fn=cmd_models)
+
+    s = sub.add_parser("config",
+                       help="everything configurable, and what set each value")
+    s.add_argument("--for", dest="For",
+                   choices=["capital", "jobs", "op", "announced-from", "countries",
+                            "criteria-id", "leads-per-call", "max-stall", "verbose",
+                            "max-iters"],
+                   help="print one value, for the shell scripts")
+    s.add_argument("--stage", help="resolve stage-specific overrides (SOURCE, SCREEN)")
+    s.add_argument("--add", default="10", help="row target, for computing max-iters")
+    s.set_defaults(fn=cmd_config)
 
     s = sub.add_parser("criteria",
                        help="what counts as a project (the inclusion rules)")

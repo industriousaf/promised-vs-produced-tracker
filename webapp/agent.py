@@ -45,7 +45,8 @@ import time  # noqa: E402
 from fastapi import APIRouter, Query  # noqa: E402
 from fastapi.responses import HTMLResponse  # noqa: E402
 
-from pipeline import llm, models, screen, verify  # noqa: E402
+from pipeline import llm, screen, verify  # noqa: E402
+from pipeline import settings as models  # noqa: E402
 from pipeline.db import db_path  # noqa: E402
 from pipeline.llm import LLMUnavailable, VERIFY_TARGETS  # noqa: E402
 

@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import criteria as _criteria  # noqa: E402
+from pipeline import settings as _criteria  # noqa: E402
 
 # --------------------------------------------------------------------------- #
 # Controlled vocabularies                                                      #

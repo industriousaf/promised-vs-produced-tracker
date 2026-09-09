@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from pipeline.criteria import active as _active_criteria
+from pipeline.settings import active as _active_criteria
 from pipeline.db import now_iso
 from pipeline.schema_check import NULL_STRINGS
 

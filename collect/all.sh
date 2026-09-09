@@ -162,19 +162,16 @@ run_stage() {
   # implementation of that rule instead of a shell copy that can drift from it.
   model="$("$PY" -m pipeline.cli models --for "$stage")"
   effort="$("$PY" -m pipeline.cli models --for "$stage" --effort)"
-  # Default scales with the rows asked for; see the note in source.sh. A flat
-  # 200 here shadowed source.sh's own default, so N=300 capped at 200 silently.
-  case "$add" in
-    ''|*[!0-9]*) iters_default=30 ;;
-    *) iters_default=$(( add * 3 ))
-       [ "$iters_default" -lt 30 ] && iters_default=30 ;;
-  esac
-  iters="$(stage_cfg "$stage" MAX_ITERS   "$iters_default")"
-  stall="$(stage_cfg "$stage" MAX_STALL   "3")"
-  verbose="$(stage_cfg "$stage" VERBOSE   "0")"
+  # Every default below comes from pipeline/collection_settings.py. This block used to carry
+  # its own copies, and all.sh's flat MAX_ITERS of 200 once shadowed
+  # source.sh's scaling default -- a run asking for 300 rows capped at 200,
+  # silently.
+  iters="$(stage_cfg "$stage" MAX_ITERS   "$("$PY" -m pipeline.cli config --for max-iters --add "$add")")"
+  stall="$(stage_cfg "$stage" MAX_STALL "$("$PY" -m pipeline.cli config --for max-stall --stage "$stage")")"
+  verbose="$(stage_cfg "$stage" VERBOSE "$("$PY" -m pipeline.cli config --for verbose --stage "$stage")")"
   # Source only. The Screen prompt fixes one lead per call in its own text and
   # has no ceiling to set.
-  leads="$(stage_cfg "$stage" LEADS_PER_CALL "5")"
+  leads="$(stage_cfg "$stage" LEADS_PER_CALL "$("$PY" -m pipeline.cli config --for leads-per-call --stage "$stage")")"
 
   echo
   echo "==================================================================="

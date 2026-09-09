@@ -36,50 +36,28 @@ PROMPT_FILE="${PROMPT_FILE:-collect/prompts/prompt1_collect_recent.md}"
 COUNT_TABLE="${COUNT_TABLE:-source_collected}"   # which stage's rows we're adding to
 ADD="${ADD:-10}"                                  # how many NEW rows to add to COUNT_TABLE this run
 
-# How many leads one Source call may return. A CEILING, never a quota -- the
-# prompt is explicit that returning fewer, even zero, beats loosening a
-# threshold to reach the number, and the whole saturation measurement depends on
-# a short answer being allowed.
-#
-# It lived only in the prompt prose, stated eight times including that file's own
-# title, which meant nothing outside it could read the value, report it, or change
-# it -- the same defect the inclusion floor had before criteria.py. The prompt now
-# states no number and this is appended to it below.
-#
-# Raising it is NOT obviously cheaper. Measured cost is ~416K tokens and ~8 turns
-# per lead, and the Screen batching A/B on this pipeline found three-per-call cost
-# 15% MORE tokens than one-per-call, because a call holding several jobs re-reads
-# all of them every turn. Pulling the other way, Source re-reads the exclusion list
-# once per iteration and that list grows with the database, so fewer iterations is
-# a real saving at scale. Genuinely uncertain, so measure before moving it.
-LEADS_PER_CALL="${LEADS_PER_CALL:-5}"
-# The cap bounds COST, not liveness -- MAX_STALL below is the liveness check.
-# It exists for the case MAX_STALL cannot see: steady but slow progress. `stall`
-# resets on every success, so a run adding one row every four turns never trips
-# it while paying four calls per row. Only this cap bounds that.
-#
-# It scales with ADD rather than sitting at a flat number, because "too many
-# turns" depends on how many rows were asked for. A flat 200 silently truncated
-# any run wanting more than ~66. Non-numeric or tiny values fall back to a floor
-# so the loop can never be capped at zero -- BSD seq counts DOWN for `seq 1 0`,
-# which would run two turns with i=1 then i=0.
-case "$ADD" in
-  ''|*[!0-9]*) _iters_default=30 ;;
-  *) _iters_default=$(( ADD * 3 ))
-     [ "$_iters_default" -lt 30 ] && _iters_default=30 ;;
-esac
-MAX_ITERS="${MAX_ITERS:-$_iters_default}"         # cost cap on loop turns
-MAX_STALL="${MAX_STALL:-3}"                       # stop after this many no-progress iterations in a row
+# Defaults come from pipeline/collection_settings.py, asked for rather than repeated here --
+# all.sh needs the same values and two copies of a default is this repo's most
+# repeated bug. The note on what each one means lives there.
 # MODEL and EFFORT are resolved below, once $PY is known -- pipeline/models.py
 # holds the names and applies the SOURCE_MODEL / SCREEN_MODEL / MODEL
 # precedence, so the rule is written once instead of once per script.
 # NOTE: the print-mode `--effort` flag only accepts low|medium|high -- there is
 # no "extra high" from the CLI. `high` is the ceiling.
-VERBOSE="${VERBOSE:-0}"   # 1 = stream tool calls/text live (JSON firehose)
 
 # --- Locate scoreboard/ and the tools --------------------------------- #
 cd "$(dirname "$0")/.."                            # collect/ -> scoreboard/
 PY="${PY:-$(command -v python3 || command -v python)}"
+
+# --- Run settings, from pipeline/collection_settings.py -------------------- #
+# Asked for, not repeated. These have to be resolved AFTER $PY exists and after
+# the cd above, which is also where MODEL and EFFORT already ask models.py.
+# STAGE_LABEL may be unset when this script is run directly, so the stage-specific
+# lookup degrades to the global one.
+LEADS_PER_CALL="${LEADS_PER_CALL:-$("$PY" -m pipeline.cli config --for leads-per-call --stage "${STAGE_LABEL:-}")}"
+MAX_ITERS="${MAX_ITERS:-$("$PY" -m pipeline.cli config --for max-iters --add "$ADD")}"         # cost cap on loop turns
+MAX_STALL="${MAX_STALL:-$("$PY" -m pipeline.cli config --for max-stall --stage "${STAGE_LABEL:-}")}"                       # stop after this many no-progress iterations in a row
+VERBOSE="${VERBOSE:-$("$PY" -m pipeline.cli config --for verbose --stage "${STAGE_LABEL:-}")}"   # 1 = stream tool calls/text live (JSON firehose)
 
 # Which stage this is -- needed before the model can be asked for. all.sh sets
 # it; a stage run on its own names itself from the table it counts.
