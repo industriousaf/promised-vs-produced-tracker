@@ -55,7 +55,7 @@ REQUIRED_COLUMNS = [
     # The country the facility is in, and its subdivision inside that country.
     # `country` exists from the start even though the Scoreboard is US-only,
     # because the plan covers allied countries and adding one should be a config
-    # change in criteria.py rather than a migration of every stored row. A blank
+    # change in settings.py rather than a migration of every stored row. A blank
     # cell means the phase's only country.
     "country",
     "state",
@@ -99,7 +99,7 @@ PROVENANCE_COLUMNS = [
 KNOWN_COLUMNS = set(REQUIRED_COLUMNS) | set(PROVENANCE_COLUMNS)
 
 # Sector vocabulary, the country list and the size floor all live in
-# pipeline/criteria.py now -- one place for every rule about what counts as a
+# pipeline/settings.py now -- one place for every rule about what counts as a
 # project. These names are kept as thin pass-throughs because the rest of the
 # package and the tests import them from here.
 SECTORS = _criteria.SECTORS
@@ -207,7 +207,7 @@ def sector_status(value: str, crit=None) -> tuple[str, str] | None:
     OK, else (level, message):
       * empty          -> ERROR (sector is required)
       * unknown value  -> ERROR (outside the vocabulary -- add it to
-                          pipeline/criteria.py first if it is a genuinely new
+                          pipeline/settings.py first if it is a genuinely new
                           manufacturing sector)."""
     crit = crit or _criteria.active()
     v = (value or "").strip()
@@ -217,7 +217,7 @@ def sector_status(value: str, crit=None) -> tuple[str, str] | None:
         return ERROR, (
             f"{v!r} is not in the sector vocabulary {sorted(crit.sectors)}; "
             "use one of these, or if it is a genuinely new manufacturing sector "
-            "add it to SECTORS in pipeline/criteria.py first"
+            "add it to SECTORS in pipeline/settings.py first"
         )
     return None
 

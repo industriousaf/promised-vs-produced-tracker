@@ -29,7 +29,7 @@ cd "$(dirname "$0")/.."                            # collect/ -> scoreboard/
 PY="${PY:-$(command -v python3 || command -v python)}"
 
 # This is a Screen-stage job on Screen rows, so it runs the Screen model rather
-# than introducing a fourth slot in models.py for one script.
+# than introducing a fourth slot in settings.py for one script.
 MODEL="$("$PY" -m pipeline.cli models --for SCREEN)"
 EFFORT="$("$PY" -m pipeline.cli models --for SCREEN --effort)"
 VERBOSE="${VERBOSE:-0}"

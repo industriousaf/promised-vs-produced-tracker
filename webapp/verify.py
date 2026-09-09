@@ -151,7 +151,7 @@ def verify_page(
   <p>A <b>closed</b> set of manufacturing sectors. Manual edits pick from a
   dropdown on each Verify row; a sector outside this vocabulary is rejected by
   the checker. Extending it is a code change — add to <code>SECTORS</code> in
-  <code>pipeline/criteria.py</code> — so that what counts as in scope cannot
+  <code>pipeline/settings.py</code> — so that what counts as in scope cannot
   move at runtime without a commit recording it. Current vocabulary:</p>
   <p>{sector_chips}</p>
 </div>

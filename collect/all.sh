@@ -31,7 +31,7 @@
 #     MODEL        Claude model each iteration runs          (see below)
 #     EFFORT       low | medium | high                       (see below)
 #
-#   MODEL and EFFORT default from pipeline/models.py -- the one place the
+#   MODEL and EFFORT default from pipeline/settings.py -- the one place the
 #   names live. `python3 scoreboard.py models` says what is in effect and
 #   what decided it. MODEL= on the command line changes every stage for one
 #   run; SOURCE_MODEL= / SCREEN_MODEL= change a single stage and win over it.
@@ -157,12 +157,12 @@ run_stage() {
   add="$(stage_cfg   "$stage" ADD         "$N")"
   prompt="$(stage_cfg "$stage" PROMPT_FILE "$default_prompt")"
   table="$(stage_cfg "$stage" COUNT_TABLE "$default_table")"
-  # Not stage_cfg: pipeline/models.py holds the names AND the
+  # Not stage_cfg: pipeline/settings.py holds the names AND the
   # SOURCE_MODEL / SCREEN_MODEL / MODEL precedence, so asking it keeps one
   # implementation of that rule instead of a shell copy that can drift from it.
   model="$("$PY" -m pipeline.cli models --for "$stage")"
   effort="$("$PY" -m pipeline.cli models --for "$stage" --effort)"
-  # Every default below comes from pipeline/collection_settings.py. This block used to carry
+  # Every default below comes from pipeline/settings.py. This block used to carry
   # its own copies, and all.sh's flat MAX_ITERS of 200 once shadowed
   # source.sh's scaling default -- a run asking for 300 rows capped at 200,
   # silently.

@@ -36,12 +36,9 @@ PROMPT_FILE="${PROMPT_FILE:-collect/prompts/prompt1_collect_recent.md}"
 COUNT_TABLE="${COUNT_TABLE:-source_collected}"   # which stage's rows we're adding to
 ADD="${ADD:-10}"                                  # how many NEW rows to add to COUNT_TABLE this run
 
-# Defaults come from pipeline/collection_settings.py, asked for rather than repeated here --
-# all.sh needs the same values and two copies of a default is this repo's most
-# repeated bug. The note on what each one means lives there.
-# MODEL and EFFORT are resolved below, once $PY is known -- pipeline/models.py
-# holds the names and applies the SOURCE_MODEL / SCREEN_MODEL / MODEL
-# precedence, so the rule is written once instead of once per script.
+# Every default comes from pipeline/settings.py, asked for rather than repeated
+# here -- all.sh needs the same values, and two copies of a default is this
+# repo's most repeated bug. The note on what each one means lives there.
 # NOTE: the print-mode `--effort` flag only accepts low|medium|high -- there is
 # no "extra high" from the CLI. `high` is the ceiling.
 
@@ -49,18 +46,10 @@ ADD="${ADD:-10}"                                  # how many NEW rows to add to 
 cd "$(dirname "$0")/.."                            # collect/ -> scoreboard/
 PY="${PY:-$(command -v python3 || command -v python)}"
 
-# --- Run settings, from pipeline/collection_settings.py -------------------- #
-# Asked for, not repeated. These have to be resolved AFTER $PY exists and after
-# the cd above, which is also where MODEL and EFFORT already ask models.py.
-# STAGE_LABEL may be unset when this script is run directly, so the stage-specific
-# lookup degrades to the global one.
-LEADS_PER_CALL="${LEADS_PER_CALL:-$("$PY" -m pipeline.cli config --for leads-per-call --stage "${STAGE_LABEL:-}")}"
-MAX_ITERS="${MAX_ITERS:-$("$PY" -m pipeline.cli config --for max-iters --add "$ADD")}"         # cost cap on loop turns
-MAX_STALL="${MAX_STALL:-$("$PY" -m pipeline.cli config --for max-stall --stage "${STAGE_LABEL:-}")}"                       # stop after this many no-progress iterations in a row
-VERBOSE="${VERBOSE:-$("$PY" -m pipeline.cli config --for verbose --stage "${STAGE_LABEL:-}")}"   # 1 = stream tool calls/text live (JSON firehose)
-
-# Which stage this is -- needed before the model can be asked for. all.sh sets
-# it; a stage run on its own names itself from the table it counts.
+# Which stage this is. all.sh sets it; a stage run on its own names itself from
+# the table it counts. Derived FIRST: every lookup below is stage-specific, and
+# resolving them above this block passed an empty stage, so SCREEN_MAX_STALL
+# and friends were silently ignored on a direct run.
 if [ -z "${STAGE_LABEL:-}" ]; then
   case "$COUNT_TABLE" in
     source_collected) STAGE_LABEL=SOURCE ;;
@@ -69,11 +58,16 @@ if [ -z "${STAGE_LABEL:-}" ]; then
   esac
 fi
 
-# The one place the model name lives. models.py reads SOURCE_MODEL /
-# SCREEN_MODEL / MODEL itself, so this asks for the answer rather than
-# re-deriving it -- there is no second copy of the precedence rule to drift.
-MODEL="$("$PY" -m pipeline.cli models --for "$STAGE_LABEL")"
-EFFORT="$("$PY" -m pipeline.cli models --for "$STAGE_LABEL" --effort)"
+# --- Settings, from pipeline/settings.py ---------------------------------- #
+# Resolved after $PY exists, after the cd, and after STAGE_LABEL so the
+# SOURCE_* / SCREEN_* overrides apply. Each is skipped when the caller (all.sh)
+# already passed it, so a value in hand never costs a second interpreter.
+LEADS_PER_CALL="${LEADS_PER_CALL:-$("$PY" -m pipeline.cli config --for leads-per-call --stage "$STAGE_LABEL")}"
+MAX_ITERS="${MAX_ITERS:-$("$PY" -m pipeline.cli config --for max-iters --add "$ADD" --stage "$STAGE_LABEL")}"
+MAX_STALL="${MAX_STALL:-$("$PY" -m pipeline.cli config --for max-stall --stage "$STAGE_LABEL")}"
+VERBOSE="${VERBOSE:-$("$PY" -m pipeline.cli config --for verbose --stage "$STAGE_LABEL")}"
+MODEL="${MODEL:-$("$PY" -m pipeline.cli models --for "$STAGE_LABEL")}"
+EFFORT="${EFFORT:-$("$PY" -m pipeline.cli models --for "$STAGE_LABEL" --effort)}"
 
 CLAUDE="$(command -v claude || echo "$HOME/.local/bin/claude")"
 [ -x "$CLAUDE" ] || { echo "ERROR: claude CLI not found ($CLAUDE)"; exit 1; }

@@ -38,7 +38,8 @@ from pipeline.schema_check import (
     RAW_DATE_COLUMNS,
 )
 
-DEFAULT_DB = Path(__file__).resolve().parent.parent / "outputs" / "scoreboard.db"
+SCOREBOARD_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DB = SCOREBOARD_ROOT / "outputs" / "scoreboard.db"
 
 
 def now_iso() -> str:
@@ -176,9 +177,6 @@ def _legacy_view(src: Path) -> Path:
     return dest
 
 
-SCOREBOARD_ROOT = Path(__file__).resolve().parent.parent
-
-
 def _autoexport(target: Path) -> None:
     """Refresh outputs/csv_tables/ from `target`.
 
@@ -189,9 +187,9 @@ def _autoexport(target: Path) -> None:
     if os.getenv("SCOREBOARD_NO_AUTOEXPORT"):
         return
     try:
-        if str(SCOREBOARD_ROOT) not in sys.path:
-            sys.path.insert(0, str(SCOREBOARD_ROOT))
-        from tools.export_tables import export_all, export_dir
+        # A same-package import; lazy only so a database write never pays for
+        # loading the exporter until it is actually refreshing the CSVs.
+        from pipeline.export_tables import export_all, export_dir
         export_all(db=target)
         print(f"(database changed -- refreshed {export_dir(db=target)}/)", file=sys.stderr)
     except Exception as exc:                                    # noqa: BLE001

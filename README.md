@@ -43,7 +43,7 @@ looser sweep stays distinguishable from an earlier one. Two are defined:
 | `100M-or-200-jobs` | capital ≥ $100,000,000 **OR** ≥ 200 direct promised jobs | the rule this repository's rows were collected under |
 | `1B-or-2000-jobs` | capital ≥ $1,000,000,000 **OR** ≥ 2,000 direct promised jobs | the high threshold |
 
-`scoreboard.py criteria` prints which is in force, and `pipeline/criteria.py` is
+`scoreboard.py config` prints which is in force with the line to edit, and `pipeline/settings.py` is
 the only place any of it is set.
 
 | | Rule |
@@ -139,7 +139,7 @@ The CSVs in option 1 carry every column of their table, in table order, sorted b
 `_check` and `_edits` hold the audit trail, which is exported because
 `scoreboard.db` is committed and git cannot diff a binary. Without them a commit
 could add fifty check runs, or a correction to a published figure, and show
-nothing but "scoreboard.db changed". `tools/export_tables.py` takes `--db` to
+nothing but "scoreboard.db changed". `pipeline/export_tables.py` takes `--db` to
 read a different database and `--out-dir` to write somewhere else. `python3 scoreboard.py export`
 is the same exporter as a command; `--out-dir` works there too.
 
@@ -376,16 +376,20 @@ covers what to look for while reviewing.
 
 ## What is in here
 
-Each of the three pipeline directories has its own README.
+If you are here to **use** it rather than change it, you will touch three things:
+`scoreboard.py`, `collect/`, and `outputs/` -- plus `webapp/` to review rows.
+Everything else is machinery. Each of the three pipeline directories has its own
+README.
 
 | Path | What it is |
 |---|---|
 | [`scoreboard.py`](scoreboard.py) | **The entry point.** A thin launcher for the pipeline CLI. |
-| [`pipeline/`](pipeline/) | **The pipeline.** The five tables, the commands, and the promotion gate. `collect/`, `tools/` and the web app all write through it. Also holds `schema.py`, which defines the columns, the sector list, and the size floor. |
+| [`pipeline/`](pipeline/) | **The pipeline.** The five tables, the commands, and the promotion gate. `collect/`, `tools/` and the web app all write through it. Also holds `settings.py` -- the one place every threshold, model and loop setting is defined -- and `schema.py`, the row validator. |
 | [`collect/`](collect/) | **Ongoing collection.** The loops that find new projects and extract them, and the prompts they hand to each one. |
 | [`webapp/`](webapp/) | The browser interface, for reviewing rows against their sources and promoting them. |
-| [`tools/`](tools/) | Scripts for an existing database. Two are also CLI commands: `export` and `coverage`. The other two, bulk CSV load and batch collection over the API, stay scripts because they are rare and sharp. |
+| [`tools/`](tools/) | Two standalone scripts nobody imports: bulk CSV load, and batch collection over the direct API. They stay scripts because they are rare and sharp. (`export` and `coverage` moved into `pipeline/`, which imports them.) |
 | [`outputs/`](outputs/) | `scoreboard.db`, plus `csv_tables/` holding a flat CSV export of each stage. |
+| `docs/` `logs/` `scratch/` `tests/` | Reference, run transcripts (local only -- `logs/RUNS.md` is the committed record), working files, and the test suite. Nothing to click. |
 
 Longer reference, kept out of this file:
 

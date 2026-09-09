@@ -34,14 +34,24 @@ For one run, override without editing anything:
 
 from __future__ import annotations
 
+import ast
+import functools
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 # ========================================================================== #
 #  1. WHAT COUNTS AS A PROJECT                                             #
 # ========================================================================== #
+#
+# A phase's name is its rule, spelled out -- `100M-or-200-jobs`, never `p1`. It
+# is written into `criteria_id` on every row and into the checker's messages, so
+# it has to mean something to a person reading a CSV column with no
+# documentation open. A short opaque handle would be the same mistake as an
+# undefined term in the README, except stored in the data, where it cannot be
+# reworded later. Two phases exist because the Scoreboard is built by sweeping
+# at a high threshold first and lowering it; the stamp is what keeps a later,
+# looser sweep distinguishable from this one.
 
 # --------------------------------------------------------------------------- #
 # WHERE -- the subdivisions of each country in scope                           #
@@ -319,8 +329,10 @@ LEADS_PER_CALL = 5
 # call 40 and the rule did not fire until call 50 -- four times the counter
 # reached 1 and a stray find reset it, at a cost of 16M tokens for nine leads.
 # The number a run reports as its saturation point therefore depends on where
-# those stray finds happen to land. docs/saturation.md sets out the case for a
-# rate-based rule and for estimating the remainder rather than declaring it zero.
+# those stray finds happen to land. A rate-based rule (stop when the trailing
+# calls average well below the ceiling) would degrade gracefully; an estimator
+# (capture-recapture across independent sweeps) is what turns "we stopped
+# finding things" into "at least N exist". Neither is built yet.
 MAX_STALL = 3
 
 # 1 = stream every tool call and message live (a JSON firehose, megabytes per
@@ -357,7 +369,7 @@ def max_iters(add) -> int:
 def _pick_run(name: str, default, stage: str | None = None):
     """A stage's own variable, else the global one, else the default here.
 
-    Mirrors the precedence models.py uses for SOURCE_MODEL / MODEL, and the one
+    Mirrors the precedence the model section above uses for SOURCE_MODEL / MODEL, and the one
     all.sh's `stage_cfg` implements for the shell: SOURCE_MAX_STALL beats
     MAX_STALL beats the constant above.
     """
@@ -387,12 +399,25 @@ def run_source(name: str, stage: str | None = None) -> str:
     return f"${name}" if os.getenv(name) else "settings.py"
 
 
-def run_in_effect(stage: str | None = None) -> dict:
-    """{setting: (value, what decided it)} -- everything this module owns."""
+def max_iters_in_effect(stage: str | None = None, add=None) -> int:
+    """The cap actually in force: $MAX_ITERS (or a stage-specific one) if set,
+    else the formula. `config` had been printing the formula while the shell
+    honoured the variable -- the very shadowing incident this file exists to
+    make visible, hidden by the tool built to show it."""
+    return int(_pick_run("MAX_ITERS", max_iters(add), stage))
+
+
+def effort_source() -> str:
+    return "$EFFORT" if os.getenv("EFFORT") else "settings.py"
+
+
+def run_in_effect(stage: str | None = None, add=None) -> dict:
+    """{setting: (value, what decided it)} -- everything this section owns."""
     return {
         "leads_per_call": (leads_per_call(stage), run_source("LEADS_PER_CALL", stage)),
         "max_stall": (max_stall(stage), run_source("MAX_STALL", stage)),
         "verbose": (verbose(stage), run_source("VERBOSE", stage)),
+        "max_iters": (max_iters_in_effect(stage, add), run_source("MAX_ITERS", stage)),
     }
 
 
@@ -400,25 +425,51 @@ def run_in_effect(stage: str | None = None) -> dict:
 # Where to edit each value                                                     #
 # --------------------------------------------------------------------------- #
 
-def line_of(name: str) -> int | None:
-    """The line in THIS file where `name` is defined, or None.
+@functools.lru_cache(maxsize=None)
+def _definitions() -> dict[str, int]:
+    """{name: line} for every top-level assignment in THIS file, plus one entry
+    per phase -- "PHASES[1B-or-2000-jobs]" -- pointing at its Criteria(...) call.
 
-    `scoreboard.py config` cites it, so the answer to "where do I change this"
-    is on screen next to the value rather than a search away. Computed by
-    reading the file rather than hardcoded, so it cannot go stale when the file
-    is edited -- which is the only way a line number is worth printing at all.
+    Parsed with `ast`, not a regex: a regex on `^NAME =` could cite ACTIVE but
+    never the thresholds inside PHASES, which are the numbers a person actually
+    turns. Read once per process; `config` asks a dozen times.
     """
-    pat = re.compile(rf"^{re.escape(name)}\s*[:=]")
-    try:
-        for i, line in enumerate(Path(__file__).read_text().splitlines(), 1):
-            if pat.match(line):
-                return i
-    except OSError:                      # pragma: no cover - defensive
-        return None
-    return None
+    tree = ast.parse(Path(__file__).read_text())
+    out: dict[str, int] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names = [node.target.id]
+        else:
+            continue
+        for n in names:
+            out.setdefault(n, node.lineno)
+        if "PHASES" in names and isinstance(node.value, ast.Dict):
+            for k, v in zip(node.value.keys, node.value.values):
+                if isinstance(k, ast.Constant):
+                    out[f"PHASES[{k.value}]"] = v.lineno
+    return out
+
+
+def line_of(name: str) -> int | None:
+    """The line in this file where `name` is defined, or None."""
+    return _definitions().get(name)
 
 
 def where(name: str) -> str:
-    """'settings.py:154' for a named constant, or just the filename if absent."""
+    """'settings.py:154' for a named definition.
+
+    Raises on an unknown name rather than degrading to a bare filename: a
+    renamed constant should fail `config` (and the test that covers it), not
+    quietly print a less useful answer for every row that cited it.
+    """
     n = line_of(name)
-    return f"settings.py:{n}" if n else "settings.py"
+    if n is None:
+        raise KeyError(f"{name!r} is not defined at top level of settings.py")
+    return f"settings.py:{n}"
+
+
+def where_phase(phase_id: str) -> str:
+    """The line of one phase's Criteria(...) inside PHASES."""
+    return where(f"PHASES[{phase_id}]")

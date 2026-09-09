@@ -37,7 +37,7 @@ they ever disagree, the scripts are correct.
 | | |
 |---|---|
 | Reference context | `docs/cli.md`, attached to the process as an `@`-mention |
-| Model | set in `pipeline/models.py`; `MODEL=` overrides every stage for one run, `SOURCE_MODEL=` / `SCREEN_MODEL=` one stage. `python3 scoreboard.py models` says what is in effect. |
+| Model | set in `pipeline/settings.py`; `MODEL=` overrides every stage for one run, `SOURCE_MODEL=` / `SCREEN_MODEL=` one stage. `python3 scoreboard.py models` says what is in effect. |
 | Effort | `high` (`EFFORT` overrides). The CLI has no "extra high"; `high` is the ceiling. |
 | Chat history | none. Every iteration starts fresh, remembering nothing. |
 | Scope | run only what the given prompt file says |

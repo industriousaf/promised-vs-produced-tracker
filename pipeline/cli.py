@@ -43,7 +43,6 @@ from pipeline.db import (  # noqa: E402
     DEFAULT_DB, TABLES, connect, db_path, init_db, table_counts,
 )
 from pipeline import quality, settings  # noqa: E402
-from pipeline import settings as models, settings as criteria, settings as run_cfg  # noqa: E402
 from pipeline.dates import enrich as enrich_dates, lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
@@ -282,14 +281,15 @@ def cmd_collect(conn, args):
     os.execvpe("bash", ["bash", str(script)], env)
 
 
-# --- tools/ commands ------------------------------------------------------- #
+# --- export and coverage --------------------------------------------------- #
 #
-# These import from tools/ inside the function, never at module load. That keeps
-# the CLI free of them at start-up, leaves each script runnable on its own, and
-# avoids a cycle: tools/load_csv.py imports this package.
+# Imported inside the function, never at module load: both modules also run on
+# their own (`python3 pipeline/export_tables.py`), and neither is needed for the
+# CLI to start. They lived in tools/ once, but db.py refreshes the CSV exports on
+# every write -- core code importing a "tool" -- so they moved beside it.
 
 def cmd_export(conn, args):
-    from tools.export_tables import export_all, export_dir, ALL_TABLES
+    from pipeline.export_tables import export_all, export_dir, ALL_TABLES
     # export_all opens the database read-only itself, and honours the same
     # SCOREBOARD_DB that --db has already set -- for the destination as well as
     # the source. The CSVs land in csv_tables/ beside whichever database was
@@ -303,7 +303,7 @@ def cmd_export(conn, args):
 
 
 def cmd_coverage(conn, args):
-    from tools import coverage
+    from pipeline import coverage
     # Rebuild the argv coverage.py parses, rather than reaching into its
     # internals, so the measurement stays defined in exactly one place.
     argv = []
@@ -715,20 +715,19 @@ def cmd_models(conn, args):
     """Which model each stage will run, and what decided it.
 
     The shell loops call this with --for to get their default, so the name
-    lives in pipeline/models.py and nowhere else. Before that it was pinned in
+    lives in pipeline/settings.py and nowhere else. Before that it was pinned in
     three files under two different environment variables, and changing "the
     model" meant knowing all three and remembering which one was the exception.
     """
     if args.For:
         stage = args.For.lower()
-        print(models.effort() if args.effort else getattr(models, stage)())
+        print(settings.effort() if args.effort else getattr(settings, stage)())
         return
-    print("Model per stage        (edit pipeline/models.py to change)")
+    print("Model per stage        (edit pipeline/settings.py to change)")
     print("=" * 56)
     for stage, (name, why) in settings.models_in_effect().items():
         print(f"  {stage:8} {name:24} <- {why}")
-    print(f"  {'effort':8} {models.effort():24} <- "
-          f"{'$EFFORT' if os.getenv('EFFORT') else 'models.py'}")
+    print(f"  {'effort':8} {settings.effort():24} <- {settings.effort_source()}")
     print()
     print("For one run, without editing anything:")
     print("  MODEL=claude-sonnet-5 bash collect/all.sh          every stage")
@@ -739,16 +738,10 @@ def cmd_criteria(conn, args):
     """What counts as a project, and what decided it.
 
     All four rules README states, in one place. Two of them are numbers you turn
-    in pipeline/criteria.py; the other two are shown because a reader asking
+    in pipeline/settings.py; the other two are shown because a reader asking
     "what is in scope" wants the whole answer, not the settable half.
     """
-    c = criteria.active()
-    if args.For:
-        print({"capital": c.capital_usd, "jobs": c.jobs, "op": c.op,
-               "from": c.announced_from, "countries": ",".join(c.countries),
-               "id": c.id}[args.For])
-        return
-
+    c = settings.active()
     colour = _use_colour()
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     print(f"What counts as a project      phase {bold(c.id)}  <- {settings.criteria_source()}")
@@ -766,11 +759,11 @@ def cmd_criteria(conn, args):
             print(f"  {line}")
     print()
     print("Defined phases:")
-    for name, ph in sorted(criteria.PHASES.items()):
+    for name, ph in sorted(settings.PHASES.items()):
         mark = "*" if name == c.id else " "
         print(f"  {mark} {name:18} {ph.describe():30} from {ph.announced_from}")
     print()
-    other = next((n for n in sorted(criteria.PHASES) if n != c.id), None)
+    other = next((n for n in sorted(settings.PHASES) if n != c.id), None)
     if other:
         print("For one run, without editing anything:")
         print(f"  CRITERIA={other} bash collect/all.sh")
@@ -789,34 +782,38 @@ def cmd_criteria(conn, args):
                 print(f"    {r['c']:12} {r['n']:>5}")
 
 
+# One list, used by BOTH the --for lookup and the argparse choices, so a key can
+# never exist in one and not the other. Two hand-written lists is how a valid
+# name gets "invalid choice", or a name past argparse dies with a bare KeyError
+# inside $(...) under set -e at the start of an unattended run.
+CONFIG_KEYS = {
+    "capital":        lambda st, add: settings.active().capital_usd,
+    "jobs":           lambda st, add: settings.active().jobs,
+    "op":             lambda st, add: settings.active().op,
+    "announced-from": lambda st, add: settings.active().announced_from,
+    "countries":      lambda st, add: ",".join(settings.active().countries),
+    "criteria-id":    lambda st, add: settings.active().id,
+    "leads-per-call": lambda st, add: settings.leads_per_call(st),
+    "max-stall":      lambda st, add: settings.max_stall(st),
+    "verbose":        lambda st, add: settings.verbose(st),
+    "max-iters":      lambda st, add: settings.max_iters_in_effect(st, add),
+}
+
+
 def cmd_config(conn, args):
     """Everything configurable, in one place, with what set each value.
 
-    Three modules answer three questions -- criteria.py what counts as a project,
-    models.py which model runs each stage, collection_settings.py how a run
-    behaves -- and
-    before this there was no way to see all of it at once. `criteria` and
-    `models` remain as focused views; this is the whole picture.
+    One module, settings.py, in three sections -- what counts as a project, which
+    model runs each stage, how a collection run behaves -- and this is the view
+    of all of it at once, with the line to edit beside each value. `criteria`
+    and `models` remain as focused views.
     """
-    KEYS = {
-        "capital": lambda: criteria.active().capital_usd,
-        "jobs": lambda: criteria.active().jobs,
-        "op": lambda: criteria.active().op,
-        "announced-from": lambda: criteria.active().announced_from,
-        "countries": lambda: ",".join(criteria.active().countries),
-        "criteria-id": lambda: criteria.active().id,
-        "leads-per-call": lambda: run_cfg.leads_per_call(args.stage),
-        "max-stall": lambda: run_cfg.max_stall(args.stage),
-        "verbose": lambda: run_cfg.verbose(args.stage),
-        "max-iters": lambda: run_cfg.max_iters(args.add),
-    }
     if args.For:
-        print(KEYS[args.For]())
+        print(CONFIG_KEYS[args.For](args.stage, args.add))
         return
 
     colour = _use_colour()
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
-    dim = (lambda t: f"{_ANSI['dim']}{t}{_ANSI['off']}") if colour and 'dim' in _ANSI else (lambda t: t)
     c = settings.active()
 
     def row(label, value, src, const=None):
@@ -832,21 +829,23 @@ def cmd_config(conn, args):
     print("=" * 74)
     print(bold("  WHAT COUNTS AS A PROJECT") + "        methodology")
     row("phase", c.id, settings.criteria_source(), "ACTIVE")
-    row("size", c.describe(), "the phase")
-    row("announced from", c.announced_from, "the phase")
-    row("countries", ", ".join(c.countries), "the phase")
+    # The thresholds are the values a person actually turns, so they cite the
+    # line of this phase's Criteria(...) -- not "the phase", which is a search.
+    at = settings.where_phase(c.id)
+    row("size", c.describe(), at)
+    row("announced from", c.announced_from, at)
+    row("countries", ", ".join(c.countries), at)
     row("sectors", f"{len(c.sectors)} (closed)", "settings.py", "SECTORS")
     print()
     print(bold("  WHICH MODEL RUNS EACH STAGE"))
     for stage, (name, src) in settings.models_in_effect().items():
         row(stage, name, src, stage.upper())
-    row("effort", settings.effort(),
-        "$EFFORT" if os.getenv("EFFORT") else "settings.py", "EFFORT")
+    row("effort", settings.effort(), settings.effort_source(), "EFFORT")
     print()
     print(bold("  HOW A COLLECTION RUN BEHAVES"))
-    for k, (v, src) in settings.run_in_effect(args.stage).items():
-        row(k, v, src, k.upper())
-    row("max_iters", settings.max_iters(args.add), "settings.py", "ITERS_PER_ROW")
+    for k, (v, src) in settings.run_in_effect(args.stage, args.add).items():
+        # max_iters is a formula; the constant a person edits is ITERS_PER_ROW.
+        row(k, v, src, "ITERS_PER_ROW" if k == "max_iters" else k.upper())
     print()
     print("  Everything above is defined in pipeline/settings.py. Override any of")
     print("  it for one run without editing anything:")
@@ -1402,7 +1401,7 @@ def _command_examples() -> dict:
   changed.
 
   The database is opened read-only, so an export cannot alter or lock it.
-  tools/export_tables.py is the same code and still runs on its own.
+  pipeline/export_tables.py is the same code and still runs on its own.
 """,
         "coverage": f"""{_H}examples{_H}
   {ENTRY} coverage --against ref.csv
@@ -1596,7 +1595,7 @@ def _command_examples() -> dict:
   {ENTRY} filter --stage screen --capital 10000000000
 
   These flags query rows already in the database. What qualifies a project
-  in the first place is set in pipeline/criteria.py (scoreboard.py criteria).
+  in the first place is set in pipeline/settings.py (scoreboard.py criteria).
 
   --op AND (the default) requires both thresholds; OR requires either.
   --stage screen queries rows before publication.
@@ -1763,10 +1762,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("config",
                        help="everything configurable, and what set each value")
-    s.add_argument("--for", dest="For",
-                   choices=["capital", "jobs", "op", "announced-from", "countries",
-                            "criteria-id", "leads-per-call", "max-stall", "verbose",
-                            "max-iters"],
+    s.add_argument("--for", dest="For", choices=list(CONFIG_KEYS),
                    help="print one value, for the shell scripts")
     s.add_argument("--stage", help="resolve stage-specific overrides (SOURCE, SCREEN)")
     s.add_argument("--add", default="10", help="row target, for computing max-iters")
@@ -1774,9 +1770,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("criteria",
                        help="what counts as a project (the inclusion rules)")
-    s.add_argument("--for", dest="For",
-                   choices=["capital", "jobs", "op", "from", "countries", "id"],
-                   help="print one value, for scripts")
     s.set_defaults(fn=cmd_criteria)
 
     s = sub.add_parser("recompute",
@@ -1843,7 +1836,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="a verify_verified id (see verify-list)")
     s.set_defaults(fn=cmd_verify_show)
 
-    # tools/ commands
+    # export and coverage (pipeline/, also runnable on their own)
     s = sub.add_parser("export", help="write the three stages to flat CSVs")
     s.add_argument("--out-dir", help="where to write them (default outputs/csv_tables/)")
     s.set_defaults(fn=cmd_export)
@@ -1861,7 +1854,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="check the matcher against known pairs and exit")
     s.set_defaults(fn=cmd_coverage)
 
-    # Sectors (the closed vocabulary -- edit pipeline/criteria.py to extend it)
+    # Sectors (the closed vocabulary -- edit pipeline/settings.py to extend it)
     sub.add_parser("sectors-list", help="list the sector vocabulary") \
         .set_defaults(fn=cmd_sectors_list)
 

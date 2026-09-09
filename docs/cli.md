@@ -40,7 +40,10 @@ It is gitignored. The database defaults to `outputs/scoreboard.db`.
 python3 scoreboard.py                       # counts, and where to go next
 python3 scoreboard.py status                # row counts per stage
 python3 scoreboard.py initdb                # create the five tables
+python3 scoreboard.py config                # every setting in effect, with the line to edit
+python3 scoreboard.py criteria              # what counts as a project (the inclusion rules)
 python3 scoreboard.py models                # which model each stage runs, and why
+python3 scoreboard.py quality               # five measures of whether the Scoreboard can carry the claim
 python3 scoreboard.py --help                # all of the below, with examples
 
 # Collect  (needs the claude CLI; spends money)
@@ -63,6 +66,7 @@ python3 scoreboard.py screen-list [--by-capital]
 python3 scoreboard.py screen-show --id N
 python3 scoreboard.py screen-date --id N --date "2021-12" --source URL [--raw "..."] [--note "..."]
 python3 scoreboard.py screen-date --id N --unresolved "what was searched, and what was found"
+python3 scoreboard.py screen-remove --id N --yes   # human only; no undo
 
 # Verify  (the human gate)
 python3 scoreboard.py review [--id N]              # guided, one row at a time
@@ -77,10 +81,12 @@ python3 scoreboard.py filter --capital 5000000000 --jobs 5000 --op AND --stage s
 python3 scoreboard.py export [--out-dir DIR]       # five CSVs
 python3 scoreboard.py coverage --against ref.csv [--stage verify] [--min-capital N]
 python3 scoreboard.py coverage --selftest          # needs no database
+python3 scoreboard.py recompute [--dry-run]        # re-derive lag/slip and the *_dt cells
+python3 scoreboard.py count TABLE                  # one integer, for scripts
 
-# The sector vocabulary  (sectors-add is a HUMAN decision — NEVER run it automatically)
+# The sector vocabulary  (closed; extending it means editing SECTORS in
+# pipeline/settings.py — a human decision, never done from a collection call)
 python3 scoreboard.py sectors-list
-python3 scoreboard.py sectors-add "Cement"
 
 # The browser interface  (the review screen: sources rendered in the page,
 # the row's claims highlighted in them, and an optional agentic check)
@@ -107,11 +113,18 @@ Each stage is a small module the two interfaces share:
 - `schema_check.py` — **is** `screen_check`: it loads the canonical `schema.py`
   and runs its row validator, returning the `FAIL / PASS / CLEAN` verdict and the
   issue list.
-- `schema.py` — **the definition of the data**: the columns, the sector
-  vocabulary, the inclusion floor, and the row validator. Also runs standalone
-  against a CSV. If this file and any document disagree, this file is right.
+- `settings.py` — **every setting**: the inclusion phases (what counts as a
+  project — the size floor, the date window, the countries, the sector
+  vocabulary), which model runs each stage, and how a collection run behaves.
+  `config` prints it all with the line to edit. If this file and any document
+  disagree, this file is right.
+- `schema.py` — **the definition of a well-formed row**: the columns and the row
+  validator. Also runs standalone against a CSV. The rules it enforces come from
+  `settings.py`.
 - `verify.py` — `promote()` (the human gate) and `edit()`, which writes a
   `verify_edits` row in the **same transaction** as every Verify update.
+- `export_tables.py` — database to CSV (`export`); also runs after every write.
+- `coverage.py` — recall against a reference list (`coverage`).
 - `orchestrate.py` — the moves between the stages: the AI runners and the
   explore-`filter`.
 - `dates.py` — the deterministic date standardization. Each date is kept as a

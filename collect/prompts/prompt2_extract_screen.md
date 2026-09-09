@@ -61,7 +61,7 @@ checker enforces. Follow it verbatim.
 One part of that prompt gets misread often: the **sector vocabulary is closed**. Use
 one of the strings it lists, copied exactly. If none fits, the answer is `Other`, and
 you name the candidate in `flag` — never a sector name you coined, never an edit to
-`SECTORS` in `schema.py`, and never `sectors-add`.
+`SECTORS` in `pipeline/settings.py` — extending the vocabulary is a human decision.
 
 ## Your job
 

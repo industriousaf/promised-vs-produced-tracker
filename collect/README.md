@@ -1,7 +1,11 @@
 # collect
 
-The ongoing collection. Two shell loops: one finds new projects and files them
-into Source, the other extracts Source leads into Screen rows. Neither touches Verify, which is a human gate.
+The unattended collection runs, and only that. Three loops -- one finds new
+projects and files them into Source, one extracts Source leads into Screen rows,
+one backfills first-output dates -- plus the accounting each loop needs. Shell
+where a loop is a loop, Python where it has to read JSON. Nothing here is a
+library; the library is `../pipeline/`, and every loop writes through it. None of
+them touches Verify, which is a human gate.
 
 **Contents**
 
@@ -31,9 +35,11 @@ N=10 bash collect/all.sh            # identical to the second
 
 | Path | What it does |
 |---|---|
-| `collect.sh` | runs both stages back to back. The usual entry point. |
+| `all.sh` | runs Source then Screen back to back. The usual entry point; `scoreboard.py collect` calls it. |
 | `source.sh` | stage A on its own: web discovery into Source |
 | `screen.sh` | stage B on its own: Source into Screen |
+| `dates.sh` | the backfill: find a dated first-output source for rows that produced but carry none |
+| `tally.py` | reads each call's result and prints what it spent; totals a run's ledger at the end |
 | `prompts/` | the prompt handed to each iteration, and how each one is configured |
 
 ## How the loops behave

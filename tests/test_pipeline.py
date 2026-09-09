@@ -16,6 +16,7 @@ Run:  python3 -m unittest discover -s tests
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -26,11 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline import dates, quality, screen, source, verify  # noqa: E402
 from pipeline import settings  # noqa: E402
-# One module now; these aliases keep each test naming the concern it covers.
-criteria = models = run_cfg = settings
 from pipeline import schema_check as sc  # noqa: E402
 from pipeline.db import connect, init_db  # noqa: E402
-from tools.export_tables import export_dir  # noqa: E402
+from pipeline.export_tables import export_dir  # noqa: E402
 
 
 def a_row(**over) -> dict:
@@ -470,7 +469,7 @@ class TestSizeFloor(Base):
     # when ACTIVE does, and deriving means it does not need editing when a
     # threshold moves. What is under test is the shape of the rule -- either
     # figure alone settles it -- which holds at any threshold.
-    PHASE = criteria.PHASES["100M-or-200-jobs"]
+    PHASE = settings.PHASES["100M-or-200-jobs"]
     CAP = PHASE.capital_usd
     JOBS = PHASE.jobs
 
@@ -650,17 +649,17 @@ class TestCriteria(Base):
         re-graded when a tighter one becomes active, or lowering a threshold
         would silently invalidate everything collected above it."""
         small = a_row(promised_capital_usd=300_000_000, promised_jobs=500)
-        self.assertEqual(sc.check_row(small, criteria.PHASES["100M-or-200-jobs"])["result_status"], "CLEAN")
-        self.assertEqual(sc.check_row(small, criteria.PHASES["1B-or-2000-jobs"])["result_status"], "FAIL")
+        self.assertEqual(sc.check_row(small, settings.PHASES["100M-or-200-jobs"])["result_status"], "CLEAN")
+        self.assertEqual(sc.check_row(small, settings.PHASES["1B-or-2000-jobs"])["result_status"], "FAIL")
 
     def test_stored_rows_carry_their_phase(self):
         sid = self.lead()
         rid = screen.insert_extracted(self.conn, a_row(), source_collected_id=sid)
         row = screen.get_extracted(self.conn, rid)
-        self.assertEqual(row["criteria_id"], criteria.active().id)
+        self.assertEqual(row["criteria_id"], settings.active().id)
         self.assertEqual(
             self.conn.execute("SELECT criteria_id FROM source_collected WHERE id=?",
-                              (sid,)).fetchone()[0], criteria.active().id)
+                              (sid,)).fetchone()[0], settings.active().id)
 
     def test_the_phase_is_forced_not_taken_from_the_extractor(self):
         """An extractor reports on a project, not on which sweep it belongs to.
@@ -669,7 +668,7 @@ class TestCriteria(Base):
         rid = screen.insert_extracted(self.conn, a_row(criteria_id="1B-or-2000-jobs"),
                                       source_collected_id=sid)
         self.assertEqual(screen.get_extracted(self.conn, rid)["criteria_id"],
-                         criteria.active().id)
+                         settings.active().id)
 
     def test_country_defaults_to_the_phase(self):
         sid = self.lead()
@@ -689,9 +688,9 @@ class TestCriteria(Base):
         self.assertNotEqual(sc.check_row(a_row(country="US"))["result_status"], "FAIL")
 
     def test_or_and_and_differ(self):
-        both = criteria.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
+        both = settings.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
                                  op="AND", announced_from="2017-01", countries=("US",))
-        either = criteria.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
+        either = settings.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
                                    op="OR", announced_from="2017-01", countries=("US",))
         self.assertTrue(either.clears(5_000_000_000, 100))
         self.assertFalse(both.clears(5_000_000_000, 100))
@@ -704,7 +703,7 @@ class TestCriteria(Base):
         os.environ["CRITERIA"] = "nope"
         try:
             with self.assertRaises(SystemExit):
-                criteria.active()
+                settings.active()
         finally:
             del os.environ["CRITERIA"]
 
@@ -733,32 +732,32 @@ class TestLoopSettings(unittest.TestCase):
             os.environ.pop(k, None)
 
     def test_max_iters_scales_and_has_a_floor(self):
-        self.assertEqual(run_cfg.max_iters(100), 300)
-        self.assertEqual(run_cfg.max_iters(400), 1200)
-        self.assertEqual(run_cfg.max_iters(5), run_cfg.MIN_ITERS)
+        self.assertEqual(settings.max_iters(100), 300)
+        self.assertEqual(settings.max_iters(400), 1200)
+        self.assertEqual(settings.max_iters(5), settings.MIN_ITERS)
 
     def test_a_bad_row_target_cannot_cap_the_loop_at_zero(self):
         """BSD `seq 1 0` counts DOWN, so a cap of 0 would run two turns with
         i=1 then i=0 rather than none."""
         for bad in ("", "abc", None, "-4"):
-            self.assertGreaterEqual(run_cfg.max_iters(bad), run_cfg.MIN_ITERS)
+            self.assertGreaterEqual(settings.max_iters(bad), settings.MIN_ITERS)
 
     def test_the_global_override_wins_over_the_default(self):
         os.environ["MAX_STALL"] = "9"
-        self.assertEqual(run_cfg.max_stall(), 9)
+        self.assertEqual(settings.max_stall(), 9)
 
     def test_a_stage_override_wins_over_the_global(self):
         os.environ["MAX_STALL"] = "9"
         os.environ["SOURCE_MAX_STALL"] = "7"
-        self.assertEqual(run_cfg.max_stall("SOURCE"), 7)
-        self.assertEqual(run_cfg.max_stall("SCREEN"), 9, "another stage still sees the global")
+        self.assertEqual(settings.max_stall("SOURCE"), 7)
+        self.assertEqual(settings.max_stall("SCREEN"), 9, "another stage still sees the global")
 
     def test_it_reports_what_decided_each_value(self):
-        self.assertEqual(run_cfg.run_source("MAX_STALL"), "settings.py")
+        self.assertEqual(settings.run_source("MAX_STALL"), "settings.py")
         os.environ["MAX_STALL"] = "9"
-        self.assertEqual(run_cfg.run_source("MAX_STALL"), "$MAX_STALL")
+        self.assertEqual(settings.run_source("MAX_STALL"), "$MAX_STALL")
         os.environ["SOURCE_MAX_STALL"] = "7"
-        self.assertEqual(run_cfg.run_source("MAX_STALL", "SOURCE"), "$SOURCE_MAX_STALL")
+        self.assertEqual(settings.run_source("MAX_STALL", "SOURCE"), "$SOURCE_MAX_STALL")
 
     def test_the_two_methodological_settings_are_present(self):
         """leads_per_call and max_stall decide what a run MEANS, so both must be
@@ -769,6 +768,131 @@ class TestLoopSettings(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+class TestPathReferences(unittest.TestCase):
+    """Every path-shaped token in the repo's code and prose names a real file.
+
+    Three commits in a row left references to files that had been deleted or
+    moved -- 33 the first time, then 3 more that a grep filter hid, then
+    `collect.sh` in a doc. Each was found by hand. This is the mechanism that
+    finds the next one the moment it lands.
+    """
+    ROOT = Path(__file__).resolve().parent.parent
+    SKIP_DIRS = {".git", "logs", "scratch", "outputs", "__pycache__", ".venv", "venv"}
+    TOKEN = re.compile(
+        r"(?<![\w/])((?:\.\./)*(?:pipeline|collect|tools|webapp|tests|docs)"
+        r"/[A-Za-z0-9_./-]+?\.(?:py|sh|md|json|txt))\b")
+
+    def test_every_referenced_path_exists(self):
+        bad = []
+        for path in self.ROOT.rglob("*"):
+            if path.suffix not in (".py", ".sh", ".md") or not path.is_file():
+                continue
+            if any(part in self.SKIP_DIRS for part in path.relative_to(self.ROOT).parts):
+                continue
+            for m in self.TOKEN.finditer(path.read_text(errors="ignore")):
+                tok = m.group(1)
+                base = path.parent if tok.startswith("../") else self.ROOT
+                if not (base / tok).exists():
+                    bad.append(f"{path.relative_to(self.ROOT)}: {tok}")
+        self.assertEqual(bad, [], "references to files that do not exist:\n  " + "\n  ".join(bad))
+
+
+class TestConfigCitations(unittest.TestCase):
+    """`config` cites a line for every value, and the lines are real."""
+
+    def tearDown(self):
+        for k in ("MAX_ITERS", "SOURCE_MAX_ITERS"):
+            os.environ.pop(k, None)
+
+    def test_every_constant_config_cites_resolves(self):
+        for name in ("ACTIVE", "SECTORS", "SOURCE", "SCREEN", "API", "AGENT",
+                     "EFFORT", "LEADS_PER_CALL", "MAX_STALL", "VERBOSE", "ITERS_PER_ROW"):
+            self.assertRegex(settings.where(name), r"^settings\.py:\d+$", name)
+
+    def test_the_thresholds_have_a_line(self):
+        """The values a person actually turns are inside PHASES, which a regex on
+        `^NAME =` could never reach -- so config used to print '<- the phase'
+        for exactly the rows its docstring said mattered most."""
+        for phase in settings.PHASES:
+            self.assertRegex(settings.where_phase(phase), r"^settings\.py:\d+$", phase)
+
+    def test_an_unknown_name_fails_loudly(self):
+        with self.assertRaises(KeyError):
+            settings.where("NO_SUCH_CONSTANT")
+
+    def test_a_max_iters_override_is_visible(self):
+        """config printed the formula while the shell honoured $MAX_ITERS -- the
+        shadowing incident this file exists to expose, hidden by the tool built
+        to show it."""
+        os.environ["MAX_ITERS"] = "500"
+        v, src = settings.run_in_effect(None, 100)["max_iters"]
+        self.assertEqual((v, src), (500, "$MAX_ITERS"))
+        os.environ["SOURCE_MAX_ITERS"] = "7"
+        self.assertEqual(settings.run_in_effect("SOURCE", 100)["max_iters"], (7, "$SOURCE_MAX_ITERS"))
+
+
+class TestImportTargets(unittest.TestCase):
+    """Every `from pipeline.x import name` in the repo names something that exists.
+
+    Eleven of these imports sit inside function bodies, so nothing runs them at
+    import time: the suite passed while `scoreboard.py collect` -- the entry
+    point -- raised ImportError on a name the settings merge had removed from
+    db.py. This reads the source instead of waiting for the call. Targets are
+    limited to `pipeline` so the check never imports the web app.
+    """
+    ROOT = Path(__file__).resolve().parent.parent
+    SKIP_DIRS = {".git", "old", "scratch", "outputs", "logs", "__pycache__", ".venv", "venv"}
+
+    def test_every_imported_pipeline_name_exists(self):
+        import ast
+        import importlib
+        bad = []
+        for path in sorted(self.ROOT.rglob("*.py")):
+            rel = path.relative_to(self.ROOT)
+            if any(part in self.SKIP_DIRS for part in rel.parts):
+                continue
+            for node in ast.walk(ast.parse(path.read_text(errors="ignore"))):
+                if not isinstance(node, ast.ImportFrom) or not node.module:
+                    continue
+                if node.module.split(".")[0] != "pipeline":
+                    continue
+                try:
+                    mod = importlib.import_module(node.module)
+                except ImportError as e:
+                    bad.append(f"{rel}:{node.lineno}: {node.module} ({e})")
+                    continue
+                for alias in node.names:
+                    if alias.name == "*" or hasattr(mod, alias.name):
+                        continue
+                    try:  # `from pipeline import coverage` names a submodule
+                        importlib.import_module(f"{node.module}.{alias.name}")
+                    except ImportError:
+                        bad.append(f"{rel}:{node.lineno}: {node.module} has no {alias.name}")
+        self.assertEqual(bad, [], "imports of names that do not exist:\n  " + "\n  ".join(bad))
+
+
+class TestCollectEntryPoint(unittest.TestCase):
+    """`scoreboard.py collect --dry-run` runs end to end.
+
+    The CLI hands off to collect/all.sh, which calls back into the CLI for the
+    model, effort and run settings. Two regressions in one week broke that
+    handoff while every unit test passed, because nothing ran the entry point.
+    Runs against an empty temporary database with the log and the auth probe off.
+    """
+
+    def test_dry_run_plans_a_source_stage(self):
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, SCOREBOARD_DB=str(Path(tmp) / "empty.db"), LOG="0", PREFLIGHT="0")
+            env.pop("MEDALLION_DB", None)
+            r = subprocess.run(
+                [sys.executable, "scoreboard.py", "collect", "--n", "1", "--only", "source", "--dry-run"],
+                cwd=root, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, r"model=claude-\S+ effort=\S+ max_iters=\d+ max_stall=\d+")
+
+
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 
@@ -786,12 +910,12 @@ class TestConfig(unittest.TestCase):
                          Path("/tmp/elsewhere"))
 
     def test_model_precedence(self):
-        self.assertEqual(models.screen(), models.SCREEN)
+        self.assertEqual(settings.screen(), settings.SCREEN)
         os.environ["MODEL"] = "global-model"
-        self.assertEqual(models.screen(), "global-model")
+        self.assertEqual(settings.screen(), "global-model")
         os.environ["SCREEN_MODEL"] = "stage-model"
-        self.assertEqual(models.screen(), "stage-model")
-        self.assertEqual(models.source(), "global-model")
+        self.assertEqual(settings.screen(), "stage-model")
+        self.assertEqual(settings.source(), "global-model")
 
 
 if __name__ == "__main__":

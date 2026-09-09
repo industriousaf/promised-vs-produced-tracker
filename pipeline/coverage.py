@@ -6,9 +6,9 @@ true universe of US manufacturing projects is not published by anyone, so the
 denominator has to come from an enumerable list (a tracker, a CHIPS award list,
 a DOE loan cohort). This reports how many of that list's projects are present.
 
-    python3 tools/coverage.py --against path/to/reference.csv
-    python3 tools/coverage.py --against ref.csv --min-capital 1000000000
-    python3 tools/coverage.py --against ref.csv --stage verify
+    python3 pipeline/coverage.py --against path/to/reference.csv
+    python3 pipeline/coverage.py --against ref.csv --min-capital 1000000000
+    python3 pipeline/coverage.py --against ref.csv --stage verify
 
 WHY THIS IS NOT A NAME COMPARISON
 ---------------------------------
@@ -53,9 +53,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCOREBOARD_ROOT = HERE.parent
-sys.path.insert(0, str(SCOREBOARD_ROOT))
+# Needed only when run as a script (`python3 pipeline/coverage.py`): sys.path[0]
+# is then pipeline/, and `pipeline.db` below is not importable without the root.
+if str(SCOREBOARD_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCOREBOARD_ROOT))
 
-DEFAULT_DB = SCOREBOARD_ROOT / "outputs" / "scoreboard.db"
+# The ONE resolver. This file used to carry its own copy, which ignored the
+# MEDALLION_DB alias and the web app's active-database picker -- so `coverage`
+# could quietly measure recall against a different database than `status` was
+# reporting on.
+from pipeline.db import db_path  # noqa: E402
 
 # Words that describe a facility rather than identify it. Stripped before
 # scoring so "TSMC Fab 1 Phoenix" and "TSMC Arizona Fabs" are not penalised for
@@ -199,7 +206,7 @@ def main(argv=None) -> int:
     if reference and "project" not in reference[0]:
         raise SystemExit(f"{ref_path} has no `project` column")
 
-    db = Path(args.db or os.getenv("SCOREBOARD_DB") or DEFAULT_DB)
+    db = Path(args.db) if args.db else Path(db_path())
     if not db.exists():
         raise SystemExit(f"database not found: {db}")
     table = "screen_extracted" if args.stage == "screen" else "verify_verified"

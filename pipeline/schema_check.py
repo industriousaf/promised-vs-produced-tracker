@@ -38,7 +38,7 @@ ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
 
 # The inclusion floor is no longer two integers -- it is a phase, in
-# pipeline/criteria.py, carrying its own operator and window. Surfaces that want
+# pipeline/settings.py, carrying its own operator and window. Surfaces that want
 # to print it ask `criteria.active().describe()` rather than formatting numbers,
 # which is what the two re-exported constants here used to be for. Same reason
 # they existed: the explore-filter blurb once carried "$100M OR 200 jobs" as
@@ -56,7 +56,7 @@ NULL_STRINGS = pvp_schema.NULL_STRINGS
 check_url = pvp_schema.check_url
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
 
-# Sector vocabulary, from the ONE source of truth: pipeline/criteria.py, which
+# Sector vocabulary, from the ONE source of truth: pipeline/settings.py, which
 # schema.py reads. `all_sectors()` is the active phase's vocabulary. There is no
 # longer a runtime registry -- adding a sector is a commit, so the set of things
 # that count as in scope cannot move mid-run without leaving a trace.

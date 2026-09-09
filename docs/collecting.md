@@ -104,7 +104,7 @@ ADD=5 bash collect/screen.sh
 
 ### Knobs (all commands)
 
-- `ADD=n` (the collect loops) = add *n* rows this run; `N=n` (`collect.sh`) = how many to add at each stage.
+- `ADD=n` (the collect loops) = add *n* rows this run; `N=n` (`all.sh`) = how many to add at each stage.
 - Every loop understands `ADD`, `MODEL`, `EFFORT`, `MAX_ITERS`, `MAX_STALL`, `VERBOSE`, `PROMPT_FILE`, `COUNT_TABLE`, `PREFLIGHT`.
 - In `all.sh` only: `ONLY=source|screen|both`, `DRY_RUN=1`, `CONTINUE_ON_FAIL=1`, and the `SOURCE_` / `SCREEN_` prefixes.
 - `VERBOSE=1` = stream the process live (JSON firehose); omit for the clean per-iteration heartbeat.

@@ -25,20 +25,26 @@ stdlib-only (sqlite3 + csv), matching the rest of the pipeline.
 
 Run it from anywhere:
 
-    python3 tools/export_tables.py
-    python3 tools/export_tables.py --db /path/to/scoreboard.db --out-dir .
+    python3 pipeline/export_tables.py
+    python3 pipeline/export_tables.py --db /path/to/scoreboard.db --out-dir .
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
-import os
 import sqlite3
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_DB = HERE.parent / "outputs" / "scoreboard.db"
+# Needed only when run as a script: sys.path[0] is then pipeline/ and the
+# package is not importable without the root on the path.
+if str(HERE.parent) not in sys.path:
+    sys.path.insert(0, str(HERE.parent))
+# The ONE resolver, shared with db.py -- this file's own copy ignored the web
+# app's active-database picker.
+from pipeline.db import db_path  # noqa: E402
 
 # label -> source table. The label is what lands in the filename.
 #
@@ -57,12 +63,6 @@ AUDIT_TABLES = {
 }
 
 ALL_TABLES = {**STAGE_TABLES, **AUDIT_TABLES}
-
-
-def db_path() -> Path:
-    """Same SCOREBOARD_DB override the pipeline's db.py honours."""
-    override = os.getenv("SCOREBOARD_DB") or os.getenv("MEDALLION_DB")
-    return Path(override) if override else DEFAULT_DB
 
 
 def export_table(conn: sqlite3.Connection, table: str, dest: Path) -> int:
@@ -137,8 +137,8 @@ def export_all(db: str | Path | None = None, out_dir: str | Path | None = None) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    parser.add_argument("--db", default=None, help="path to scoreboard.db (default: ../scoreboard.db)")
-    parser.add_argument("--out-dir", default=None, help="where to write the CSVs (default: alongside this script)")
+    parser.add_argument("--db", default=None, help="path to scoreboard.db (default: outputs/scoreboard.db, or $SCOREBOARD_DB)")
+    parser.add_argument("--out-dir", default=None, help="where to write the CSVs (default: csv_tables/ beside the database)")
     args = parser.parse_args()
 
     counts = export_all(db=args.db, out_dir=args.out_dir)

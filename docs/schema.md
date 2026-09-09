@@ -55,10 +55,17 @@ later is a mechanical translation.
   rows needed the actual-side one: a Q4-2025 earnings release proves a mill is at
   volume and can never also date its 2021 first coil, so recording the date meant
   overwriting the evidence of operation. `screen-date` is the writer.
-- **Sectors are a defined, extensible vocabulary (not agnostic):** the checker ERRORs on a
-  sector outside the vocabulary. Add a genuinely new manufacturing sector by editing
-  `SECTORS` in `pipeline/schema.py` (Claude Code) or via `sectors-add` /
-  `register_sector()` (API), which persists to `sector_registry.json`.
+- **Sectors are a closed vocabulary:** the checker ERRORs on a sector outside it. Add a
+  genuinely new manufacturing sector by editing `SECTORS` in `pipeline/settings.py` — a
+  code change on purpose, so what counts as in scope cannot move at runtime without a
+  commit recording it. (`schema.py` only re-exports the set; editing it there does
+  nothing.)
+- **`criteria_id` names the rule that admitted the row.** The Scoreboard is built by
+  sweeping at a high threshold first and lowering it, and every row records which
+  sweep admitted it — `1B-or-2000-jobs`, `100M-or-200-jobs`. The name is the rule
+  spelled out rather than a handle like `p1`, because it lives in a CSV column
+  where it cannot be reworded later. A row is checked against the rule that
+  admitted it, never against whatever is active now.
 - **Source exclusion covers both stages:** the collector is steered away from projects
   already in `verify_verified` (the pipeline's authority for "already have it") *and*
   from those collected but not yet published, so a run does not re-find what it just

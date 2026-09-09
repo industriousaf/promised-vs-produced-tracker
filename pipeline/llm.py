@@ -36,7 +36,7 @@ from pipeline.schema_check import all_sectors
 
 # Models newer than Opus 4.6 support the _20260209 web tools with dynamic
 # filtering; Opus 4.8 is the default for flavour B.
-# The model name lives in pipeline/models.py, once. models.api() still lets
+# The model name lives in pipeline/settings.py, once. models.api() still lets
 # PIPELINE_MODEL win -- that is the variable this path has always used -- but it
 # now also answers to the global MODEL, so "change the model everywhere" no
 # longer has an exception you have to know about.
@@ -124,7 +124,7 @@ def render_source_prompt(
 
     # The live inclusion rules, rendered rather than written into the prompt file.
     # The floor used to be stated in prose here and in eight other places, so
-    # changing it meant editing nine files and hoping. criteria.py is the one
+    # changing it meant editing nine files and hoping. settings.py is the one
     # source; this is how the collector sees it.
     c = criteria.active()
     prompt += (
@@ -247,7 +247,7 @@ def render_screen_prompt(lead: dict) -> str:
         "genuinely new manufacturing sector is warranted, still write `Other` and "
         "name the candidate in `flag` (e.g. \"Other used; candidate new "
         "sector: Cement\") so a human can decide. Do **not** edit `SECTORS` in "
-        "`pipeline/criteria.py` — "
+        "`pipeline/settings.py` — "
         "extending the vocabulary is a human decision, not yours. A sector outside "
         "the list above is rejected by the checker."
     )
@@ -498,7 +498,7 @@ def extract_screen_row(lead: dict) -> dict:
     sector = (row.get("sector") or "").strip()
     if sector and sector not in all_sectors():
         note = (f"sector {sector!r} is not in the vocabulary -- add it to "
-                "SECTORS in pipeline/criteria.py, or reclassify the row")
+                "SECTORS in pipeline/settings.py, or reclassify the row")
         prior = (row.get("flag") or "").strip()
         row["flag"] = (
             note if not prior or prior.lower() == "none" else f"{prior}; {note}"
