@@ -3,8 +3,11 @@
 You are running as a single Claude Code call. You have been shown
 `docs/cli.md`, the pipeline's command reference. Do **only** what this prompt says.
 
-**Where to run:** from the `scoreboard/` directory —
-`python3 -m pipeline.cli ...`.
+**Where to run:** you are **already in** the `scoreboard/` directory. Run
+`python3 -m pipeline.cli ...` as-is, and write every path relative to where you
+already are — `scratch/lead.json`, never `scoreboard/scratch/lead.json`. Prefixing
+the directory name creates a nested copy of it, which is a real bug this prompt has
+caused before.
 
 **You must use web fetch / scraping** to read the lead's links — extract only what
 the sources actually state, never from in-model knowledge. The printed prompt names one

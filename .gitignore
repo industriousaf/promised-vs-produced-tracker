@@ -49,11 +49,11 @@ config.env
 # matter. The transcript of a run that produced PUBLISHED data is a different
 # thing: it is the provenance record for that corpus, and it gets allowlisted
 # here by name, the same way the canonical database is above.
-logs/*.log
+**/logs/*.log
 # Beside each transcript: the per-iteration token ledger, and (VERBOSE=1)
-# the raw stream events. `logs/*.log` does not cover either -- they would
+# the raw stream events. `**/logs/*.log` does not cover either -- they would
 # arrive untracked-but-not-ignored and get staged by a plain `git add`.
-logs/*.jsonl
+**/logs/*.jsonl
 
 # Answers from the review screen's agentic check, one JSON file each, so asking
 # the same question twice costs one API call. The only thing under outputs/ that
@@ -68,5 +68,12 @@ outputs/agent_cache/
 # ingest as JSON, then calls source-add / screen-add on it. Once the command
 # returns, the database holds the content and the file is just the envelope it
 # arrived in. The README is tracked so the directory exists in a fresh clone.
-scratch/*
+#
+# `**/scratch/*` and not `scratch/*`: a leading `**/` matches at any depth, while
+# a pattern containing a slash is anchored to the repo root. A collection call
+# once wrote its lead to `scoreboard/scratch/lead.json` -- prefixing the repo's
+# own name -- and the root-anchored rule did not cover it, so a working file
+# appeared in `git status` asking to be committed. The prompts were fixed; this
+# is the belt to that pair of braces.
+**/scratch/*
 !scratch/README.md
