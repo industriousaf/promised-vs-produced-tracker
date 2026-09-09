@@ -21,6 +21,7 @@
 # RUN IT (from anywhere; it cd's to scoreboard/ itself. bash on macOS/Linux/WSL):
 #   bash collect/source.sh                 # add ADD (default 10) source leads
 #   ADD=3 bash collect/source.sh           # just add 3 this run
+#   LEADS_PER_CALL=10 bash collect/source.sh   # ceiling per call (default 5)
 #   PROMPT_FILE=collect/prompts/prompt2_extract_screen.md \
 #     COUNT_TABLE=screen_extracted ADD=10 bash collect/source.sh   # PROMPT 2
 #
@@ -34,6 +35,24 @@ trap 'echo; echo "interrupted -- stopping the loop."; exit 130' INT TERM
 PROMPT_FILE="${PROMPT_FILE:-collect/prompts/prompt1_collect_recent.md}"
 COUNT_TABLE="${COUNT_TABLE:-source_collected}"   # which stage's rows we're adding to
 ADD="${ADD:-10}"                                  # how many NEW rows to add to COUNT_TABLE this run
+
+# How many leads one Source call may return. A CEILING, never a quota -- the
+# prompt is explicit that returning fewer, even zero, beats loosening a
+# threshold to reach the number, and the whole saturation measurement depends on
+# a short answer being allowed.
+#
+# It lived only in the prompt prose, stated eight times including that file's own
+# title, which meant nothing outside it could read the value, report it, or change
+# it -- the same defect the inclusion floor had before criteria.py. The prompt now
+# states no number and this is appended to it below.
+#
+# Raising it is NOT obviously cheaper. Measured cost is ~416K tokens and ~8 turns
+# per lead, and the Screen batching A/B on this pipeline found three-per-call cost
+# 15% MORE tokens than one-per-call, because a call holding several jobs re-reads
+# all of them every turn. Pulling the other way, Source re-reads the exclusion list
+# once per iteration and that list grows with the database, so fewer iterations is
+# a real saving at scale. Genuinely uncertain, so measure before moving it.
+LEADS_PER_CALL="${LEADS_PER_CALL:-5}"
 # The cap bounds COST, not liveness -- MAX_STALL below is the liveness check.
 # It exists for the case MAX_STALL cannot see: steady but slow progress. `stall`
 # resets on every success, so a run adding one row every four turns never trips
@@ -103,6 +122,18 @@ if [ "${PREFLIGHT:-1}" = "1" ]; then
 fi
 
 PROMPT="$(cat "$PROMPT_FILE")"
+# The per-call ceiling is the loop's parameter, so the loop states it rather than
+# the prompt file carrying a number that only prose could change. PROMPT 2 has no
+# ceiling -- it extracts exactly one lead per call, which its own text settles.
+if [ "$COUNT_TABLE" = "source_collected" ]; then
+  PROMPT="$PROMPT
+
+## How many to collect this call
+
+**Up to $LEADS_PER_CALL.** This is the ceiling referred to above: it is the most
+you may return, never the least you must find. Collecting fewer, or none, is the
+correct outcome when nothing else genuinely clears every bar."
+fi
 # What the loop counts to decide it is done. `count` prints one integer, and for
 # screen_extracted it prints DISTINCT PROJECTS rather than rows -- a lead
 # extracted twice is one project, and counting rows let a duplicate tick the
@@ -195,7 +226,9 @@ START="$(count)"; START="${START:-0}"
 # One header line, so a transcript read on its own says when it ran and which
 # database it wrote to. all.sh prints these too; a stage run directly did not.
 echo "started : $(date -u +%Y-%m-%dT%H:%M:%SZ)  db=$("$PY" -c 'from pipeline.db import db_path; print(db_path())')"
-echo "loop: prompt=$PROMPT_FILE  add $ADD to $COUNT_TABLE (now $START)  (model=$MODEL, effort=$EFFORT)"
+_CEIL=""
+[ "$COUNT_TABLE" = "source_collected" ] && _CEIL=", leads/call=$LEADS_PER_CALL"
+echo "loop: prompt=$PROMPT_FILE  add $ADD to $COUNT_TABLE (now $START)  (model=$MODEL, effort=$EFFORT$_CEIL)"
 
 stall=0
 hit_cap=1        # cleared by either deliberate exit below

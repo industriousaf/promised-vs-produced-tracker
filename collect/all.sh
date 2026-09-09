@@ -172,18 +172,23 @@ run_stage() {
   iters="$(stage_cfg "$stage" MAX_ITERS   "$iters_default")"
   stall="$(stage_cfg "$stage" MAX_STALL   "3")"
   verbose="$(stage_cfg "$stage" VERBOSE   "0")"
+  # Source only. The Screen prompt fixes one lead per call in its own text and
+  # has no ceiling to set.
+  leads="$(stage_cfg "$stage" LEADS_PER_CALL "5")"
 
   echo
   echo "==================================================================="
   echo "  ${stage}: add $add to $table"
   echo "  prompt=$prompt"
   echo "  model=$model effort=$effort max_iters=$iters max_stall=$stall verbose=$verbose"
+  [ "$table" = "source_collected" ] && echo "  leads_per_call=$leads"
   echo "==================================================================="
 
   local cmd=(env -u PROMPT_FILE -u COUNT_TABLE
     "ADD=$add" "PROMPT_FILE=$prompt" "COUNT_TABLE=$table" "STAGE_LABEL=$stage"
     "MODEL=$model" "EFFORT=$effort" "MAX_ITERS=$iters"
     "MAX_STALL=$stall" "VERBOSE=$verbose" "PREFLIGHT=$preflight"
+    "LEADS_PER_CALL=$leads"
     bash "$script")
 
   if [ "$DRY_RUN" = "1" ]; then

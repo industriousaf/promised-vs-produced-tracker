@@ -41,9 +41,12 @@ Web search runs on a second model, and its tokens are included above:
 
 ## Source yield per iteration
 
-`collect/prompts/prompt1_collect_recent.md` allows **up to five** new leads per
-iteration and says plainly that five is a ceiling, not a quota — "if you cannot
-find five that genuinely clear every bar, collect fewer, even zero, and stop."
+A Source call may return up to a **per-call ceiling**, set by `LEADS_PER_CALL` in
+`collect/source.sh` and reported in each run's header. It is a ceiling, not a
+quota: the prompt is explicit that returning fewer, even zero, beats loosening a
+threshold to reach the number. **Every run below ran at a ceiling of 5**, which
+is what makes the yields readable — a 5 means the call hit the ceiling, and
+anything less means it ran out of qualifying projects before reaching it.
 
 Leads added per Source iteration:
 
@@ -57,6 +60,9 @@ Leads added per Source iteration:
 leads to 215. Search cost held flat across all three runs: 41.5, 40.6 and 40.4
 turns per iteration. If qualifying projects were running out, the model would be
 spending more turns to reach the same five. It was not.
+
+Per-lead cost across those runs: **~416K tokens and ~8 turns**. That is the
+number any change to the ceiling has to beat.
 
 A separate scan of all 212 Screen rows for near-duplicate projects in the same
 state returned one candidate pair, which on inspection is two genuinely different

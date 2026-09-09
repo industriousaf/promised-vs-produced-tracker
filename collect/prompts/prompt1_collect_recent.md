@@ -1,4 +1,4 @@
-# PROMPT 1 — Collect up to 5 NEW Source leads by web search, with a strict "most recent status" check
+# PROMPT 1 — Collect NEW Source leads by web search, with a strict "most recent status" check
 
 You are running as a single Claude Code call. You have been shown
 `docs/cli.md`, the pipeline's command reference. Do **only** what this prompt says.
@@ -12,13 +12,13 @@ knowledge for either the announcement or (especially) the current status.
 **You must run the real pipeline code** — a lead enters Source only via
 `python3 -m pipeline.cli source-add`. Do not invent scripts.
 
-## How many to collect this call: up to 5, one at a time
+## How many to collect this call: the ceiling stated below, one at a time
 
-Collect **up to five** new qualifying projects in this call. Five is a **ceiling,
-not a quota**: if you cannot find five that genuinely clear every bar, collect
-fewer — even zero — and stop. **Never** loosen the thresholds to reach the number
-(the canonical prompt's rule to output nothing before forcing a weak result still
-holds).
+The loop that launched you states a **per-call ceiling** at the end of these
+instructions. It is a **ceiling, not a quota**: if you cannot find that many that
+genuinely clear every bar, collect fewer — even zero — and stop. **Never** loosen
+the thresholds to reach the number (the canonical prompt's rule to output nothing
+before forcing a weak result still holds).
 
 Do them **one at a time**, each as its own record and its own `source-add`. Do
 **not** batch several projects into one JSON object or one insert — "handle exactly
@@ -34,7 +34,7 @@ already in the lists is not itself excluded — a *different* facility of that c
 another state or of another kind, is a genuinely new project and is fair game. Only that
 site's own expansion or re-announcement is excluded.
 
-To keep the five productive, **vary your search axis** — a different sector, state, and
+To keep every pick productive, **vary your search axis** — a different sector, state, and
 announcement year each time. Repeating one axis returns the same top results, the
 exclusion list removes them, and you burn a pick. This is about the query, not the
 project: never pass over a large project to satisfy it.
@@ -58,10 +58,10 @@ possible sweep at the threshold in force, and a lower threshold will be re-run
 properly when it is set.
 
 What you must never do is loosen the floor to reach a number. The rule against
-forcing a weak result outranks the ceiling of five: five qualifying projects is
-the most you may return, never the least you must find.
+forcing a weak result outranks the ceiling: the ceiling is the most you may
+return, never the least you must find.
 
-## The per-project loop — repeat up to 5 times
+## The per-project loop — repeat up to the ceiling
 
 1. **Refresh the rules + exclusion list.** Run:
    ```
@@ -87,7 +87,7 @@ the most you may return, never the least you must find.
    `source_collected.collected_via` (open-web discovery) — always include it.
 
 Then go back to step 1 for the next project. **Stop as soon as** you can't find
-another genuinely-new qualifying project, or you've collected five.
+another genuinely-new qualifying project, or you've reached the ceiling.
 
 ## The critical rule (applies to every project): the "produced" side must be the MOST RECENT status
 
