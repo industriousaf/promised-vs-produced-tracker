@@ -33,17 +33,28 @@ signs off on every published row.
 
 ## What counts as a project
 
-A project is in scope when **all** of these hold:
+A project is in scope when **all** of these hold. The thresholds belong to a
+**phase** — the Scoreboard is made complete at a high threshold first and lowered
+in later sweeps, and every row records the phase that admitted it, so a later,
+looser sweep stays distinguishable from an earlier one. Two are defined:
+
+| Phase | Rule | |
+|---|---|---|
+| `100M-or-200-jobs` | capital ≥ $100,000,000 **OR** ≥ 200 direct promised jobs | the rule this repository's rows were collected under |
+| `1B-or-2000-jobs` | capital ≥ $1,000,000,000 **OR** ≥ 2,000 direct promised jobs | the high threshold |
+
+`scoreboard.py criteria` prints which is in force, and `pipeline/criteria.py` is
+the only place any of it is set.
 
 | | Rule |
 |---|---|
 | **Where** | a single physical facility in the United States |
-| **When** | on or after the phase's start date — `scoreboard.py criteria` |
-| **Size** | a capital threshold **OR** a direct-promised-jobs threshold, either one qualifying. Both, and the operator joining them, are set per phase in `pipeline/criteria.py` — run `scoreboard.py criteria` for what is in force. The Scoreboard is built at a high threshold first and lowered in later phases, and every row records the phase that admitted it. |
+| **When** | announced on or after the active phase's start date |
+| **Size** | the active phase's capital **OR** jobs threshold, either one qualifying (the operator is per phase too) |
 | **Sector** | one of these ten:<br>1. Aerospace and Defense<br>2. Auto Assembly<br>3. Battery<br>4. Chemicals and Plastics<br>5. Food and Beverage<br>6. Machinery<br>7. Pharmaceuticals<br>8. Semiconductors<br>9. Solar<br>10. Steel<br><br>…or `Other`, for a manufacturing project that genuinely fits none of the ten. `Other` is a last resort, not a bucket: if it starts filling up, the list above is wrong. |
 
 Direct jobs only. "Regional," "supported," "induced," and construction-phase job
-claims do not count toward the 2,000.
+claims do not count toward the jobs threshold.
 
 These rules are enforced in code by
 [`pipeline/schema.py`](pipeline/schema.py).

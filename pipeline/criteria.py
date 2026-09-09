@@ -14,6 +14,12 @@ turn:
     WHERE    which countries, and the valid subdivisions of each
     SECTOR   the closed manufacturing vocabulary
 
+A phase's name is its rule, spelled out -- `100M-or-200-jobs`, not `p1`. It is
+written into `criteria_id` on every row and into the checker's messages, so it
+has to mean something to a person reading a CSV column with no documentation
+open. A short opaque handle would have been the same mistake as an undefined
+term in the README, except stored in the data where it cannot be reworded later.
+
 A **phase** is one complete set of those. The Scoreboard is built by sweeping at
 a high threshold first and lowering it later, and each sweep is a phase. Rows
 record the phase that admitted them (`criteria_id`), because otherwise a later,
@@ -24,7 +30,7 @@ them apart.
 
 For a single run, override without editing anything:
 
-    CRITERIA=p2 bash collect/all.sh
+    CRITERIA=100M-or-200-jobs bash collect/all.sh
 
 Ask what is actually in effect rather than reading it off:
 
@@ -128,30 +134,38 @@ class Criteria:
 
 
 PHASES: dict[str, Criteria] = {
-    "p1": Criteria(
-        id="p1",
+    "1B-or-2000-jobs": Criteria(
+        id="1B-or-2000-jobs",
         capital_usd=1_000_000_000,
         jobs=2_000,
         op="OR",
         announced_from="2017-01",
         countries=("US",),
-        note="Complete at $1B first. The Scoreboard is built from the top down, "
-             "so wherever review stops, the claim above that point is intact.",
+        note="The high threshold. The Scoreboard is made complete here first, "
+             "because it is built from the top down -- wherever review stops, the "
+             "claim above that point is intact.",
     ),
-    "p2": Criteria(
-        id="p2",
+    "100M-or-200-jobs": Criteria(
+        id="100M-or-200-jobs",
         capital_usd=100_000_000,
         jobs=200,
         op="OR",
         announced_from="2017-01",
         countries=("US",),
-        note="The lowered threshold, for a later sweep. Rows collected under p1 "
-             "already clear it; what p2 adds is everything between the two.",
+        note="The low threshold, and the rule that produced the rows in this "
+             "repository. Everything admitted at the high threshold clears this "
+             "one too; what this phase adds is the range between them.",
     ),
 }
 
 # The phase in effect. EDIT THIS to change what the pipeline collects and admits.
-ACTIVE = "p1"
+#
+# It is the LOWER threshold, deliberately: it is the rule that produced the 212
+# rows this repository ships, so the code and the data agree and every row passes
+# the checker the code actually runs. Raising it to 1B-or-2000-jobs is a separate
+# change made together with starting a fresh database -- doing it here would tag a
+# release whose own data fails its own gate.
+ACTIVE = "100M-or-200-jobs"
 
 
 # --------------------------------------------------------------------------- #

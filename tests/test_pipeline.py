@@ -467,7 +467,7 @@ class TestSizeFloor(Base):
     # when ACTIVE does, and deriving means it does not need editing when a
     # threshold moves. What is under test is the shape of the rule -- either
     # figure alone settles it -- which holds at any threshold.
-    PHASE = criteria.PHASES["p2"]
+    PHASE = criteria.PHASES["100M-or-200-jobs"]
     CAP = PHASE.capital_usd
     JOBS = PHASE.jobs
 
@@ -647,8 +647,8 @@ class TestCriteria(Base):
         re-graded when a tighter one becomes active, or lowering a threshold
         would silently invalidate everything collected above it."""
         small = a_row(promised_capital_usd=300_000_000, promised_jobs=500)
-        self.assertEqual(sc.check_row(small, criteria.PHASES["p2"])["result_status"], "CLEAN")
-        self.assertEqual(sc.check_row(small, criteria.PHASES["p1"])["result_status"], "FAIL")
+        self.assertEqual(sc.check_row(small, criteria.PHASES["100M-or-200-jobs"])["result_status"], "CLEAN")
+        self.assertEqual(sc.check_row(small, criteria.PHASES["1B-or-2000-jobs"])["result_status"], "FAIL")
 
     def test_stored_rows_carry_their_phase(self):
         sid = self.lead()
@@ -663,7 +663,7 @@ class TestCriteria(Base):
         """An extractor reports on a project, not on which sweep it belongs to.
         A row that could name its own phase could misreport the sampling frame."""
         sid = self.lead()
-        rid = screen.insert_extracted(self.conn, a_row(criteria_id="p2"),
+        rid = screen.insert_extracted(self.conn, a_row(criteria_id="1B-or-2000-jobs"),
                                       source_collected_id=sid)
         self.assertEqual(screen.get_extracted(self.conn, rid)["criteria_id"],
                          criteria.active().id)

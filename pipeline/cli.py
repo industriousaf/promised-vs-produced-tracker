@@ -767,10 +767,12 @@ def cmd_criteria(conn, args):
     print("Defined phases:")
     for name, ph in sorted(criteria.PHASES.items()):
         mark = "*" if name == c.id else " "
-        print(f"  {mark} {name:4} {ph.describe():34} from {ph.announced_from}")
+        print(f"  {mark} {name:18} {ph.describe():30} from {ph.announced_from}")
     print()
-    print("For one run, without editing anything:")
-    print("  CRITERIA=p2 bash collect/all.sh")
+    other = next((n for n in sorted(criteria.PHASES) if n != c.id), None)
+    if other:
+        print("For one run, without editing anything:")
+        print(f"  CRITERIA={other} bash collect/all.sh")
     print()
     print("Rows record the phase that admitted them, and are checked against it")
     print("-- moving a threshold never re-grades data already collected.")
