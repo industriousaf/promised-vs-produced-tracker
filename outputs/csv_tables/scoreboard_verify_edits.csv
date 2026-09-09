@@ -1,10 +1,1 @@
 id,datetime,verify_verified_id,edit_description
-1,2026-09-05T23:43:54Z,10,"""Commercial production to begin 1H 2025 with annual capacity of 300,000 units"" found in original announcement."
-2,2026-09-06T00:06:03Z,18,"""Rivian plans to begin production in 2024 at..."" meaning that it was originally meant for 2024."
-3,2026-09-06T14:55:26Z,21,https://www.biospace.com/press-releases/fujifilm-biotechnologies-selected-in-fda-precheck-pilot-program-to-advance-u-s-drug-manufacturing says not entirely finished but is an implication that active production is happening to some extent.
-4,2026-09-06T15:24:26Z,25,"https://www.wpr.org/news/eli-lilly-company-announce-expansion-kenosha-county-manufacturing-facility ---- ""A spokesperson for the company said they plan to start producing drugs at the expanded facility in 2028."
-5,2026-09-07T15:43:11Z,8,First output dated from TSMC's own TSMC Arizona page: 'First Fab: High-volume production on N4 process technology started in Q4 2024.' The previously cited status source discussed Fab 2 only.
-6,2026-09-07T15:50:45Z,7,Searched for a dated first-output source and found none; recorded the Jan 24 - Apr 2 2022 bracket and its two primary sources. actual_first_output stays 'unconfirmed'.
-7,2026-09-07T16:35:58Z,8,"Verbatim quote from the cited TSMC Arizona page (actual_date_source). The raw cell was not editable when the date was set, so it still held the pre-correction 'unconfirmed'."
-8,2026-09-08T12:08:47Z,28,Flag changed from “Resolved: human-verified and promoted from screen_extracted #27” to “Resolved: human-verified and promoted from screen_extracted #27 (testing flag edit)”
-9,2026-09-08T12:16:21Z,30,"In CBS article, explained that ""with an opening scheduled for 2024""."

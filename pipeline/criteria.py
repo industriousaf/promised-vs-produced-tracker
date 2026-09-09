@@ -160,12 +160,14 @@ PHASES: dict[str, Criteria] = {
 
 # The phase in effect. EDIT THIS to change what the pipeline collects and admits.
 #
-# It is the LOWER threshold, deliberately: it is the rule that produced the 212
-# rows this repository ships, so the code and the data agree and every row passes
-# the checker the code actually runs. Raising it to 1B-or-2000-jobs is a separate
-# change made together with starting a fresh database -- doing it here would tag a
-# release whose own data fails its own gate.
-ACTIVE = "100M-or-200-jobs"
+# Raised to the high threshold together with emptying the database, because the
+# two are one decision. Changing the floor under rows collected at another one
+# leaves a repository whose data fails its own checker -- 94 of the previous 212
+# rows did exactly that during the hour the two were out of step. The rows
+# collected at 100M-or-200-jobs are in the scoreboard-v1.2 tag:
+#
+#     git show scoreboard-v1.2:outputs/scoreboard.db > /tmp/sb-100M.db
+ACTIVE = "1B-or-2000-jobs"
 
 
 # --------------------------------------------------------------------------- #
