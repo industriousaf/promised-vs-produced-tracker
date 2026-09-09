@@ -7,7 +7,7 @@ Making that judgment *is* the human gate; nothing reaches Verify without it.
 
 The machine has already done its part. `screen-check` (Screen pt-2) checks the
 **shape** of a row: required cells present, `announced` is a real `YYYY-MM`
-anchor, sector/state in vocabulary, the inclusion floor ($1B **or** 2,000 jobs)
+anchor, sector/state in vocabulary, the inclusion floor of the row's own phase
 is cleared, date cells parse, tiers are valid tokens, sources look like URLs, and
 any open `flag` is surfaced. A `FAIL` there blocks promotion — fix it first.
 

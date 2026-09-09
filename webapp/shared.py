@@ -31,7 +31,6 @@ from pipeline.schema_check import (  # noqa: E402
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
     all_sectors,
-    register_sector,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 

@@ -38,8 +38,8 @@ A project is in scope when **all** of these hold:
 | | Rule |
 |---|---|
 | **Where** | a single physical facility in the United States |
-| **When** | announced January 2017 or later |
-| **Size** | announced capital **≥ $1,000,000,000** **OR** **≥ 2,000** direct promised jobs (either one qualifies) |
+| **When** | on or after the phase's start date — `scoreboard.py criteria` |
+| **Size** | a capital threshold **OR** a direct-promised-jobs threshold, either one qualifying. Both, and the operator joining them, are set per phase in `pipeline/criteria.py` — run `scoreboard.py criteria` for what is in force. The Scoreboard is built at a high threshold first and lowered in later phases, and every row records the phase that admitted it. |
 | **Sector** | one of these ten:<br>1. Aerospace and Defense<br>2. Auto Assembly<br>3. Battery<br>4. Chemicals and Plastics<br>5. Food and Beverage<br>6. Machinery<br>7. Pharmaceuticals<br>8. Semiconductors<br>9. Solar<br>10. Steel<br><br>…or `Other`, for a manufacturing project that genuinely fits none of the ten. `Other` is a last resort, not a bucket: if it starts filling up, the list above is wrong. |
 
 Direct jobs only. "Regional," "supported," "induced," and construction-phase job
@@ -146,7 +146,7 @@ is the same exporter as a command; `--out-dir` works there too.
 | Stage | Holds | Who does it |
 |---|---|---|
 | **Source** | the source links and a one-line summary. No figures are recorded yet. | AI or human |
-| **Screen** | the 18-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
+| **Screen** | the 20-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
 | **Verify** | the published row. Later corrections are logged with a reason. | human only |
 
 A `FAIL` at Screen blocks promotion. A `PASS` means the row is shaped correctly
@@ -321,7 +321,7 @@ function, so the choice is only about how you would rather read the sources.
 | | Needs | Best for |
 |---|---|---|
 | `python3 scoreboard.py review` | nothing | working the queue in order. Prints each row's figures and both links, then asks about them one at a time. |
-| `python3 scoreboard.py webapp` | `pip install` | reading a row *inside* its sources: the cited pages render in the review screen with the row's claims highlighted in them, and any of the 18 cells is editable in the form beside. |
+| `python3 scoreboard.py webapp` | `pip install` | reading a row *inside* its sources: the cited pages render in the review screen with the row's claims highlighted in them, and any of the 20 cells is editable in the form beside. |
 | `verify-promote` by hand | nothing | one particular row, or a script. |
 
 The rest of this section is the third route, which is also what the other two

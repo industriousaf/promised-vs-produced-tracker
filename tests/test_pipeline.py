@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline import dates, models, quality, screen, source, verify  # noqa: E402
+from pipeline import criteria, dates, models, quality, screen, source, verify  # noqa: E402
 from pipeline import schema_check as sc  # noqa: E402
 from pipeline.db import connect, init_db  # noqa: E402
 from tools.export_tables import export_dir  # noqa: E402
@@ -456,21 +456,27 @@ class TestSizeFloor(Base):
     failed for want of a dollar figure no source had printed. Two rows of the
     N=100 run went that way: ES Foundry Greenwood and Meyer Burger Goodyear.
 
-    Every figure below is derived from CAPITAL_FLOOR_USD / JOBS_FLOOR rather
-    than written out, because these are tests of the OR, not of where the line
-    sits. Hard-coded amounts made the whole class fail the day the floor was
-    raised from $100M/200 to $1B/2,000 — the rule under test had not changed at
-    all.
+    Every figure below is derived from the phase rather than written out,
+    because these are tests of the OR, not of where the line sits. Hard-coded
+    amounts made the whole class fail the day the floor was raised from
+    $100M/200 to $1B/2,000 — the rule under test had not changed at all.
     """
 
-    CAP = sc.pvp_schema.CAPITAL_FLOOR_USD
-    JOBS = sc.pvp_schema.JOBS_FLOOR
+    # Pinned to a NAMED phase, and every figure derived from it. Two reasons,
+    # and the class needs both: pinning means the test does not change meaning
+    # when ACTIVE does, and deriving means it does not need editing when a
+    # threshold moves. What is under test is the shape of the rule -- either
+    # figure alone settles it -- which holds at any threshold.
+    PHASE = criteria.PHASES["p2"]
+    CAP = PHASE.capital_usd
+    JOBS = PHASE.jobs
 
     def verdict(self, **over):
-        return sc.check_row(a_row(**over))["result_status"]
+        return sc.check_row(a_row(**over), self.PHASE)["result_status"]
 
     def errors(self, **over):
-        return [i for i in sc.check_row(a_row(**over))["report"] if i["level"] == "ERROR"]
+        return [i for i in sc.check_row(a_row(**over), self.PHASE)["report"]
+                if i["level"] == "ERROR"]
 
     def test_jobs_alone_carries_the_row(self):
         """ES Foundry, in the shape of the incident: comfortably over the jobs
@@ -624,6 +630,88 @@ class TestVerbatimQuotesAtVerify(Base):
         for col in ("lag_years", "slip_years", "actual_first_output_dt"):
             with self.assertRaises(ValueError):
                 verify.edit(self.conn, vid, {col: "3"}, edit_description="x")
+
+
+# --------------------------------------------------------------------------- #
+class TestCriteria(Base):
+    """The inclusion rules are one setting, and rows remember which one made them.
+
+    The Scoreboard is built by sweeping at a high threshold and lowering it in a
+    later phase. Without a stamp on each row, the second sweep is
+    indistinguishable from the first and "no $300M plants in 2019" cannot be told
+    apart from "we were not looking for $300M plants in 2019".
+    """
+
+    def test_a_row_is_judged_by_the_phase_that_admitted_it(self):
+        """The one that matters. A row admitted under a loose phase must not be
+        re-graded when a tighter one becomes active, or lowering a threshold
+        would silently invalidate everything collected above it."""
+        small = a_row(promised_capital_usd=300_000_000, promised_jobs=500)
+        self.assertEqual(sc.check_row(small, criteria.PHASES["p2"])["result_status"], "CLEAN")
+        self.assertEqual(sc.check_row(small, criteria.PHASES["p1"])["result_status"], "FAIL")
+
+    def test_stored_rows_carry_their_phase(self):
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(), source_collected_id=sid)
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["criteria_id"], criteria.active().id)
+        self.assertEqual(
+            self.conn.execute("SELECT criteria_id FROM source_collected WHERE id=?",
+                              (sid,)).fetchone()[0], criteria.active().id)
+
+    def test_the_phase_is_forced_not_taken_from_the_extractor(self):
+        """An extractor reports on a project, not on which sweep it belongs to.
+        A row that could name its own phase could misreport the sampling frame."""
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(criteria_id="p2"),
+                                      source_collected_id=sid)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["criteria_id"],
+                         criteria.active().id)
+
+    def test_country_defaults_to_the_phase(self):
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(), source_collected_id=sid)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["country"], "US")
+
+    def test_the_announced_window_is_enforced(self):
+        """README stated "January 2017 or later" for the whole life of the
+        project and no code checked it."""
+        early = sc.check_row(a_row(announced="2015-06"))
+        self.assertEqual(early["result_status"], "FAIL")
+        self.assertTrue(any("before" in i["message"] for i in early["report"]))
+
+    def test_where_is_enforced_against_the_phase(self):
+        self.assertEqual(sc.check_row(a_row(state="ON"))["result_status"], "FAIL")
+        self.assertEqual(sc.check_row(a_row(country="CA"))["result_status"], "FAIL")
+        self.assertNotEqual(sc.check_row(a_row(country="US"))["result_status"], "FAIL")
+
+    def test_or_and_and_differ(self):
+        both = criteria.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
+                                 op="AND", announced_from="2017-01", countries=("US",))
+        either = criteria.Criteria(id="t", capital_usd=1_000_000_000, jobs=2_000,
+                                   op="OR", announced_from="2017-01", countries=("US",))
+        self.assertTrue(either.clears(5_000_000_000, 100))
+        self.assertFalse(both.clears(5_000_000_000, 100))
+        # Under AND a missing figure can never settle it; under OR it can.
+        self.assertTrue(either.clears(5_000_000_000, None))
+        self.assertFalse(both.clears(5_000_000_000, None))
+
+    def test_an_unknown_phase_is_refused_loudly(self):
+        import os
+        os.environ["CRITERIA"] = "nope"
+        try:
+            with self.assertRaises(SystemExit):
+                criteria.active()
+        finally:
+            del os.environ["CRITERIA"]
+
+    def test_the_sector_registry_is_gone(self):
+        """A vocabulary that could change at runtime could move what counts as
+        in scope mid-run with nothing in git recording it. Adding a sector is a
+        commit now."""
+        self.assertFalse(hasattr(sc, "register_sector"))
+        self.assertFalse((Path(__file__).resolve().parent.parent
+                          / "pipeline" / "sector_registry.json").exists())
 
 
 # --------------------------------------------------------------------------- #

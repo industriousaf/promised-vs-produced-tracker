@@ -34,6 +34,14 @@ except ImportError:  # pragma: no cover - FastAPI not installed
     HAVE_WEBAPP = False
 
 
+# `ignore_cleanup_errors` arrived in Python 3.10, and this project supports 3.9 --
+# scoreboard.py says so and refuses to run below it. It is only a backstop here
+# (tearDown drains the jobs, which is the actual fix), so on 3.9 we go without.
+# Without this the whole TestAgentCache class errored in setUp on the interpreter
+# the project actually declares.
+_TMPDIR_KW = {"ignore_cleanup_errors": True} if sys.version_info >= (3, 10) else {}
+
+
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestFlagOnlyReason(unittest.TestCase):
     """A flag-only edit is its own reason; anything else still needs one.
@@ -234,7 +242,7 @@ class TestAgentCache(unittest.TestCase):
     def setUp(self):
         from webapp import agent_cache as ac
         self.ac = ac
-        self.dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
         self._old = ac.CACHE_DIR
         ac.CACHE_DIR = Path(self.dir.name)
         ac._JOBS.clear()
@@ -244,7 +252,7 @@ class TestAgentCache(unittest.TestCase):
         # writes its answer into the cache dir, and a test that tore the dir out
         # from under it failed roughly one run in eight -- on the cleanup, not on
         # anything it was testing. Waiting is the fix; ignore_cleanup_errors is
-        # the backstop for a job that hangs past the deadline.
+        # the backstop for a job that hangs past the deadline, where available.
         for job in list(self.ac._JOBS.values()):
             self.settle(job, limit=5.0, hard=False)
         self.ac.CACHE_DIR = self._old

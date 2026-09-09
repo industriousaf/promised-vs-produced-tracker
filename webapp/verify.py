@@ -25,15 +25,13 @@ from pipeline.db import (  # noqa: E402
     connect, db_path, discover_databases, init_db, is_read_only, set_active_db,
     table_counts,
 )
+from pipeline.criteria import active as _crit  # noqa: E402
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
-    CAPITAL_FLOOR_USD,
-    JOBS_FLOOR,
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
     all_sectors,
-    register_sector,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 
@@ -127,8 +125,8 @@ def verify_page(
     filter_panel = f"""
 <h2>Explore-filter — capital / jobs thresholds</h2>
 <div class="card">
-  <p>Probe thresholds beyond the fixed inclusion floor
-  (${CAPITAL_FLOOR_USD:,} <b>OR</b> {JOBS_FLOOR:,} jobs) without changing the gate.
+  <p>Probe thresholds other than the active inclusion floor
+  ({_crit().describe()}, phase {_crit().id}) without changing the gate.
   Runs a plain SQL query
   <code>WHERE promised_capital_usd ≥ ? {{AND|OR}} promised_jobs ≥ ?</code>.
   Try <code>$5B OR 5000 jobs</code>, or <code>$5B AND 5000 jobs</code>.</p>
@@ -150,34 +148,16 @@ def verify_page(
     sector_panel = f"""
 <h2>Sector vocabulary</h2>
 <div class="card">
-  <p>A defined, extensible set of manufacturing sectors (no longer sector-agnostic).
-  Manual edits pick from a dropdown (on each Verify row); the API extraction path
-  auto-registers a clearly-new manufacturing sector via <code>register_sector()</code>;
-  Claude Code adds one by editing <code>SECTORS</code>. A sector outside this
-  vocabulary is rejected by the checker until it is added. Current vocabulary:</p>
+  <p>A <b>closed</b> set of manufacturing sectors. Manual edits pick from a
+  dropdown on each Verify row; a sector outside this vocabulary is rejected by
+  the checker. Extending it is a code change — add to <code>SECTORS</code> in
+  <code>pipeline/criteria.py</code> — so that what counts as in scope cannot
+  move at runtime without a commit recording it. Current vocabulary:</p>
   <p>{sector_chips}</p>
-  <form method="post" action="/sectors/add">
-    <label>Register a new manufacturing sector</label>
-    <input type="text" name="name" placeholder="e.g. Cement">
-    <p><button type="submit">Add sector</button></p>
-  </form>
 </div>
 """
     body = f"{filter_panel}{sector_panel}<h2>Published rows ({len(rows)})</h2>{items}"
     return _page("Verify", body, msg)
-
-
-@router.post("/sectors/add")
-async def sectors_add(request: Request):
-    form = await request.form()
-    name = (form.get("name") or "").strip()
-    if not name:
-        msg = "Give a sector name."
-    elif register_sector(name):
-        msg = f"Registered new sector: {name}."
-    else:
-        msg = f"Sector {name!r} is blank or already known — nothing added."
-    return RedirectResponse(f"/verify?msg={html.escape(msg)}", status_code=303)
 
 
 @router.get("/verify/{verify_id}", response_class=HTMLResponse)

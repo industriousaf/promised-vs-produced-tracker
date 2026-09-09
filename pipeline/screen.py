@@ -2,7 +2,7 @@
 screen.py -- Screen stage operations (`screen_extracted` + `screen_check`).
 
 Screen pt 1 (`screen_extracted`): the extraction result -- one project row in
-the 18-column v0_out shape, always at verification_tier 'P'. Extraction problems
+the 20-column v0_out shape, always at verification_tier 'P'. Extraction problems
 belong in the `flag` cell, never dropped or guessed.
 
 Screen pt 2 (`screen_check`): the deterministic, computer-based verification.
@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from pipeline import criteria
 from pipeline.db import now_iso
 from pipeline.dates import (
     enrich as enrich_dates, interpret_date, DATE_TRIPLES, PRODUCED_UNDATED,
@@ -132,7 +133,7 @@ def insert_extracted(
 ) -> int:
     """Insert one `screen_extracted` row. Returns its id.
 
-    `row` is a mapping of (some of) the 18 v0 columns. Missing columns become
+    `row` is a mapping of (some of) the 20 v0 columns. Missing columns become
     NULL. verification_tier is forced to 'P' -- Screen is provisional by
     construction, so whatever the extractor claimed is overridden here.
 
@@ -157,6 +158,16 @@ def insert_extracted(
 
     values = {c: _coerce(c, row.get(c)) for c in V0_COLUMNS}
     values["verification_tier"] = "P"  # invariant at this stage
+
+    # Stamp the phase that admitted this row, and default the country to the
+    # phase's own when the extractor did not give one. Both are forced rather
+    # than trusted: the extractor is reporting on a project, not on which sweep
+    # it belongs to, and a row that lies about its phase makes every later
+    # comparison between sweeps wrong.
+    crit = criteria.active()
+    values["criteria_id"] = crit.id
+    if not values.get("country") and len(crit.countries) == 1:
+        values["country"] = crit.countries[0]
     # Deterministically derive the *_dt columns and the float lag/slip from the
     # normalized date tokens -- whatever the extractor put in lag_years/slip_years
     # is overwritten here so two models that agree on the dates agree on lag/slip.
@@ -385,7 +396,7 @@ def undated_produced(conn: sqlite3.Connection,
 
 
 def row_to_v0_dict(row: sqlite3.Row) -> dict:
-    """Extract just the 18 v0 columns from a screen/verify row, as a plain dict.
+    """Extract just the 20 v0 columns from a screen/verify row, as a plain dict.
 
     A column the stored table does not have yet reads as None rather than
     raising. `main()` migrates on every ordinary command, so the only way to see
@@ -409,7 +420,12 @@ def run_check(conn: sqlite3.Connection, screen_extracted_id: int) -> dict:
     if src is None:
         raise ValueError(f"no screen_extracted row with id {screen_extracted_id}")
 
-    result = check_row(row_to_v0_dict(src))
+    # Judge the row by the rule that ADMITTED it, not by whatever is active now.
+    # Otherwise lowering the threshold for a later sweep would silently re-grade
+    # every earlier row, and raising it would fail rows that were properly in
+    # scope when they were collected.
+    result = check_row(row_to_v0_dict(src), criteria.get(src["criteria_id"]
+                                                         if "criteria_id" in src.keys() else None))
 
     conn.execute(
         """

@@ -30,7 +30,8 @@ import os
 from pathlib import Path
 
 from pipeline import models
-from pipeline.schema_check import all_sectors, register_sector
+from pipeline import criteria
+from pipeline.schema_check import all_sectors
 
 # Models newer than Opus 4.6 support the _20260209 web tools with dynamic
 # filtering; Opus 4.8 is the default for flavour B.
@@ -119,6 +120,23 @@ def render_source_prompt(
     just what has reached verify -- which stays empty until a human publishes.
     """
     prompt = _operating_prompt("prompt_source_collected.md")
+
+    # The live inclusion rules, rendered rather than written into the prompt file.
+    # The floor used to be stated in prose here and in eight other places, so
+    # changing it meant editing nine files and hoping. criteria.py is the one
+    # source; this is how the collector sees it.
+    c = criteria.active()
+    prompt += (
+        "\n\n## In scope right now (phase " + c.id + ")\n\n"
+        "- **Size floor:** " + c.describe() + ". A project clears it on "
+        + ("EITHER figure" if c.op == "OR" else "BOTH figures")
+        + ". Skip it otherwise.\n"
+        "- **Timeframe:** announced " + c.announced_from + " or later.\n"
+        "- **Location:** " + ", ".join(c.countries) + ".\n\n"
+        "These are the live rules. **Never lower them to reach a number** — "
+        "returning fewer projects, or none, is the correct outcome when nothing "
+        "else qualifies.\n"
+    )
     # Always emitted, under the exact title the prompt body points at, so every
     # path that renders this prompt shows the live verify_verified state in the
     # expected place. Emitted even when the table is EMPTY: an absent section
@@ -152,7 +170,7 @@ def render_source_prompt(
             # exclusion section does when verify_verified is empty.
             prompt += (
                 "Nothing has been collected yet, so no year is over- or "
-                "under-represented. The eligible window is **January 2017 to "
+                "under-represented. The eligible window is **the phase start to "
                 "today**, and every year in it is equally eligible — spread your "
                 "picks across it rather than taking several from one year."
             )
@@ -160,7 +178,7 @@ def render_source_prompt(
             prompt += (
                 "This is the Scoreboard you are adding to, counted by announcement "
                 "year:\n\n```\n" + bars + "\n```\n\n"
-                "The eligible window is January 2017 to today and every year in it "
+                "The eligible window runs from the phase start to today, and every year in it "
                 "is equally eligible. Heavily reported projects cluster in a few "
                 "years, so an open-ended search returns those years over and over — "
                 "the exclusion lists above remove the individual sites already "
@@ -205,11 +223,19 @@ def render_source_prompt(
 def render_screen_prompt(lead: dict) -> str:
     """The full Screen pt-1 operating prompt for a specific Source lead.
 
-    Paste into Claude Code; it opens the lead's links, extracts the 18-column
+    Paste into Claude Code; it opens the lead's links, extracts the 20-column
     row, and ends with a single JSON object you ingest with `screen-add --json`
     (CLI) or the Screen "Add from JSON" box (web).
     """
     prompt = _operating_prompt("prompt_screen_extracted.md")
+    c = criteria.active()
+    prompt += (
+        "\n\n## In scope right now (phase " + c.id + ")\n\n"
+        "- **Size floor:** " + c.describe() + ", clearing "
+        + ("EITHER figure" if c.op == "OR" else "BOTH figures") + ".\n"
+        "- **Timeframe:** announced " + c.announced_from + " or later.\n"
+        "- **Location:** " + ", ".join(c.countries) + ".\n"
+    )
     prompt += (
         "\n\n## Sector vocabulary — classify into ONE of these, exactly\n"
         "> " + " · ".join(sorted(all_sectors())) + "\n\n"
@@ -220,7 +246,7 @@ def render_screen_prompt(lead: dict) -> str:
         "genuinely new manufacturing sector is warranted, still write `Other` and "
         "name the candidate in `flag` (e.g. \"Other used; candidate new "
         "sector: Cement\") so a human can decide. Do **not** edit `SECTORS` in "
-        "`schema.py`, and do **not** run `sectors-add` or `register_sector()` — "
+        "`pipeline/criteria.py` — "
         "extending the vocabulary is a human decision, not yours. A sector outside "
         "the list above is rejected by the checker."
     )
@@ -442,7 +468,7 @@ def collect_source_lead(
 
 
 def extract_screen_row(lead: dict) -> dict:
-    """[API flavour] Extract one 18-column row from a Source lead."""
+    """[API flavour] Extract one 20-column row from a Source lead."""
     research = _research(render_screen_prompt(lead))
     row = _structure(
         research,
@@ -462,19 +488,20 @@ def extract_screen_row(lead: dict) -> dict:
     if lead.get("promised_date_source"):
         row.setdefault("promised_date_source", lead["promised_date_source"])
 
-    # Sector standardization (API path): if the extracted sector isn't in the
-    # live vocabulary, FLAG it and ADD it onto the schema via the function --
-    # register_sector() persists it to the registry, distinct from the Claude
-    # Code path which edits the SECTORS set in code.
+    # Sector standardization (API path): a sector outside the vocabulary is
+    # FLAGGED and left for a person. It used to be auto-registered here, which
+    # let an extraction widen what counts as in scope, at runtime, with nothing
+    # in git recording that the vocabulary had moved. The Claude Code path was
+    # always forbidden from doing this ("extending the vocabulary is a human
+    # decision, not yours"); the API path now follows the same rule.
     sector = (row.get("sector") or "").strip()
     if sector and sector not in all_sectors():
-        if register_sector(sector):
-            note = (f"new sector {sector!r} was not in the vocabulary -- "
-                    "registered via register_sector()")
-            prior = (row.get("flag") or "").strip()
-            row["flag"] = (
-                note if not prior or prior.lower() == "none" else f"{prior}; {note}"
-            )
+        note = (f"sector {sector!r} is not in the vocabulary -- add it to "
+                "SECTORS in pipeline/criteria.py, or reclassify the row")
+        prior = (row.get("flag") or "").strip()
+        row["flag"] = (
+            note if not prior or prior.lower() == "none" else f"{prior}; {note}"
+        )
     return row
 
 

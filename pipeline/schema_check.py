@@ -32,17 +32,19 @@ sys.modules[_spec.name] = pvp_schema
 _spec.loader.exec_module(pvp_schema)
 
 # Re-export the pieces the rest of the package needs from the ONE source of truth.
-REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 13 core columns
-PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 5 provenance columns
+REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 14 core columns
+PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 6 provenance columns
 ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
 
-# The inclusion floor, re-exported from the ONE source of truth so no surface
-# has to quote a number of its own. The web app prints these; the explore-filter
-# blurb used to carry "$100M OR 200 jobs" as literal prose and went stale the
-# day the floor moved.
-CAPITAL_FLOOR_USD: int = pvp_schema.CAPITAL_FLOOR_USD
-JOBS_FLOOR: int = pvp_schema.JOBS_FLOOR
+# The inclusion floor is no longer two integers -- it is a phase, in
+# pipeline/criteria.py, carrying its own operator and window. Surfaces that want
+# to print it ask `criteria.active().describe()` rather than formatting numbers,
+# which is what the two re-exported constants here used to be for. Same reason
+# they existed: the explore-filter blurb once carried "$100M OR 200 jobs" as
+# literal prose and went stale the day the floor moved. Formatting the numbers
+# by hand had one more failure in it -- both call sites also hardcoded the word
+# OR, so a phase joined by AND would have printed a floor that was not the rule.
 
 # Missing values that arrived as text ('None', 'null', ...). The insert
 # paths use this to blank them; the checker uses it to catch any that
@@ -54,14 +56,14 @@ NULL_STRINGS = pvp_schema.NULL_STRINGS
 check_url = pvp_schema.check_url
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
 
-# Sector vocabulary, from the ONE source of truth. `all_sectors()` is the live
-# vocabulary (base + runtime registry); `register_sector()` is the API-path
-# function that extends it without editing code.
+# Sector vocabulary, from the ONE source of truth: pipeline/criteria.py, which
+# schema.py reads. `all_sectors()` is the active phase's vocabulary. There is no
+# longer a runtime registry -- adding a sector is a commit, so the set of things
+# that count as in scope cannot move mid-run without leaving a trace.
 SECTORS = pvp_schema.SECTORS
 all_sectors = pvp_schema.all_sectors
-register_sector = pvp_schema.register_sector
 
-# The full 18-column "v0_out" shape, in CSV-header order. REQUIRED (…, notes)
+# The full 20-column "v0_out" shape, in CSV-header order. REQUIRED (…, notes)
 # then PROVENANCE (promise_source, status_source, flag, promised_date_source,
 # actual_date_source) reproduces the header of promised_vs_produced_v0_out.csv
 # plus the actual-side date source that file never had.
@@ -91,7 +93,7 @@ DERIVED_DATE_COLUMNS = [
 # *_dt, giving a full raw -> token -> dt provenance chain per date. The canonical
 # checker does NOT validate these (they are free verbatim text); they exist for
 # audit and reproducibility. Like the *_dt columns, they are pipeline-stage
-# additions and are NOT part of the 18-column v0_out shape.
+# additions and are NOT part of the 20-column v0_out shape.
 RAW_DATE_COLUMNS = [
     "announced_raw",
     "promised_first_output_raw",
@@ -99,10 +101,15 @@ RAW_DATE_COLUMNS = [
 ]
 
 
-def check_row(row: dict) -> dict:
+def check_row(row: dict, crit=None) -> dict:
     """Run the canonical checker against one extracted row.
 
-    `row` is a mapping of the 18 v0 columns to values (missing keys are treated
+    `crit` is the inclusion phase to judge by. Pass the phase that ADMITTED the
+    row (`criteria.get(row["criteria_id"])`) so that moving a threshold cannot
+    retroactively re-grade data collected under the old one. Omitted, the active
+    phase is used, which is right for a row being admitted for the first time.
+
+    `row` is a mapping of the 20 v0 columns to values (missing keys are treated
     as empty). Returns the persisted `screen_check` shape:
 
         {
@@ -124,7 +131,7 @@ def check_row(row: dict) -> dict:
     # everything it knows how to prove.
     has_prov = {c: True for c in PROVENANCE_COLUMNS}
 
-    issues = pvp_schema.validate_row(1, str_row, has_prov)
+    issues = pvp_schema.validate_row(1, str_row, has_prov, crit)
 
     errors = [i for i in issues if i.level == ERROR]
     warnings = [i for i in issues if i.level == WARN]

@@ -22,12 +22,12 @@ entire job — you are assembling a lead, nothing more.
   fab, plant, mill, or assembly line). **One site = one project.** A later expansion or
   re-announcement of a site already covered (see the exclusion list below) is *not* a new
   project — skip it. Anchor on the site's **original** announcement.
-- **Timeframe:** announced between **January 2017 and today**.
-- **Size floor (either one qualifies, per the announcement):** announced capital **≥ US$1,000,000,000**
-  ($1B) **OR ≥ 2,000 promised jobs** — a project clears the floor if it meets *either* threshold.
-  Skip it only if it falls below **both** (or both figures are missing/unclear). Count **direct**
-  promised jobs only — ignore "regional," "supported," "induced," and construction-phase job
-  claims (treat "~2,000 direct (10,000 regional)" as 2,000).
+- **Timeframe and size floor:** see **In scope right now** below. Those figures are
+  the live inclusion rules and they change between collection phases, so read them
+  there rather than remembering a threshold from anywhere else. Count **direct**
+  promised jobs only — ignore "regional," "supported," "induced," and construction-phase
+  job claims (treat "~900 direct (4,000 regional)" as 900 — the figures here are an
+  example of the rule, not a threshold).
 - **Sector:** the project must be in one of the defined **manufacturing** sectors —
   **aerospace and defense, auto assembly, battery, chemicals and plastics, food and
   beverage, machinery, pharmaceuticals, semiconductors, solar, steel**, or **other**

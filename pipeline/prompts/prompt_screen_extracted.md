@@ -29,7 +29,7 @@ the originating Source row's id, include it as `source_collected_id` for lineage
 | Field | Rule (this is what the checker enforces) |
 |---|---|
 | `project` | Non-empty name of the facility/project, e.g. `TSMC Fab 1 Phoenix`. Unique per project. |
-| `sector` | **A defined manufacturing sector (standardized).** Classify into one of the sectors in the *Sector vocabulary* list appended below (the base set is `Aerospace and Defense`, `Auto Assembly`, `Battery`, `Chemicals and Plastics`, `Food and Beverage`, `Machinery`, `Pharmaceuticals`, `Semiconductors`, `Solar`, `Steel`, `Other`. `Pharmaceuticals` covers drug substance, API and biologics plants; `Solar` covers cell and panel manufacturing; `Other` is for a manufacturing project that genuinely fits none of them). The list is **closed**: copy one of those strings exactly. Never invent a sector, coin a narrower label, edit `SECTORS`, or run `sectors-add` / `register_sector()` — extending the vocabulary is a human decision, not yours. If nothing fits, use `Other` and name the candidate in `flag` (e.g. `Other used; candidate new sector: Cement`). A sector outside the vocabulary is an ERROR. |
+| `sector` | **A defined manufacturing sector (standardized).** Classify into one of the sectors in the *Sector vocabulary* list appended below (the base set is `Aerospace and Defense`, `Auto Assembly`, `Battery`, `Chemicals and Plastics`, `Food and Beverage`, `Machinery`, `Pharmaceuticals`, `Semiconductors`, `Solar`, `Steel`, `Other`. `Pharmaceuticals` covers drug substance, API and biologics plants; `Solar` covers cell and panel manufacturing; `Other` is for a manufacturing project that genuinely fits none of them). The list is **closed**: copy one of those strings exactly. Never invent a sector or coin a narrower label — extending the vocabulary means editing `SECTORS` in `pipeline/criteria.py`, which is a human decision, not yours. If nothing fits, use `Other` and name the candidate in `flag` (e.g. `Other used; candidate new sector: Cement`). A sector outside the vocabulary is an ERROR. |
 | `state` | 2-letter US postal abbreviation (e.g. `AZ`, `TX`). |
 | `announced` | **Normalized token — strict `YYYY-MM`** — the announcement month. This is the row's anchor and the denominator for lag/slip, so it must be exact and match the source. No fuzzy values. (The pipeline stores its resolved date as `announced_dt`.) |
 | `announced_raw` | **The exact source text** the `announced` date was read from, copied **verbatim** (e.g. `announced the project in May 2020`). Provenance only — never parsed. |
@@ -127,11 +127,11 @@ capital, jobs, the announcement date, or the promised date.
 
 ## The size floor still applies
 
-A row is out of scope unless `promised_capital_usd ≥ 1,000,000,000` ($1B) **OR**
-`promised_jobs ≥ 2,000` — clearing **either** floor is enough (a row is out only if it falls
-below **both**). Leads from Source should already meet this; if what you extract clears
-neither floor, put that in `flag` — the row will fail the check. (Apply the same
-**direct-jobs** rule as `promised_jobs` above when judging the 2,000 floor.)
+The live thresholds are in **In scope right now**, appended below — read them there
+rather than remembering a figure from anywhere else, because they change between
+collection phases. Leads from Source should already meet them; if what you extract
+clears neither, put that in `flag` — the row will fail the check. (Apply the same
+**direct-jobs** rule as `promised_jobs` above when judging the jobs threshold.)
 
 **Either figure alone settles it, so leave the other empty if no source states it.** A
 project with 3,000 promised jobs is in scope whether or not anyone published a dollar

@@ -40,6 +40,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import criteria as _criteria  # noqa: E402
+
 # --------------------------------------------------------------------------- #
 # Controlled vocabularies                                                      #
 # --------------------------------------------------------------------------- #
@@ -49,6 +52,12 @@ from pathlib import Path
 REQUIRED_COLUMNS = [
     "project",
     "sector",
+    # The country the facility is in, and its subdivision inside that country.
+    # `country` exists from the start even though the Scoreboard is US-only,
+    # because the plan covers allied countries and adding one should be a config
+    # change in criteria.py rather than a migration of every stored row. A blank
+    # cell means the phase's only country.
+    "country",
     "state",
     "announced",
     "promised_capital_usd",
@@ -78,73 +87,28 @@ PROVENANCE_COLUMNS = [
     "flag",
     "promised_date_source",
     "actual_date_source",
+    # WHICH RULES ADMITTED THIS ROW. The Scoreboard is built by sweeping at a
+    # high threshold and lowering it later, and without this stamp a later,
+    # looser sweep is indistinguishable from the earlier one -- "no $300M plants
+    # in 2019" and "we were not looking for $300M plants in 2019" collapse into
+    # the same silence. It is also what lets a row be checked against the rule
+    # that admitted it rather than whatever is active now.
+    "criteria_id",
 ]
 
 KNOWN_COLUMNS = set(REQUIRED_COLUMNS) | set(PROVENANCE_COLUMNS)
 
-# Sector vocabulary. The pipeline covers a **defined set of manufacturing
-# sectors** (it is no longer sector-agnostic). This BASE set is the settled
-# vocabulary; it stays *extensible* two ways so a genuinely new manufacturing
-# sector can be added:
-#   * Claude Code / a human edits this set (a code change), or
-#   * the API path calls register_sector() at runtime (a data change), which
-#     appends to the JSON registry below.
-# A sector outside the live vocabulary is an ERROR -- use one of these, or add
-# the new manufacturing sector first (edit SECTORS / register_sector()); see
-# sector_status().
-SECTORS = {
-    "Aerospace and Defense",
-    "Auto Assembly",
-    "Battery",
-    "Chemicals and Plastics",
-    "Food and Beverage",
-    "Machinery",
-    "Pharmaceuticals",
-    "Semiconductors",
-    "Solar",
-    "Steel",
-    "Other",
-}
-
-# Runtime-registered sectors live here (the API path's "add onto the schema
-# through a function", as distinct from editing SECTORS in code). Stdlib-only so
-# the checker can read it in CI without any pipeline deps.
-SECTOR_REGISTRY_PATH = Path(__file__).resolve().parent / "sector_registry.json"
-
-
-def load_registered_sectors() -> set:
-    """The sectors added at runtime via register_sector() (may be empty)."""
-    try:
-        data = json.loads(SECTOR_REGISTRY_PATH.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
-        return set()
-    return {str(s).strip() for s in data if str(s).strip()}
+# Sector vocabulary, the country list and the size floor all live in
+# pipeline/criteria.py now -- one place for every rule about what counts as a
+# project. These names are kept as thin pass-throughs because the rest of the
+# package and the tests import them from here.
+SECTORS = _criteria.SECTORS
 
 
 def all_sectors() -> set:
-    """The full live vocabulary: the base set plus any runtime registrations."""
-    return set(SECTORS) | load_registered_sectors()
+    """The sector vocabulary of the phase in effect."""
+    return set(_criteria.active().sectors)
 
-
-def register_sector(name: str) -> bool:
-    """Add `name` to the runtime sector registry file. Returns True if newly
-    added, False if blank or already known. This is the function the API path
-    uses to extend the schema without editing code."""
-    v = (name or "").strip()
-    if not v or v in all_sectors():
-        return False
-    updated = sorted(load_registered_sectors() | {v})
-    SECTOR_REGISTRY_PATH.write_text(json.dumps(updated, indent=2), encoding="utf-8")
-    return True
-
-# US postal abbreviations (50 states + DC + inhabited territories).
-US_STATES = {
-    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
-    "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
-    "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
-    "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
-    "WI", "WY", "DC", "PR", "GU", "VI", "AS", "MP",
-}
 
 # Verification tiers. These measure HOW DEEPLY a row was checked by a person,
 # not where the citation came from:
@@ -176,18 +140,6 @@ NULL_STRINGS = {"none", "null", "nan", "nil", "undefined", "n/a", "na", "-", "--
 # too. Only the overlap is exempt, so a genuine sentinel survives and a
 # stringified null is still blanked wherever it lands.
 DATE_COLUMN_NULL_STRINGS = NULL_STRINGS - DATE_SENTINELS
-
-# The inclusion floor (updated per prompts/prompt_source_collected.md): a project must
-# clear EITHER announced capital >= $1B OR >= 2,000 promised jobs. A row is out
-# of scope only if it falls below BOTH floors. (This is the looser OR rule; the
-# prototype's explore-filter lets you probe AND / other thresholds separately.)
-#
-# This is the ONE place the floor is a number. Every other surface -- the
-# checker's own messages, the web app's explore-filter blurb, the collection
-# prompts, the README scope table -- either reads these constants or quotes them
-# in prose, so moving the floor starts here.
-CAPITAL_FLOOR_USD = 1_000_000_000
-JOBS_FLOOR = 2_000
 
 YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
@@ -250,27 +202,70 @@ def check_int(value: str) -> tuple[int | None, str | None]:
     return int(v), None
 
 
-def sector_status(value: str) -> tuple[str, str] | None:
+def sector_status(value: str, crit=None) -> tuple[str, str] | None:
     """Sector must be one of the defined manufacturing sectors. Returns None if
     OK, else (level, message):
       * empty          -> ERROR (sector is required)
-      * unknown value  -> ERROR (outside the vocabulary -- add it first if it's a
-                          genuinely new manufacturing sector)."""
+      * unknown value  -> ERROR (outside the vocabulary -- add it to
+                          pipeline/criteria.py first if it is a genuinely new
+                          manufacturing sector)."""
+    crit = crit or _criteria.active()
     v = (value or "").strip()
     if v == "":
         return ERROR, "sector is required (empty cell)"
-    if v not in all_sectors():
+    if v not in crit.sectors:
         return ERROR, (
-            f"{v!r} is not in the sector vocabulary {sorted(all_sectors())}; "
-            "use one of these, or if it's a genuinely new manufacturing sector "
-            "add it first (Claude Code: add to SECTORS; API: register_sector())"
+            f"{v!r} is not in the sector vocabulary {sorted(crit.sectors)}; "
+            "use one of these, or if it is a genuinely new manufacturing sector "
+            "add it to SECTORS in pipeline/criteria.py first"
         )
     return None
 
 
-def check_state(value: str) -> str | None:
-    if (value or "").strip().upper() not in US_STATES:
-        return f"{value!r} is not a valid US state/territory abbreviation"
+def check_country(value: str, crit=None) -> str | None:
+    """The country must be one this phase covers.
+
+    Empty is allowed and means the phase's only country -- the Scoreboard was
+    US-only before the column existed, so a blank cell on an older row is not a
+    defect. It becomes one the moment a phase covers more than one country,
+    because then the cell is genuinely load-bearing.
+    """
+    crit = crit or _criteria.active()
+    v = (value or "").strip().upper()
+    if v == "":
+        if len(crit.countries) > 1:
+            return (f"country is required: phase {crit.id!r} covers "
+                    f"{', '.join(crit.countries)}, so a blank cell is ambiguous")
+        return None
+    if v not in crit.countries:
+        return (f"{value!r} is outside phase {crit.id!r}, which covers "
+                f"{', '.join(crit.countries)}")
+    return None
+
+
+def check_state(value: str, crit=None) -> str | None:
+    """The subdivision must be valid in one of the phase's countries."""
+    crit = crit or _criteria.active()
+    valid = crit.subdivisions()
+    if (value or "").strip().upper() not in valid:
+        where = "/".join(crit.countries)
+        return f"{value!r} is not a valid {where} state/province/subdivision code"
+    return None
+
+
+def check_announced_from(value: str, crit=None) -> str | None:
+    """The announcement must fall inside the phase's window.
+
+    README stated an announced-from date and until now nothing enforced it --
+    the rule lived in prose in four files and in no code at all.
+    """
+    crit = crit or _criteria.active()
+    v = (value or "").strip()
+    if not YEAR_MONTH_RE.match(v):
+        return None          # shape is check_year_month's job, not this one
+    if v < crit.announced_from:
+        return (f"announced {v} is before {crit.announced_from}, the earliest "
+                f"in scope for phase {crit.id!r}")
     return None
 
 
@@ -326,7 +321,17 @@ def check_url(value: str) -> str | None:
 # Row-level and file-level validation                                         #
 # --------------------------------------------------------------------------- #
 
-def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) -> list[Issue]:
+def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
+                 crit=None) -> list[Issue]:
+    """Validate one row against a phase's inclusion rules.
+
+    `crit` is the phase to judge by. Callers pass the phase that ADMITTED the
+    row (`criteria.get(row['criteria_id'])`), not whatever is active now, so
+    lowering or raising a threshold can never retroactively invalidate data
+    that was in scope when it was collected. Omitted, it falls back to the
+    active phase, which is right for a row being admitted for the first time.
+    """
+    crit = crit or _criteria.active()
     issues: list[Issue] = []
     project = (row.get("project") or "").strip() or "<no project>"
 
@@ -351,20 +356,24 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
         add("project", ERROR, m)
 
     # sector (a defined manufacturing sector: empty or out-of-vocabulary is an ERROR)
-    if (res := sector_status(row.get("sector", ""))):
+    if (res := sector_status(row.get("sector", ""), crit)):
         add("sector", res[0], res[1])
 
-    # state
-    if (m := check_state(row.get("state", ""))):
+    # where: the country in scope, then a subdivision valid inside it
+    if (m := check_country(row.get("country", ""), crit)):
+        add("country", ERROR, m)
+    if (m := check_state(row.get("state", ""), crit)):
         add("state", ERROR, m)
 
-    # announced (the anchor)
+    # announced (the anchor), then the phase's window
     if (m := check_year_month(row.get("announced", ""))):
+        add("announced", ERROR, m)
+    elif (m := check_announced_from(row.get("announced", ""), crit)):
         add("announced", ERROR, m)
 
     # capital + jobs, then the inclusion floor.
     #
-    # The floor is an OR -- capital >= $1B OR jobs >= 2,000 -- so EITHER figure
+    # The floor is usually an OR -- capital OR jobs -- so EITHER figure
     # on its own can put a row in scope. This used to demand both cells parse
     # before it would evaluate that OR, which made a missing figure fatal even
     # when the other one settled the question. Two rows of the N=100 run were
@@ -387,14 +396,13 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
 
     # An EMPTY cell is fatal only when the row cannot be shown to be in scope
     # without it. One figure over its floor is the whole test.
-    clears = ((capital is not None and capital >= CAPITAL_FLOOR_USD)
-              or (jobs is not None and jobs >= JOBS_FLOOR))
+    clears = crit.clears(capital, jobs)
     if not clears:
         if capital is not None and jobs is not None:
             add(
                 "promised_capital_usd", ERROR,
-                f"inclusion rule fails: requires capital >= ${CAPITAL_FLOOR_USD:,} "
-                f"OR jobs >= {JOBS_FLOOR:,}; got capital ${capital:,} and jobs {jobs:,}",
+                f"inclusion rule fails: phase {crit.id!r} requires "
+                f"{crit.describe()}; got capital ${capital:,} and jobs {jobs:,}",
             )
         else:
             # Neither known figure clears the floor and at least one is missing,
@@ -407,9 +415,9 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
                              ("promised_jobs", jobs)):
                 if val is None:
                     add(col, ERROR,
-                        f"size floor cannot be established: needs capital >= "
-                        f"${CAPITAL_FLOOR_USD:,} OR jobs >= {JOBS_FLOOR:,}, and "
-                        f"{known} is below it with this cell empty")
+                        f"size floor cannot be established: phase {crit.id!r} "
+                        f"needs {crit.describe()}, and {known} is below it with "
+                        f"this cell empty")
 
     # first-output cells
     if (m := check_flexible_date(row.get("promised_first_output", ""))):
@@ -468,6 +476,7 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool]) ->
 
 def validate_file(path: str) -> tuple[list[Issue], int]:
     issues: list[Issue] = []
+    crit = _criteria.active()
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
         header = reader.fieldnames or []
@@ -497,7 +506,7 @@ def validate_file(path: str) -> tuple[list[Issue], int]:
                                         f"duplicate project key (first seen on data row {seen[key]})"))
                 else:
                     seen[key] = i
-            issues.extend(validate_row(i, row, has_prov))
+            issues.extend(validate_row(i, row, has_prov, crit))
 
     return issues, nrows
 

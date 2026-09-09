@@ -42,14 +42,13 @@ from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E
 from pipeline.db import (  # noqa: E402
     DEFAULT_DB, TABLES, connect, db_path, init_db, table_counts,
 )
-from pipeline import models, quality  # noqa: E402
+from pipeline import models, quality, criteria  # noqa: E402
 from pipeline.dates import enrich as enrich_dates, lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
     all_sectors,
-    register_sector,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 
@@ -735,6 +734,58 @@ def cmd_models(conn, args):
     print("  SCREEN_MODEL=claude-sonnet-5 bash collect/all.sh   just Screen")
 
 
+def cmd_criteria(conn, args):
+    """What counts as a project, and what decided it.
+
+    All four rules README states, in one place. Two of them are numbers you turn
+    in pipeline/criteria.py; the other two are shown because a reader asking
+    "what is in scope" wants the whole answer, not the settable half.
+    """
+    c = criteria.active()
+    if args.For:
+        print({"capital": c.capital_usd, "jobs": c.jobs, "op": c.op,
+               "from": c.announced_from, "countries": ",".join(c.countries),
+               "id": c.id}[args.For])
+        return
+
+    colour = _use_colour()
+    bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
+    print(f"What counts as a project      phase {bold(c.id)}  <- {criteria.why()}")
+    print("=" * 62)
+    print(f"  {'SIZE':8} {c.describe()}")
+    print(f"  {'WHEN':8} announced {c.announced_from} or later")
+    print(f"  {'WHERE':8} {', '.join(c.countries)}"
+          f"  ({len(c.subdivisions())} valid subdivision codes)")
+    print(f"  {'SECTOR':8} {len(c.sectors)} in the closed vocabulary "
+          f"(scoreboard.py sectors-list)")
+    if c.note:
+        print()
+        import textwrap
+        for line in textwrap.wrap(c.note, 58):
+            print(f"  {line}")
+    print()
+    print("Defined phases:")
+    for name, ph in sorted(criteria.PHASES.items()):
+        mark = "*" if name == c.id else " "
+        print(f"  {mark} {name:4} {ph.describe():34} from {ph.announced_from}")
+    print()
+    print("For one run, without editing anything:")
+    print("  CRITERIA=p2 bash collect/all.sh")
+    print()
+    print("Rows record the phase that admitted them, and are checked against it")
+    print("-- moving a threshold never re-grades data already collected.")
+
+    if conn is not None:
+        rows = conn.execute(
+            "SELECT COALESCE(NULLIF(criteria_id,''),'(unstamped)') AS c, COUNT(*) n "
+            "FROM screen_extracted GROUP BY c ORDER BY n DESC").fetchall()
+        if rows:
+            print()
+            print("Screen rows by the phase that admitted them:")
+            for r in rows:
+                print(f"    {r['c']:12} {r['n']:>5}")
+
+
 def cmd_recompute(conn, args):
     """Re-derive the five computed date cells on rows already in the database.
 
@@ -922,13 +973,6 @@ def cmd_sectors_list(conn, args):
     print("Sector vocabulary (base set + runtime registrations):")
     for s in sorted(all_sectors()):
         print(f"  - {s}")
-
-
-def cmd_sectors_add(conn, args):
-    if register_sector(args.name):
-        print(f"registered new sector: {args.name}")
-    else:
-        print(f"sector {args.name!r} is blank or already known -- nothing added")
 
 
 # --- Filter (explore thresholds) ------------------------------------------- #
@@ -1136,7 +1180,7 @@ def _epilog(prog: str) -> str:
     return f"""\
 {_H}the three stages{_H}
   SOURCE   the two links, collected           AI or human
-  SCREEN   the 18-column row and a check      AI or human, then the checker
+  SCREEN   the 20-column row and a check      AI or human, then the checker
   VERIFY   the published row                  human only
 
 {_H}examples{_H}  (written as `{ENTRY}`; the `-m` form takes the same arguments)
@@ -1231,7 +1275,7 @@ def _epilog(prog: str) -> str:
 {_H}further reading{_H}
   docs/cli.md             every command in one list, the module map, and a
                           walkthrough on a copy of the database
-  docs/schema.md          the five tables, the 18 columns, and the date handling
+  docs/schema.md          the five tables, the 20 columns, and the date handling
   docs/collecting.md      every knob the collection loops take
   docs/verify_methods.md  what to look for before publishing a row
 
@@ -1253,7 +1297,7 @@ def _command_examples() -> dict:
   source_collected    SOURCE  one lead: the two source links, an optional
                               date link, a summary, and how it was found.
                               No figures yet.
-  screen_extracted    SCREEN  one extracted project row: the 18 columns,
+  screen_extracted    SCREEN  one extracted project row: the 20 columns,
                               plus each date's resolved _dt and verbatim
                               _raw partner. Always tier P.
   screen_check        SCREEN  one checker run over one row above: FAIL,
@@ -1485,7 +1529,7 @@ def _command_examples() -> dict:
   {ENTRY} filter --stage screen --capital 10000000000
 
   These flags query rows already in the database. What qualifies a project
-  in the first place ($1B or 2,000 jobs) is set in schema.py.
+  in the first place is set in pipeline/criteria.py (scoreboard.py criteria).
 
   --op AND (the default) requires both thresholds; OR requires either.
   --stage screen queries rows before publication.
@@ -1508,13 +1552,6 @@ def _command_examples() -> dict:
   {ENTRY} screen-check --id 57
 
   Needs no API key. The [API] equivalent is screen-extract.
-""",
-        "sectors-add": f"""{_H}examples{_H}
-  {ENTRY} sectors-add "Cement"
-
-  Registers a sector for a manufacturing project that fits none of the ten.
-  Prefer this to filing the row under Other. If Other is filling up, the
-  missing sector belongs here.
 """,
     }
 
@@ -1657,6 +1694,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --for, print the reasoning effort instead")
     s.set_defaults(fn=cmd_models)
 
+    s = sub.add_parser("criteria",
+                       help="what counts as a project (the inclusion rules)")
+    s.add_argument("--for", dest="For",
+                   choices=["capital", "jobs", "op", "from", "countries", "id"],
+                   help="print one value, for scripts")
+    s.set_defaults(fn=cmd_criteria)
+
     s = sub.add_parser("recompute",
                        help="re-derive lag/slip and the *_dt cells on stored rows")
     s.add_argument("--dry-run", action="store_true",
@@ -1739,13 +1783,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="check the matcher against known pairs and exit")
     s.set_defaults(fn=cmd_coverage)
 
-    # Sectors (the extensible vocabulary)
-    sub.add_parser("sectors-list", help="list the sector vocabulary (base + registered)") \
+    # Sectors (the closed vocabulary -- edit pipeline/criteria.py to extend it)
+    sub.add_parser("sectors-list", help="list the sector vocabulary") \
         .set_defaults(fn=cmd_sectors_list)
-    s = sub.add_parser("sectors-add",
-                       help="register a new sector at runtime (extends the vocabulary)")
-    s.add_argument("name", help="the new manufacturing sector name, e.g. 'Cement'")
-    s.set_defaults(fn=cmd_sectors_add)
 
     # Filter (explore thresholds beyond the fixed floor)
     s = sub.add_parser("filter",

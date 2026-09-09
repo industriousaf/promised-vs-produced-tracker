@@ -47,20 +47,19 @@ one. The list is **closed**: never invent a sector name to fit a project you lik
 project that would need one is either **other** or not manufacturing, and
 non-manufacturing projects are out regardless.
 
-### The floor is $1B capital **or** 2,000 direct jobs
+### The size floor is a floor, not a preference
 
-The Scoreboard is being made **complete at $1B first**, and that is now the
-inclusion floor rather than a preference: a project qualifies only if the
-announcement promised **≥ $1,000,000,000 in capital** *or* **≥ 2,000 direct
-jobs**. Either one alone clears it; a project is out only if it falls below
-**both**. 
+`source-prompt` prints the live thresholds under **In scope right now**. A project
+below them is **out of scope**: do not collect it, do not file it for later, do not
+mention it. Earlier phases of this project banked sub-threshold projects on the
+theory that they cost nothing sitting in Source and would make a later, looser
+phase cheap. That is no longer the instruction — the aim now is the most accurate
+possible sweep at the threshold in force, and a lower threshold will be re-run
+properly when it is set.
 
-Above the floor, still prefer the larger: a $12B fab is worth more to this phase
-than a $1.2B one.
-
-What you must never do is loosen the $1B / 2,000-job floor to reach a number. The
-rule against forcing a weak result outranks both the ceiling of five and this
-preference for size.
+What you must never do is loosen the floor to reach a number. The rule against
+forcing a weak result outranks the ceiling of five: five qualifying projects is
+the most you may return, never the least you must find.
 
 ## The per-project loop — repeat up to 5 times
 
@@ -71,7 +70,7 @@ preference for size.
    That renders `prompt_source_collected.md` **plus the live "do not collect these"
    lists** (published + already collected — including every lead you added earlier
    in this same call). It defines what qualifies: U.S. single facility; announced
-   capital ≥ $1B **OR** ≥ 2,000 direct jobs; announced Jan 2017–today; one of the
+   the size floor and timeframe printed under **In scope right now**; one of the
    defined manufacturing sectors. Follow it; do not restate or weaken it.
 2. **Find ONE genuinely new qualifying project** — via `web_search` / `web_fetch`,
    not in-model knowledge — that is **not** in the refreshed lists above.

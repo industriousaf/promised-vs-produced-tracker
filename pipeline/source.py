@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from pipeline.criteria import active as _active_criteria
 from pipeline.db import now_iso
 from pipeline.schema_check import NULL_STRINGS
 
@@ -44,6 +45,11 @@ def insert_lead(
     NULL means unrecorded. Duplicates are permitted by design -- there is no
     unique constraint, because two collectors filing the same links is
     tolerated; dedup is a Screen/Verify concern, not Source's.
+
+    Every lead is stamped with the inclusion phase that was searching when it was
+    found. A lead collected under a $1B sweep and one collected under a later
+    $100M sweep are not the same evidence about what exists, and once they are
+    mixed in one table nothing else can tell them apart.
     """
     promise_source = (promise_source or "").strip()
     status_source = (status_source or "").strip()
@@ -53,8 +59,9 @@ def insert_lead(
     cur = conn.execute(
         """
         INSERT INTO source_collected
-            (datetime, promise_source, status_source, promised_date_source, summary, collected_via)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (datetime, promise_source, status_source, promised_date_source, summary,
+             collected_via, criteria_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             now_iso(),
@@ -63,6 +70,7 @@ def insert_lead(
             _clean(promised_date_source),
             _clean(summary),
             _clean(collected_via),
+            _active_criteria().id,
         ),
     )
     conn.commit()

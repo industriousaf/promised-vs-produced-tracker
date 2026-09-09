@@ -25,15 +25,13 @@ from pipeline.db import (  # noqa: E402
     connect, db_path, discover_databases, init_db, is_read_only, set_active_db,
     table_counts,
 )
+from pipeline.criteria import active as _crit  # noqa: E402
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
-    CAPITAL_FLOOR_USD,
-    JOBS_FLOOR,
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
     all_sectors,
-    register_sector,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
 
@@ -335,8 +333,8 @@ CHECK_RULES: list[tuple[tuple[str, ...], str]] = [
     (("announced",), "announced is a strict <code>YYYY-MM</code> anchor — every "
                      "lag and slip figure is measured from it"),
     (("promised_capital_usd", "promised_jobs"),
-     f"the size floor: capital ≥ ${CAPITAL_FLOOR_USD:,} <b>OR</b> jobs ≥ "
-     f"{JOBS_FLOOR:,} (either one alone puts the row in scope)"),
+     f"the size floor for phase <b>{_crit().id}</b>: {_crit().describe()} "
+     f"(either figure alone puts the row in scope under OR)"),
     (("promised_first_output",),
      "promised_first_output holds a 4-digit year or a sentinel"),
     (("actual_first_output",),

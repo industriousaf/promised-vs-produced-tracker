@@ -328,7 +328,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
 # DDL -- the five tables (Source / Screen x2 / Verify x2)                        #
 # --------------------------------------------------------------------------- #
 
-# The 18 v0 columns as SQL fragments, plus each date's derived *_dt and verbatim
+# The 20 v0 columns as SQL fragments, plus each date's derived *_dt and verbatim
 # *_raw partners. Capital and jobs are INTEGER; lag_years/slip_years are REAL
 # (computed floats with -1/-2 sentinels); the normalized date *tokens* stay TEXT
 # (the checker owns what they may hold). Every date cell carries a TEXT *_dt
@@ -364,11 +364,12 @@ CREATE TABLE IF NOT EXISTS source_collected (
     status_source         TEXT NOT NULL,                 -- required
     promised_date_source  TEXT,                          -- optional
     summary               TEXT,                          -- context only
-    collected_via         TEXT                           -- provenance: entry path (prompt1|prompt2|seed|api|manual); NULL = unrecorded
+    collected_via         TEXT,                          -- provenance: entry path (prompt1|prompt2|seed|api|manual); NULL = unrecorded
+    criteria_id           TEXT                           -- which inclusion phase was searching when this lead was found
 );
 
 -- SCREEN pt 1 -------------------------------------------------------------- --
--- One extracted *project* row in the 18-column v0_out shape. Always tier 'P'.
+-- One extracted *project* row in the 20-column v0_out shape. Always tier 'P'.
 CREATE TABLE IF NOT EXISTS screen_extracted (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     datetime              TEXT NOT NULL,                 -- extracted-at
@@ -448,12 +449,12 @@ def init_db(conn: sqlite3.Connection) -> None:
     # it was added to the v0 shape after 112 rows already existed -- the DDL
     # covers a new database, this covers every one already on disk.
     date_partner_cols = (list(DERIVED_DATE_COLUMNS) + list(RAW_DATE_COLUMNS)
-                         + ["actual_date_source"])
+                         + ["actual_date_source", "country", "criteria_id"])
     for table in ("screen_extracted", "verify_verified"):
         _ensure_columns(conn, table, date_partner_cols)
     # Source gained a provenance column (which entry path collected the lead);
     # add it to any database created before that column existed.
-    _ensure_columns(conn, "source_collected", ["collected_via"])
+    _ensure_columns(conn, "source_collected", ["collected_via", "criteria_id"])
     conn.commit()
 
 
