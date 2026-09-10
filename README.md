@@ -164,9 +164,25 @@ is the same exporter as a command; `--out-dir` works there too.
 | **Screen** | the 20-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
 | **Verify** | the published row. Later corrections are logged with a reason. | human only |
 
-A `FAIL` at Screen blocks promotion. A `PASS` means the row is shaped correctly
-and its values are in range. It says nothing about whether the sources support the
-figures. Nothing is promoted to Verify automatically.
+The check returns one of three verdicts. **`CLEAN` is the best of them, then
+`PASS`, then `FAIL`** — the names do not sort that way, so read them once:
+
+| verdict | what it means | promotable |
+|---|---|---|
+| `CLEAN` | shaped correctly, in range, nothing left open | yes |
+| `PASS` | shaped correctly and in range, with a warning. Almost always an open `flag` the extraction left for a person | yes |
+| `FAIL` | a schema error — a bad type, a bad enum, or figures that clear neither half of the size floor | no, unless forced |
+
+A `PASS` is promotable on purpose. The usual warning is an open `flag`, no
+command edits a flag on a Screen row, and `verify-promote` is what rewrites it
+into a resolution record. So the warning is not something to clear first; it is
+the note you read at the gate.
+
+None of the three says anything about whether the sources support the figures.
+The checker never opens a link. Nothing is promoted to Verify automatically.
+
+Full definitions, including the ERROR and WARN severities behind the verdicts:
+[`docs/schema.md`](docs/schema.md).
 
 <a id="medallion"></a>
 <details>

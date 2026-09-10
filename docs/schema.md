@@ -28,6 +28,51 @@ column shapes match the Postgres design 1:1, so promoting to Supabase/Postgres
 later is a mechanical translation.
 
 
+## What the check returns
+
+`screen_check.result_status` is one of three tokens. **`CLEAN` is the best of
+them, then `PASS`, then `FAIL`.** The names do not sort that way and have been
+read backwards, so the ordering is stated here rather than left to inference.
+
+The verdict is derived from two severities, which `schema.py` assigns per cell
+and nothing else in the repository defines:
+
+- **`ERROR`** — the row is not structurally admissible. A bad type, a value
+  outside a closed vocabulary, a missing `announced` anchor, a duplicate key, or
+  figures clearing neither half of the inclusion floor.
+- **`WARN`** — the row is admissible and something is still open for a person.
+  In practice this is almost always an unresolved `flag`; the other case is a
+  verified tier carrying no inline sources.
+
+From those, in `pipeline/schema_check.py`:
+
+| verdict | condition | `screen_check` counts | blocks `verify-promote` |
+|---|---|---|---|
+| `FAIL` | one or more `ERROR` | `n_errors` > 0 | yes, unless `--force` |
+| `PASS` | no `ERROR`, one or more `WARN` | `n_warnings` > 0 | no |
+| `CLEAN` | neither | both 0 | no |
+
+`report` holds the issues as JSON, one object per issue, each with its column,
+level and message.
+
+### Why a `PASS` is promotable
+
+A warning is not a thing to clear before the gate. It is the note you read *at*
+the gate. The common warning is an open `flag`, and no command in the CLI or the
+web app edits a flag on a Screen row — `verify-promote` is the only thing that
+writes one, rewriting it into a resolution record on the way through. So
+"resolve the warning first" would name a step that does not exist.
+
+`schema.py --strict` does treat warnings as failures, but that is for validating
+a CSV by hand before it is loaded, where editing the file *is* the workflow. The
+Verify gate does not run strict.
+
+### What none of the three can tell you
+
+Whether the sources support the figures. The checker never opens a link. That is
+the human gate's whole job, and it is why a `CLEAN` row is still unpublished
+until a person promotes it. See [`verify_methods.md`](verify_methods.md).
+
 ## Details worth knowing
 
 - **Reset:** delete `outputs/scoreboard.db` (or point `SCOREBOARD_DB` elsewhere)

@@ -893,6 +893,87 @@ class TestCollectEntryPoint(unittest.TestCase):
         self.assertRegex(r.stdout, r"model=claude-\S+ effort=\S+ max_iters=\d+ max_stall=\d+")
 
 
+class TestCheckVerdicts(Base):
+    """CLEAN > PASS > FAIL, and only FAIL blocks the gate.
+
+    The names do not sort that way. Three places in this repository once said a
+    PASS row was "not yet publishable" and told a person to clear the warning
+    before promoting, while both gates promoted PASS and no command anywhere
+    edits a flag on a Screen row. This pins the ordering and the gate together
+    so the prose cannot drift away from the behaviour again.
+    """
+
+    def _verdict(self, **over) -> str:
+        lead = self.lead(promise_source=f"https://example.com/{over.pop('_n', 1)}")
+        rid = screen.insert_extracted(self.conn, a_row(**over), source_collected_id=lead)
+        screen.run_check(self.conn, rid)
+        return rid, verify.latest_check(self.conn, rid)["result_status"]
+
+    def test_no_issues_is_clean(self):
+        _, v = self._verdict(_n=1)
+        self.assertEqual(v, "CLEAN")
+
+    def test_open_flag_is_pass_not_fail(self):
+        _, v = self._verdict(_n=2, flag="announcement states no production-start date")
+        self.assertEqual(v, "PASS")
+
+    def test_clearing_neither_floor_is_fail(self):
+        _, v = self._verdict(_n=3, promised_capital_usd=700_000_000, promised_jobs=400)
+        self.assertEqual(v, "FAIL")
+
+    def test_pass_is_promotable_and_promotion_resolves_the_flag(self):
+        """The reason PASS must not block: promotion is the only thing that can
+        write a flag, so 'clear the warning first' names a step that does not
+        exist."""
+        rid, v = self._verdict(_n=4, flag="first output not yet confirmed")
+        self.assertEqual(v, "PASS")
+        vid = verify.promote(self.conn, rid, verification_tier="V1")
+        got = self.conn.execute(
+            "SELECT flag FROM verify_verified WHERE id = ?", (vid,)).fetchone()["flag"]
+        self.assertTrue(got.lower().startswith("resolved"), got)
+        self.assertIn("first output not yet confirmed", got)
+
+    def test_fail_blocks_promotion_but_force_gets_through(self):
+        rid, v = self._verdict(_n=5, promised_capital_usd=700_000_000, promised_jobs=400)
+        self.assertEqual(v, "FAIL")
+        with self.assertRaises(verify.PromotionBlocked):
+            verify.promote(self.conn, rid, verification_tier="V1")
+        self.assertTrue(verify.promote(self.conn, rid, verification_tier="V1", force=True))
+
+    def test_no_flag_editing_command_exists_at_screen(self):
+        """If one is ever added, the docs claiming promotion is the only writer
+        become wrong and this test should be the thing that says so."""
+        import subprocess
+        out = subprocess.run(
+            [sys.executable, "scoreboard.py", "--help"],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            capture_output=True, text=True, timeout=120).stdout
+        self.assertNotIn("screen-flag", out)
+
+    def test_prose_does_not_call_a_pass_unpublishable(self):
+        """The retired claim, in any file. It contradicted both gates."""
+        root = Path(__file__).resolve().parent.parent
+        skip = {".git", "logs", "outputs", "scratch", "__pycache__", ".venv", "venv", "old"}
+        retired = re.compile(
+            r"clear warnings before promoting"
+            r"|PASS[^.\n]{0,40}not yet publishable"
+            r"|only WARNs\s*->\s*PASS\s*\(admissible, not yet publishable\)",
+            re.IGNORECASE)
+        bad = []
+        for f in root.rglob("*"):
+            if f.suffix not in (".py", ".md", ".sh") or not f.is_file():
+                continue
+            if any(part in skip for part in f.relative_to(root).parts):
+                continue
+            if f.name == Path(__file__).name:
+                continue
+            for i, line in enumerate(f.read_text(errors="ignore").splitlines(), 1):
+                if retired.search(line):
+                    bad.append(f"{f.relative_to(root)}:{i}: {line.strip()[:80]}")
+        self.assertEqual(bad, [], "a PASS row is promotable; this text says otherwise:\n  "
+                                 + "\n  ".join(bad))
+
+
 class TestConfig(unittest.TestCase):
     """Facts written down twice eventually disagree with themselves."""
 

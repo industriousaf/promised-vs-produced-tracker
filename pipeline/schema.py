@@ -13,8 +13,16 @@ Design notes
   venv without pulling pandas.
 - Two severities. ERROR = the row is not structurally admissible (bad type, bad
   enum, missing anchor, size-floor fail, duplicate key). WARN = the row is
-  admissible but not yet publishable (a verified tier with no inline sources, or
-  an open/unresolved flag). ERRORs fail the run; WARNs fail only under --strict.
+  admissible and carries something a person still has to settle (a verified tier
+  with no inline sources, or an open/unresolved flag). ERRORs fail the run;
+  WARNs fail only under --strict.
+- A WARN does NOT block promotion, and the Verify gate does not run --strict.
+  That is deliberate for the open-flag warning, which is the common one: no
+  command edits a flag on a Screen row, so the only thing that can resolve one
+  is `verify-promote`, which rewrites it into a resolution record. Telling a
+  person to clear that warning first would be telling them to do the one thing
+  the CLI gives them no way to do. --strict is for validating a CSV by hand
+  before it is loaded, where fixing the file is the workflow.
 - The schema mirrors promised_vs_produced_v0_out.csv (the enriched/"screen"
   shape with provenance columns), plus `actual_date_source`. The five provenance
   columns are OPTIONAL as columns, but their absence downgrades what
@@ -540,7 +548,7 @@ def report(path: str, issues: list[Issue], nrows: int, quiet: bool) -> None:
         print(f"RESULT: FAIL -- {len(errors)} schema error(s) must be fixed.")
     elif warns:
         print(f"RESULT: PASS with {len(warns)} warning(s) "
-              "(not yet publishable; clear warnings before promoting to Verify).")
+              "(admissible; each warning names something for a person to settle).")
     else:
         print("RESULT: CLEAN -- schema valid and every cell shows its work.")
     print("-" * 72)
@@ -549,7 +557,9 @@ def report(path: str, issues: list[Issue], nrows: int, quiet: bool) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Validate a Promised vs. Produced scoreboard CSV against the canonical schema.")
     ap.add_argument("csv_path", help="path to the scoreboard CSV")
-    ap.add_argument("--strict", action="store_true", help="treat warnings as failures (Verify gate)")
+    ap.add_argument("--strict", action="store_true",
+                    help="treat warnings as failures (for validating a CSV by "
+                         "hand; the Verify gate does NOT use this)")
     ap.add_argument("--quiet", action="store_true", help="print the summary only, not per-row detail")
     args = ap.parse_args(argv)
 

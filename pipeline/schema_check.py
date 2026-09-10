@@ -120,9 +120,16 @@ def check_row(row: dict, crit=None) -> dict:
         }
 
     Verdict mirrors what schema.py prints today:
-      - any ERROR   -> FAIL   (not structurally admissible)
-      - only WARNs  -> PASS   (admissible, not yet publishable)
+      - any ERROR   -> FAIL   (not structurally admissible; blocks promotion)
+      - only WARNs  -> PASS   (admissible; a person still has something to settle)
       - nothing     -> CLEAN  (valid and every cell shows its work)
+
+    CLEAN is the best of the three, not the middle one. The names do not sort
+    that way and have been read backwards before.
+
+    Only FAIL blocks `verify-promote`. PASS is promotable by design: the usual
+    warning is an open `flag`, no command edits a flag on a Screen row, and
+    promotion is what rewrites it into a resolution record.
     """
     # Normalise to strings the way the checker's CSV reader would present them.
     str_row = {c: _as_cell(row.get(c)) for c in V0_COLUMNS}

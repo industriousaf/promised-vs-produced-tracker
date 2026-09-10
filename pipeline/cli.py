@@ -1544,8 +1544,13 @@ def _command_examples() -> dict:
   {ENTRY} screen-check --id 57    one row
   {ENTRY} screen-check --all      every Screen row
 
-  FAIL blocks promotion. PASS means the row is shaped correctly and its
-  values are in range. CLEAN means PASS with no warnings either.
+  CLEAN is best, then PASS, then FAIL -- the names do not sort that way.
+
+  CLEAN  nothing to say: shaped correctly, in range, no open questions.
+  PASS   shaped correctly and in range, with warnings. Usually an open
+         `flag` the extractor left. Promotable: verify-promote is what
+         rewrites a flag into a resolution record.
+  FAIL   a schema error. Blocks promotion unless you pass --force.
 
   The check never opens the source links. Reading those happens at
   verify-promote, by a person.
