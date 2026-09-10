@@ -17,8 +17,9 @@ Figures are as each run reported them (`collect/tally.py --summary`).
 | 20260906T182230Z | SOURCE | claude-opus-4-8 | high | 20 | 797 | 41,601,601 | 158.4 | 100 leads |
 | 20260906T182230Z | SCREEN | claude-opus-4-8 | high | 100 | 1338 | 42,529,218 | 154.9 | 100 rows |
 | 20260907T070342Z | DATES | claude-opus-4-8 | high | 29 | 310 | 12,463,605 | 45.0 | — |
+| 20260910T032533Z | SCREEN | claude-opus-4-8 | high | 20 | 293 | 14,475,414 | 40.6 | 20 rows |
 
-**172,752,999 tokens across all four runs.**
+**187,228,413 tokens across all five runs.**
 
 | run | what it was | totals | after |
 |---|---|---|---|
@@ -26,6 +27,7 @@ Figures are as each run reported them (`collect/tally.py --summary`).
 | 20260905T150042Z | N=60 collection | 72 iters, 1319 turns, 219.5 min, $68.12 | Screen holds 112 rows |
 | 20260906T182230Z | N=100 collection | 120 iters, 2135 turns, 313.3 min, $106.45 | Screen holds 212 rows |
 | 20260907T070342Z | first-output date backfill | 29 iters, 310 turns, 45.0 min, $17.66 | 24 of 29 undated rows dated |
+| 20260910T032533Z | N=20 Screen-only, first run at the $1B floor | 20 iters, 293 turns, 40.6 min, $18.26 | Screen holds 20 rows |
 
 The DATES run changed no row counts. It filled `actual_first_output` on Screen
 rows that had produced but carried no date for it, and cited each in
@@ -38,11 +40,17 @@ Web search runs on a second model, and its tokens are included above:
 | 20260905T083552Z | 20,933,112 | 2,085,227 | 110 |
 | 20260905T150042Z | 48,834,289 | 4,305,947 | 259 |
 | 20260906T182230Z | 77,151,137 | 6,979,682 | 391 |
+| 20260910T032533Z | 14,072,223 | 403,191 | 5 |
+
+The 5 on the last row is not an anomaly. That run was SCREEN only, and
+extraction reads the two links already stored on a Source lead rather than
+searching for new ones. The three-figure counts above it all belong to runs
+that included a SOURCE stage, which is where searching happens.
 
 ## Source yield per iteration
 
 A Source call may return up to a **per-call ceiling**, set by `LEADS_PER_CALL` in
-`collect/source.sh` and reported in each run's header. It is a ceiling, not a
+`pipeline/settings.py` and reported in each run's header. It is a ceiling, not a
 quota: the prompt is explicit that returning fewer, even zero, beats loosening a
 threshold to reach the number. **Every run below ran at a ceiling of 5**, which
 is what makes the yields readable — a 5 means the call hit the ceiling, and

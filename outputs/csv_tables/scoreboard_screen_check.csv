@@ -1,1 +1,21 @@
 id,datetime,screen_extracted_id,result_status,n_errors,n_warnings,report
+1,2026-09-10T03:29:02Z,1,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: The Sept 1 2022 announcement (promise_source) states no production-start date; t""}]"
+2,2026-09-10T03:31:00Z,2,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promise_source now 301-redirects to a generic Ford landing page; read via https:""}]"
+3,2026-09-10T03:32:47Z,3,CLEAN,0,0,[]
+4,2026-09-10T03:36:36Z,4,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: status_source (pv-magazine-usa) returned HTTP 403 to WebFetch; read via curl wit""}]"
+5,2026-09-10T03:37:48Z,5,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promised_first_output unconfirmed: promise_source gives only a construction-star""}]"
+6,2026-09-10T03:40:49Z,6,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promise_source georgia.org original URL resolves to a generic landing page; read""}]"
+7,2026-09-10T03:41:37Z,7,CLEAN,0,0,[]
+8,2026-09-10T03:43:19Z,8,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: Announcement gave no promised first-output date; the spring 2027-summer 2028 win""}]"
+9,2026-09-10T03:44:55Z,9,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promised_date_source (businessfacilities.com) 403'd WebFetch; read via curl brow""}]"
+10,2026-09-10T03:46:11Z,10,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: No lead source states a production/operations start date; the only forward date ""}]"
+11,2026-09-10T03:46:57Z,11,CLEAN,0,0,[]
+12,2026-09-10T03:48:44Z,12,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promise_source 302-redirects to newkentuckyhome.ky.gov (read there). status_sour""}]"
+13,2026-09-10T03:49:31Z,13,CLEAN,0,0,[]
+14,2026-09-10T03:52:01Z,14,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promise_source 403s to WebFetch and to browser-UA curl; read via https://web.arc""}]"
+15,2026-09-10T03:58:10Z,15,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promise_source: WebFetch timed out and direct curl returned HTTP 403; read via h""}]"
+16,2026-09-10T03:59:11Z,16,CLEAN,0,0,[]
+17,2026-09-10T04:00:46Z,17,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: status_source (CNBC) proves the plant is producing but does not date first outpu""}]"
+18,2026-09-10T04:02:22Z,18,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promised_date_source (businesswire) 403s to WebFetch and curl; read via https://""}]"
+19,2026-09-10T04:04:14Z,19,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: No source among the lead's links states a promised first-output date, so promise""}]"
+20,2026-09-10T04:06:24Z,20,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: status_source (Contract Pharma, Sep 24, 2025) reports the site 'has opened' but ""}]"
