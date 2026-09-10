@@ -1,0 +1,78 @@
+                 THE PROMISED VS. PRODUCED SCOREBOARD
+                        DATA LICENSE
+
+SPDX-License-Identifier: CC-BY-4.0
+
+Copyright (c) 2026 IndustriousAF
+
+
+WHAT THIS COVERS
+----------------
+
+The Scoreboard itself: the SQLite database and the flat exports beside it.
+
+    outputs/scoreboard.db
+    outputs/csv_tables/*.csv
+
+These are licensed to you under the Creative Commons Attribution 4.0
+International License ("CC BY 4.0").
+
+    Human-readable summary   https://creativecommons.org/licenses/by/4.0/
+    Full legal code          https://creativecommons.org/licenses/by/4.0/legalcode
+
+The full legal code at that second address is the license. It is incorporated
+here by reference and governs in full.
+
+Version 4.0 is chosen deliberately over earlier versions: it grants the
+European Union sui generis database right alongside copyright, which the 3.0
+licenses did not. Contributors and readers of this project are in the EU.
+
+
+WHAT THIS DOES NOT COVER
+------------------------
+
+The code. Every .py, .sh and .md file in this repository, and the CLI and web
+interface they make up, are licensed under the MIT License. See LICENSE.
+
+Third-party material. The rows cite news articles and company statements by
+URL. Those pages remain the property of their publishers and are not
+redistributed here. This repository stores facts, links, and summaries written
+for this project. No article text is copied into the database.
+
+Trademarks and names. This license grants no rights in the IndustriousAF name,
+in "The Promised vs. Produced Scoreboard", or in any other mark, logo or
+brand element of IndustriousAF. Creative Commons licenses never convey
+trademark rights; this paragraph says so out loud so that no reuse can be
+presented as licensed, endorsed, or approved by IndustriousAF.
+
+
+HOW TO ATTRIBUTE
+----------------
+
+CC BY 4.0 requires attribution. This satisfies it:
+
+    The Promised vs. Produced Scoreboard, IndustriousAF.
+    CC BY 4.0. https://github.com/ashwinl4/promised-vs-produced-scoreboard
+
+If you are citing the data in a paper, use CITATION.cff in the repository root
+instead. It carries the authors, the version and the DOI.
+
+If you publish a figure or a number drawn from these rows, name the Scoreboard
+in the caption or the sentence. That is the whole ask, and it is the reason
+this license was chosen over a public domain dedication.
+
+
+A NOTE ON WHAT IS ACTUALLY PROTECTED
+------------------------------------
+
+Under Feist v. Rural Telephone (US 1991) facts are not copyrightable, and a
+thin factual compilation attracts thin protection. Separately, the US
+Copyright Office holds that text with no human author is not copyrightable,
+and the per-lead summaries in the source table were machine-drafted.
+
+So in the United States this license is closer to a stated norm and a citation
+request than to an enforceable property claim over every cell. That is
+understood and it is fine. The labor worth crediting is the selection, the
+checking, and the human sign-off on every published row, and the norm is what
+carries that credit. In the EU the sui generis database right does more work,
+which is the other reason for 4.0.

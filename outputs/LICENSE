@@ -1,0 +1,33 @@
+The Promised vs. Produced Scoreboard — data license
+===================================================
+
+SPDX-License-Identifier: CC-BY-4.0
+
+Copyright (c) 2026 IndustriousAF
+
+
+Everything in this directory is the data product:
+
+    scoreboard.db              the Scoreboard, SQLite
+    csv_tables/*.csv           flat exports of every table, including the
+                               audit trail
+
+It is licensed under the Creative Commons Attribution 4.0 International
+License. Use it for anything, commercial work included. The one condition is
+attribution: when you publish a figure or a number drawn from these rows, name
+the Scoreboard. This satisfies it:
+
+    The Promised vs. Produced Scoreboard, IndustriousAF. CC BY 4.0.
+    https://github.com/ashwinl4/promised-vs-produced-scoreboard
+
+    Deed         https://creativecommons.org/licenses/by/4.0/
+    Legal code   https://creativecommons.org/licenses/by/4.0/legalcode
+
+
+This file exists because these CSVs travel. They get copied into an analysis
+folder, mailed as an attachment, dropped into a notebook — and arrive with no
+README anywhere near them. So the notice lives beside the data too.
+
+The code that produced these files is licensed MIT, not CC BY. That is a
+different license covering different files; see LICENSE in the repository root.
+Full data terms, including what is not covered, are in LICENSE-DATA there.

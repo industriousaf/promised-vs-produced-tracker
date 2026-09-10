@@ -28,6 +28,7 @@ signs off on every published row.
 - [Publish a row](#publish-a-row)
 - [What is in here](#what-is-in-here)
 - [Notes](#notes)
+- [License](#license)
 
 ---
 
@@ -79,6 +80,9 @@ outputs/csv_tables/scoreboard_verify.csv
 earlier stages, and `scoreboard_screen_check.csv` and
 `scoreboard_verify_edits.csv` hold the audit trail. Regenerate all five with
 `python3 scoreboard.py export`.
+
+These rows are CC BY 4.0 — use them anywhere, credit the Scoreboard when you
+publish one. See [License](#license) below.
 
 ### 2. Use the command line — nothing installed
 
@@ -423,3 +427,38 @@ Longer reference, kept out of this file:
 - Only the web interface needs installed dependencies
   (`pipeline/requirements.txt`). Nothing here requires an
   API key except the optional direct-API collection path.
+
+---
+
+## License
+
+Two licenses, because this repository holds two things. Which one applies
+depends on which file you took.
+
+**The data is CC BY 4.0.** That is `outputs/scoreboard.db` and every CSV in
+`outputs/csv_tables/`. Use it for anything, commercial work included. The one
+condition is attribution: when you publish a figure or a number drawn from
+these rows, name the Scoreboard in the caption or the sentence. This line
+satisfies it:
+
+```
+The Promised vs. Produced Scoreboard, IndustriousAF. CC BY 4.0.
+https://github.com/ashwinl4/promised-vs-produced-scoreboard
+```
+
+Full terms, the attribution rules and what is *not* covered are in
+[`LICENSE-DATA`](LICENSE-DATA).
+
+**The code is MIT.** Everything else in this repository — the pipeline, the
+CLI, the web interface, the collection scripts and the prompts. Terms in
+[`LICENSE`](LICENSE).
+
+The split is worth stating plainly because the root `LICENSE` file is
+unmodified MIT text, which is what lets GitHub detect and label it. Nothing in
+that file says it stops at the code, so this section is where that boundary
+actually gets drawn.
+
+Two things neither license grants. The rows cite news articles and company
+statements by URL; those pages belong to their publishers and are not
+redistributed here. And no license here conveys any right in the IndustriousAF
+name or in the Scoreboard's marks.
