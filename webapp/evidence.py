@@ -974,10 +974,10 @@ def pane_html(stage: str, row_id: int, row, tall: bool = True) -> str:
     """
     tabs = tabs_for(row)
     if not tabs:
-        return ('<div class="card"><p><b>No sources on this row.</b> There is '
+        return ('<div class="card"><p><b>No sources on this project.</b> There is '
                 "nothing to read it against — add a <code>promise_source</code> "
                 "and a <code>status_source</code> below. The deterministic check "
-                "refuses a row that cites nothing, and so should you.</p></div>")
+                "refuses a project that cites nothing, and so should you.</p></div>")
 
     strip = "".join(
         f'<a class="{"on" if t["n"] == 0 else ""}" target="evidencepane" '
@@ -1031,15 +1031,15 @@ def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
     stage = "verify" if stage == "verify" else "screen"
     row = _row_for(stage, row_id)
     if row is None:
-        return _pane("no row", "", '<p class="empty">No such row.</p>', "")
+        return _pane("no project", "", '<p class="empty">No project with that id.</p>', "")
 
     tabs = tabs_for(row)
     if not tabs:
         return _pane(
             "no sources", "",
-            '<p class="empty">This row cites no links at all. Add a '
+            '<p class="empty">This project cites no links at all. Add a '
             "<code>promise_source</code> and a <code>status_source</code> in the "
-            "form above — a row with nothing to read cannot be verified, and the "
+            "form above — a project with nothing to read cannot be verified, and the "
             "deterministic check will refuse it.</p>", "")
     tab = tab if 0 <= tab < len(tabs) else 0
     t = tabs[tab]
@@ -1059,8 +1059,8 @@ def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
 <p class="err-h">{esc(headline)}</p>
 <p class="err-m">{esc(meaning)}</p>
 <p class="err-m">The Wayback Machine was tried as well and had nothing. A page
-that cannot be read is a fact about the source, not about the row, so it does
-not make the row wrong.</p>
+that cannot be read is a fact about the source, not about the project, so it does
+not make the project wrong.</p>
 <p class="err-do"><b>What to do</b></p>
 <ol class="err-do-l">
 <li>Open it yourself:
@@ -1068,7 +1068,7 @@ not make the row wrong.</p>
 <li><a href="?tab={tab}&amp;via=wayback">Ask the archive directly</a>, which
     sometimes finds a snapshot this did not.</li>
 <li>If the page is genuinely gone, find a replacement source and put it in the
-    row, or record what happened in <code>flag</code>. Do not leave the cell
+    project, or record what happened in <code>flag</code>. Do not leave the cell
     looking checked.</li>
 </ol>
 <details class="err-raw"><summary>What the fetch actually returned</summary>

@@ -294,8 +294,8 @@ def picker_html(stage: str, row_id: int, row, default: tuple[str, ...] = ()) -> 
     return f"""
 <form id="agentform" method="get" action="/agent/{esc(stage)}/{row_id}"
       target="agentpane">
-  <p style="margin:.2rem 0 0"><b>Check the row against its own links.</b>
-  The deterministic check reads the row's <i>shape</i> and never opens a page;
+  <p style="margin:.2rem 0 0"><b>Check this project against its own links.</b>
+  The check reads the record's <i>shape</i> and never opens a page;
   this opens them. Pick the cells you doubt — it quotes the sentence that proves
   each one, or, when the page does not carry it, goes and finds a URL that
   does.</p>
@@ -343,9 +343,9 @@ beside <code>scoreboard.py</code>.</p>
 def _answer_pane(reply: str, picked: list[str], model: str, foot: str) -> HTMLResponse:
     names = ", ".join(f"<code>{esc(f)}</code>" for f in picked)
     return _pane(f"""
-<p class="muted">{esc(model)} read this row's cited pages and was asked about
+<p class="muted">{esc(model)} read this project's cited pages and was asked about
 {names}. It is <b>advice, not a verdict</b> — nothing here is written to the
-Scoreboard, and only your own reading of the sources promotes the row.</p>
+Scoreboard, and only your own reading of the sources verifies the project.</p>
 {render_reply(reply)}
 <p class="muted">Answers come from pages the model opened in this reply. Check any
 quote that decides a cell — that is the whole job of this screen.</p>
@@ -371,7 +371,7 @@ def agent_pane(stage: str, row_id: int, cell: list[str] = Query(default=[]),
     stage = "verify" if stage == "verify" else "screen"
     row = _row_for(stage, row_id)
     if row is None:
-        return _pane("<p>No such row.</p>")
+        return _pane("<p>No project with that id.</p>")
 
     order = [c for c, _ in CHECKABLE]
     picked = sorted({f for f in cell if f in VERIFY_TARGETS}, key=order.index)

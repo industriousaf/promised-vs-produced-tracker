@@ -165,7 +165,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
   <div class="stage">
     <div class="stage-name">Screen</div>
     <div class="stage-body"><span class="stage-n">{c['screen_extracted']}</span>
-      rows checked <span class="stage-note">agentic</span>
+      projects checked <span class="stage-note">agentic</span>
       <div class="stage-sub">{verdict_bits or 'no checks yet'}</div></div>
     <a href="/screen" class="stage-link">inspect \u2192</a>
   </div>
@@ -195,7 +195,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
             body += f"""
 <div class="card"><h2>Nothing waiting for you</h2>
 <p>All {c['verify_verified']} project(s) have been through the human gate.
-<a href="/verify">See the published rows</a>.</p></div>"""
+<a href="/verify">See the Scoreboard</a>.</p></div>"""
         return _page("Dashboard", body, msg)
 
     ready_bit = ""
@@ -212,7 +212,7 @@ is complete. First up: <b>{esc(top['project'])}</b>.</p>
         links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
                           for r in q["blocked"][:8])
         blocked_bit = f"""
-<p><small>{n_blocked} row(s) cannot be published until a failing check is fixed:
+<p><small>{n_blocked} project(s) cannot be published until a failing check is fixed:
 {links}.</small></p>"""
 
     body += f'<div class="card">{ready_bit}{blocked_bit}</div>'
@@ -250,14 +250,14 @@ def _quality_card(m: dict) -> str:
 <div class="card"><h2>Can this Scoreboard carry the claim?</h2>
 {rows}
 <p style="margin-top:1rem"><b>Open questions.</b> {n_prov + n_subst} of {m['total']}
-rows carry an unresolved flag, of two very different kinds:</p>
+projects carry an unresolved flag, of two very different kinds:</p>
 <ul>
   <li><b>{n_prov}</b> — a cited page could not be read (403, 404, timeout, video-only).
       An access failure: fetch it better and it goes away.</li>
   <li><b>{n_subst}</b> — the sources disagree, or do not say. A fact about the world;
       only a person can settle it.</li>
 </ul>
-<p><small>Counting these together is why every row looked flagged and the warning
+<p><small>Counting these together is why every project looked flagged and the warning
 carried no signal. Same numbers in a terminal:
 <code>python3 scoreboard.py quality</code></small></p></div>"""
 

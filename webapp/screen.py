@@ -133,7 +133,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
           {"<br><small>flag: " + esc(r['flag']) + "</small>" if r['flag'] else ""}
         </div>"""
 
-    items = "".join(_row_html(r) for r in rows) or "<p>(no Screen rows match this filter)</p>"
+    items = "".join(_row_html(r) for r in rows) or "<p>(no projects match this filter)</p>"
     # lag_years / slip_years and the *_dt columns are derived on insert, so the
     # paste-in example omits them (supplying them is harmless -- they're overwritten).
     # It DOES include each date's *_raw verbatim partner, which the extractor supplies.
@@ -159,13 +159,13 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
                               for r in q["blocked"][:8])
             blocked_note = (f" A further <b>{n_blocked}</b> cannot be verified until a "
                             f"failing check is fixed: {links}.")
-        lede = (f"<p><b>{n_ready} row(s) are waiting for you.</b> Open one, check "
+        lede = (f"<p><b>{n_ready} project(s) are waiting for you.</b> Open one, check "
                 "every field against the two sources, then verify it. Nothing "
                 "reaches the published Scoreboard until a person does this."
                 + blocked_note + "</p>")
     else:
-        lede = ("<p>Nothing is waiting: every Screen row has been through the human "
-                "gate. <a href=\"/verify\">See the published rows</a>.</p>")
+        lede = ("<p>Nothing is waiting: every project has been through the human "
+                "gate. <a href=\"/verify\">See the Scoreboard</a>.</p>")
 
     body = f"""
 <h2>Review queue</h2>
@@ -173,32 +173,32 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
 <p><small>Or work the same queue in a terminal, largest capital first:
 <code>python3 scoreboard.py review</code></small></p></div>
 
-<h2>Rows ({len(rows)} of {len(all_rows)})</h2>
+<h2>Projects ({len(rows)} of {len(all_rows)})</h2>
 {toggle}
 {legend}
 {items}
 
 <details class="byhand">
-<summary>Re-check every row</summary>
+<summary>Re-check every project</summary>
 <div class="card">
-  <p>All {len(all_rows)} rows already carry a check; it runs seconds after each
-  row is extracted. Re-checking is for one situation: you changed the inclusion
-  rules in <code>pipeline/settings.py</code>. Each row is judged against the
+  <p>All {len(all_rows)} projects already carry a check; it runs seconds after
+  each one is extracted. Re-checking is for one situation: you changed the inclusion
+  rules in <code>pipeline/settings.py</code>. Each project is judged against the
   phase that admitted it, so a change there is the only thing that can make a
   stored verdict wrong, and nothing else in this interface will tell you.</p>
-  <p><small>This reads the shape of every row again. It never opens a source
+  <p><small>This reads the shape of every record again. It never opens a source
   link; that is the job of the check on the review screen, which asks a model
   to read the cited pages. It appends {len(all_rows)} new rows to
   <code>screen_check</code>, which keeps its history rather than overwriting.</small></p>
   <form class="inline" method="post" action="/screen/check-all">
-    <button type="submit">Re-check all {len(all_rows)} rows</button></form>
+    <button type="submit">Re-check all {len(all_rows)} projects</button></form>
 </div>
 </details>
 
 <hr>
-<h2>Add rows by hand</h2>
+<h2>Add projects by hand</h2>
 <p><small>Rarely needed — the collection loops fill this stage. Use these to
-extract a specific lead, or to paste a row you built yourself.</small></p>
+extract a specific lead, or to paste a project you built yourself.</small></p>
 
 <div class="card"><form method="get" action="/screen/prompt">
   <label>Extract a Source lead with Claude Code — lead id</label>
@@ -208,9 +208,9 @@ extract a specific lead, or to paste a row you built yourself.</small></p>
 
 <div class="card"><form method="post" action="/screen/add">
   <label>source_id (optional lineage)</label><input type="text" name="source_id">
-  <label>row JSON (v0 columns; verification_tier forced to P; lag/slip + *_dt derived)</label>
+  <label>project JSON (v0 columns; verification_tier forced to P; lag/slip + *_dt derived)</label>
   <textarea name="row_json" rows="8">{esc(example)}</textarea>
-  <p><button type="submit">Add row</button></p>
+  <p><button type="submit">Add project</button></p>
 </form></div>
 """
     return _remember_show(_page("Screen", body, msg), "/screen", show)
@@ -242,9 +242,9 @@ def screen_prompt_page(source_id: int):
 </div>
 <div class="card"><form method="post" action="/screen/add">
   <input type="hidden" name="source_id" value="{source_id}">
-  <label>Paste the row JSON returned by Claude Code</label>
+  <label>Paste the project JSON returned by Claude Code</label>
   <textarea name="row_json" rows="8"></textarea>
-  <p><button class="primary" type="submit">Ingest row JSON</button></p>
+  <p><button class="primary" type="submit">Ingest project JSON</button></p>
 </form></div>
 """
     return _page("Screen prompt", body)
@@ -259,7 +259,7 @@ async def screen_add(request: Request):
         bid = form.get("source_id")
         bid = int(bid) if bid else None
         sid = screen.insert_extracted(conn, row, source_collected_id=bid)
-        msg = f"Added Screen row #{sid} (tier forced to P)."
+        msg = f"Added project #{sid} to Screen (tier forced to P)."
     except Exception as e:
         msg = f"Error: {e}"
     finally:
@@ -274,7 +274,7 @@ async def screen_extract(request: Request):
     try:
         bid = int(form.get("source_id"))
         sid, _ = orch.run_screen_ai(conn, bid)
-        msg = f"Extracted Screen row #{sid} from Source #{bid}."
+        msg = f"Extracted project #{sid} to Screen from lead #{bid}."
     except LLMUnavailable as e:
         msg = f"API extract failed: {e}"
     except Exception as e:
@@ -308,7 +308,7 @@ def screen_check_all():
         for r in screen.list_extracted(conn):
             screen.run_check(conn, r["id"])
             n += 1
-        msg = f"Ran the check on {n} Screen rows."
+        msg = f"Re-checked {n} project(s)."
     finally:
         conn.close()
     return RedirectResponse(f"/screen?msg={html.escape(msg)}", status_code=303)
@@ -396,7 +396,7 @@ CHECK_RULES: list[tuple[tuple[str, ...], str]] = [
                      "lag and slip figure is measured from it"),
     (("promised_capital_usd", "promised_jobs"),
      f"the size floor for phase <b>{_crit().id}</b>: {_crit().describe()} "
-     f"(either figure alone puts the row in scope under OR)"),
+     f"(either figure alone puts the project in scope under OR)"),
     (("promised_first_output",),
      "promised_first_output holds a 4-digit year or a sentinel"),
     (("actual_first_output",),
@@ -604,12 +604,12 @@ def _check_panel(r, chk) -> str:
 
     blind = "".join(f"<li>{b}</li>" for b in CHECK_BLIND_SPOTS)
     return f"""<details class="explain">
-<summary>What this check tested on this row, and what it cannot test</summary>
-<p><small>It reads the <b>shape</b> of the row. Every rule below is
+<summary>What this check tested, and what it cannot test</summary>
+<p><small>It reads the <b>shape</b> of the record. Every rule below is
 <code>pipeline/schema.py</code> applied to the cells as they stand, and each
 verdict is the checker's own, read back from the stored report — not re-decided
 here.</small></p>
-<table class="rules"><tr><th>rule</th><th>this row</th><th></th></tr>{rows}</table>
+<table class="rules"><tr><th>rule</th><th>this project</th><th></th></tr>{rows}</table>
 <p style="margin-top:.7rem"><b>It cannot test:</b></p>
 <ul>{blind}</ul>
 <p><small><b>PASS / CLEAN means well-formed, not true.</b> Everything in that
@@ -624,7 +624,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
     try:
         r = screen.get_extracted(conn, screen_id)
         if r is None:
-            return _page("Screen inspect", "<p>No such Screen row.</p>", "Not found")
+            return _page("Screen inspect", "<p>No project with that id.</p>", "Not found")
         chk = screen.latest_check(conn, screen_id)
     finally:
         conn.close()
@@ -686,10 +686,10 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
       writes its own reason, so leave this empty for that.</label>
     <input type="text" name="edit_description"
            placeholder="e.g. corrected announced date to match the filing">
-    <p id="verifyrow"><button class="primary" type="submit">Verify this row \u2192</button></p>"""
+    <p id="verifyrow"><button class="primary" type="submit">Verify this project \u2192</button></p>"""
     else:
         promote_controls = (
-            '<p class="msg">Re-check this row and reach '
+            '<p class="msg">Re-check and reach '
             "<b>PASS</b> or <b>CLEAN</b> before it can be verified.</p>"
         )
 
@@ -713,7 +713,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 <div class="card">
   <form class="inline" method="post" action="/screen/check">
     <input type="hidden" name="screen_id" value="{r['id']}">
-    <button type="submit">Re-check this row</button></form>
+    <button type="submit">Re-check</button></form>
   {check_note}
   {_check_panel(r, chk)}
 </div>
@@ -726,13 +726,13 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
   <div class="formcol">
     <div class="card">
       <p>Confirm every cell against the pane, then verify. Any cell you change
-      is applied to the new Verify row and logged in <code>verify_edits</code>.
+      is applied to the project's new Verify row and logged in <code>verify_edits</code>.
       <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
       from the date strings and recompute when you edit a date.</p>
       <div class="cktally-wrap"><span id="cktally" class="cktally"></span>
-      <span id="ckleft" class="cktally-left"></span><button type="button" id="ckgo" class="ckgo" hidden>verify this row \u2192</button></div>
+      <span id="ckleft" class="cktally-left"></span><button type="button" id="ckgo" class="ckgo" hidden>verify this project \u2192</button></div>
       <p><small>The strip under each cell is a scratchpad for your own place in
-      the row. It is not stored and does not gate verifying.</small></p>
+      this project. It is not stored and does not gate verifying.</small></p>
       <form method="post" action="/screen/{r['id']}/promote">
         <div class="grid2">{fields}</div>
         <p><small>Verbatim source text — the exact page text each date came

@@ -16,6 +16,7 @@ module skips when FastAPI is absent rather than failing:
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -756,3 +757,94 @@ class TestFetchErrorsAreReadable(unittest.TestCase):
         reader can act on."""
         src = Path(ev.__file__).read_text()
         self.assertNotIn("fetch ladder", src)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestProjectNotRow(unittest.TestCase):
+    """The interface calls the thing a project, and says row only about storage.
+
+    `project` is the name this repository already settled on: it is the
+    identity column in the schema, the README defines scope with "A project is
+    in scope when all of these hold", and the methodology says "for each
+    individual project that is announced". The interface said row 221 times and
+    project 14, which is the database's word for its own storage leaking onto
+    every screen a person uses.
+
+    Row is still correct for three things and this test allows exactly those:
+    counting stored rows, naming a table's rows, and the audit trail. Where a
+    sentence means the factory rather than the record, it says project.
+    """
+
+    # Storage senses. Each is a phrase where "row" is the true word, not a
+    # leak: adding to this list should require saying which of the three it is.
+    ALLOWED = (
+        "new Verify row",          # the record a promotion writes
+        "rows to <code>screen_check",  # append-only history
+        "sqlite3.Row",             # the type
+        "screen_extracted row",    # an error naming the table
+        "verify row",              # ditto, lowercase in an exception
+        "{d['rows']} rows",        # the database switcher's own count
+        "Row counts",              # the helper that produces it
+    )
+
+    # Not prose: an HTML attribute, and the blocks that are a stylesheet or a
+    # script rather than anything a person reads as a sentence.
+    NOT_PROSE = re.compile(r'rows\s*=\s*["\']?\d')
+    NOT_PROSE_NAMES = ("_CSS", "_JS")
+
+    def test_no_reader_facing_string_says_row_about_a_project(self):
+        import ast
+        root = Path(__file__).resolve().parent.parent / "webapp"
+        bad = []
+        for f in sorted(root.glob("*.py")):
+            tree = ast.parse(f.read_text())
+
+            # clean=False: get_docstring reindents by default, so the cleaned
+            # text never equals the Constant the walk finds, and every
+            # docstring came back as a finding.
+            docs = {ast.get_docstring(tree, clean=False) or ""}
+            skip_nodes = set()
+            for n in ast.walk(tree):
+                if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                    d = ast.get_docstring(n, clean=False)
+                    if d:
+                        docs.add(d)
+                # A stylesheet or a script assigned to a module constant.
+                if isinstance(n, ast.Assign):
+                    for t in n.targets:
+                        if isinstance(t, ast.Name) and t.id.endswith(self.NOT_PROSE_NAMES):
+                            skip_nodes.update(id(x) for x in ast.walk(n.value))
+
+            for n in ast.walk(tree):
+                if id(n) in skip_nodes:
+                    continue
+                vals = []
+                if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                    vals = [n.value]
+                elif isinstance(n, ast.JoinedStr):
+                    vals = [v.value for v in n.values
+                            if isinstance(v, ast.Constant) and isinstance(v.value, str)]
+                for v in vals:
+                    if v in docs:
+                        continue          # a note to the next maintainer, not UI
+                    if "<" not in v and "{" not in v:
+                        continue          # not markup a reader sees
+                    for m in re.finditer(r"\brows?\b", v, re.I):
+                        # Whitespace-normalised: these strings wrap across
+                        # source lines, so an allowlisted phrase can arrive
+                        # with a newline and indentation inside it.
+                        ctx = " ".join(
+                            v[max(0, m.start() - 40):m.start() + 40].split())
+                        if any(a in ctx for a in self.ALLOWED):
+                            continue
+                        if self.NOT_PROSE.search(ctx):
+                            continue
+                        bad.append(f"{f.name}:{n.lineno}: …{ctx}…")
+        self.assertEqual(bad, [], "\n  ".join(
+            ["these say 'row' where a reader means a project:"] + bad))
+
+    def test_the_word_the_schema_uses_is_project(self):
+        """If the identity column is ever renamed, this vocabulary follows it
+        rather than drifting."""
+        from pipeline.schema_check import V0_COLUMNS
+        self.assertIn("project", V0_COLUMNS)

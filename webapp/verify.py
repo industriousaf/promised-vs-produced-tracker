@@ -102,7 +102,7 @@ def verify_page(
         <small>tier {esc(r['verification_tier'])} · {edit_counts[r['id']]} edit(s)</small>
         <br><small>flag: {esc(r['flag'])}</small></div>"""
         for r in rows
-    ) or "<p>(nothing published yet. Verify a Screen row to start the Scoreboard.)</p>"
+    ) or "<p>(nothing published yet. Verify a project to start the Scoreboard.)</p>"
 
     def _sel(cur: str, val: str) -> str:
         return " selected" if cur == val else ""
@@ -115,9 +115,9 @@ def verify_page(
             f"<td>{format(r['promised_jobs'], ',') if r['promised_jobs'] is not None else '—'}</td>"
             f"<td>{esc(r['verification_tier'])}</td></tr>"
             for r in filtered
-        ) or "<tr><td colspan='4'><small>(no rows match)</small></td></tr>"
+        ) or "<tr><td colspan='4'><small>(no projects match)</small></td></tr>"
         filter_results = (
-            f"<p><small>{len(filtered)} row(s): capital ≥ ${cap_min:,} "
+            f"<p><small>{len(filtered)} project(s): capital ≥ ${cap_min:,} "
             f"<b>{combiner}</b> jobs ≥ {jobs_min:,} · stage <code>{esc(stage)}</code></small></p>"
             f"<table><tr><th>project</th><th>capital</th><th>jobs</th><th>tier</th></tr>{trows}</table>"
         )
@@ -149,7 +149,7 @@ def verify_page(
 <h3>Sector vocabulary</h3>
 <div class="card">
   <p>A <b>closed</b> set of manufacturing sectors. Manual edits pick from a
-  dropdown on each Verify row; a sector outside this vocabulary is rejected by
+  dropdown on each published project; a sector outside this vocabulary is rejected by
   the checker. Extending it is a code change — add to <code>SECTORS</code> in
   <code>pipeline/settings.py</code> — so that what counts as in scope cannot
   move at runtime without a commit recording it. Current vocabulary:</p>
@@ -161,12 +161,12 @@ def verify_page(
     # panels in front of the thing the methodology calls "the Scoreboard in its
     # final form". Both are still here, folded, because neither is what a
     # person came to this page to see.
-    lede = ('<p class="pagelede">The published Scoreboard. Every row here was '
+    lede = ('<p class="pagelede">The published Scoreboard. Every project here was '
             'read against its two sources by a person; nothing reaches this '
             'table any other way.</p>')
     tools = (f'<details class="byhand"><summary>Explore and reference</summary>'
              f'{filter_panel}{sector_panel}</details>')
-    body = f"{lede}<h2>Published rows ({len(rows)})</h2>{items}{tools}"
+    body = f"{lede}<h2>Published projects ({len(rows)})</h2>{items}{tools}"
     return _page("Verify", body, msg)
 
 
@@ -176,7 +176,7 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
     try:
         r = verify.get_verified(conn, verify_id)
         if r is None:
-            return _page("Verify", "<p>No such Verify row.</p>", "Not found")
+            return _page("Verify", "<p>No project with that id.</p>", "Not found")
         edits = verify.list_edits(conn, verify_id)
     finally:
         conn.close()
