@@ -476,7 +476,8 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
     if (m := check_flexible_date(row.get("promised_first_output", ""),
                                  SENTINELS_FOR["promised_first_output"])):
         add("promised_first_output", ERROR, m)
-    if (m := check_flexible_date(row.get("actual_first_output", ""))):
+    if (m := check_flexible_date(row.get("actual_first_output", ""),
+                                 SENTINELS_FOR["actual_first_output"])):
         add("actual_first_output", ERROR, m)
 
     # current_status

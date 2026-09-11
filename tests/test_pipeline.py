@@ -664,6 +664,15 @@ class TestSentinelVocabulary(unittest.TestCase):
                 self.assertEqual([], self._messages("actual_first_output",
                                                     actual_first_output=token))
 
+    def test_the_promised_sentinel_is_refused_in_the_actual_slot(self):
+        """The mirror of the defect. `n/a` there would say no promise was made
+        about a column that records what happened."""
+        self.assertEqual("FAIL", self._check(actual_first_output="n/a")["result_status"])
+        for token in ("tbd", "open"):
+            with self.subTest(token=token):
+                self.assertEqual("FAIL",
+                                 self._check(actual_first_output=token)["result_status"])
+
     def test_a_real_date_wins_over_a_stray_sentinel_word(self):
         """A qualifier is not a sentinel. "2019 (pending permits)" is a dated
         promise and has to stay promotable in either column."""
