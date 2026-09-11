@@ -130,7 +130,31 @@ def all_sectors() -> set:
 TIER_TOKENS = {"V1", "V2", "P"}
 
 # Sentinel tokens allowed in first-output cells that carry no calendar date.
-DATE_SENTINELS = {"pending", "never", "unconfirmed", "n/a", "tbd", "open"}
+#
+# The two columns do NOT share a vocabulary, and treating them as if they did is
+# what this split exists to stop. One flat set of six was offered to the
+# extractor for three behaviours dates.py distinguishes, so four were synonyms
+# picked by feel -- and `unconfirmed` landed in promised_first_output on 40 of
+# the 44 projects with no promised date. There it cannot mean anything:
+# dates.py reads it as "the event happened, nobody dated it", and a promise is
+# not an event that can have happened. The only thing missing in that column is
+# the promise itself.
+PROMISED_SENTINELS = {"n/a"}                              # no promise was stated
+ACTUAL_SENTINELS = {"pending", "never", "unconfirmed"}    # not yet / cancelled / undated
+
+# Retired: still parsed, so rows written before the vocabulary was narrowed keep
+# resolving exactly as they did, but nothing may write them now.
+RETIRED_SENTINELS = {"tbd", "open"}
+
+# The union, for anything that asks "is this word a sentinel at all" without
+# caring which column it is in -- DATE_COLUMN_NULL_STRINGS below is the caller
+# that matters, and `n/a` has to survive it in both columns.
+DATE_SENTINELS = PROMISED_SENTINELS | ACTUAL_SENTINELS | RETIRED_SENTINELS
+
+SENTINELS_FOR = {
+    "promised_first_output": PROMISED_SENTINELS,
+    "actual_first_output": ACTUAL_SENTINELS,
+}
 
 # A missing value that arrived as text. These are what a serializer writes when
 # it is handed nothing -- Python's str(None) is "None", JavaScript's is "null"
@@ -188,16 +212,37 @@ def check_year_month(value: str) -> str | None:
     return None
 
 
-def check_flexible_date(value: str) -> str | None:
+def check_flexible_date(value: str, allowed: set | None = None) -> str | None:
     """promised_/actual_first_output: a 4-digit year (optionally with a month,
-    quarter, or parenthetical qualifier) OR a recognized sentinel."""
+    quarter, or parenthetical qualifier) OR a sentinel this column may carry.
+
+    `allowed` is the column's own sentinel set, from SENTINELS_FOR. Omitted, any
+    sentinel passes -- which is what this function did for every caller until
+    `unconfirmed` turned up in 40 promised cells, asserting about a promise the
+    one thing only an actual first output can assert.
+
+    A real date still wins over a stray sentinel word: "2019 (pending permits)"
+    carries a year and is fine in either column.
+    """
     v = (value or "").strip()
+    ok = allowed if allowed is not None else DATE_SENTINELS
     if v == "":
-        return "empty (use a year or a sentinel like 'pending'/'never')"
-    if any(tok in v.lower() for tok in DATE_SENTINELS):
+        return ("empty (use a year or "
+                + " / ".join(f"{t!r}" for t in sorted(ok)) + ")")
+    if any(tok in v.lower() for tok in ok):
         return None
     if YEAR_RE.search(v):
         return None
+    wrong = sorted(t for t in DATE_SENTINELS - ok if t in v.lower())
+    if wrong:
+        use = " / ".join(f"{t!r}" for t in sorted(ok)) + ", or a 4-digit year"
+        # The one that will actually happen, and the one whose reason is not
+        # self-evident from the word.
+        if "unconfirmed" in wrong and ok == PROMISED_SENTINELS:
+            return ("'unconfirmed' says first output happened but no source "
+                    "dated it, which cannot be true of a promise. If no source "
+                    "stated a promised date, that is 'n/a'")
+        return f"{value!r} is not a sentinel this column may carry. Use {use}"
     return f"no 4-digit year and no recognized sentinel in {value!r}"
 
 
@@ -428,7 +473,8 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
                         f"this cell empty")
 
     # first-output cells
-    if (m := check_flexible_date(row.get("promised_first_output", ""))):
+    if (m := check_flexible_date(row.get("promised_first_output", ""),
+                                 SENTINELS_FOR["promised_first_output"])):
         add("promised_first_output", ERROR, m)
     if (m := check_flexible_date(row.get("actual_first_output", ""))):
         add("actual_first_output", ERROR, m)

@@ -628,6 +628,55 @@ class TestSentinelVocabulary(unittest.TestCase):
         for token in ("tbd", "open", "unknown"):
             self.assertEqual((None, "to_be_completed"), dates.interpret_date(token))
 
+    # ---- and the checker enforces it, so the prompt is not the only guard ---- #
+
+    def _check(self, **over):
+        return sc.check_row(a_row(**over))
+
+    def _messages(self, col, **over):
+        return [i["message"] for i in self._check(**over)["report"] if i["column"] == col]
+
+    def test_unconfirmed_in_the_promised_slot_fails_the_row(self):
+        """The defect this rule exists for. It is an ERROR and not a warning
+        because docs/schema.md defines ERROR as a value outside a closed
+        vocabulary, and the promised column's sentinel set is now closed."""
+        res = self._check(promised_first_output="unconfirmed")
+        self.assertEqual("FAIL", res["result_status"])
+        self.assertTrue(any("cannot be true of a promise" in m
+                            for m in self._messages("promised_first_output",
+                                                    promised_first_output="unconfirmed")))
+
+    def test_n_a_in_the_promised_slot_is_clean(self):
+        self.assertEqual([], self._messages("promised_first_output",
+                                            promised_first_output="n/a"))
+
+    def test_the_retired_synonyms_no_longer_pass_the_promised_slot(self):
+        for token in ("tbd", "open", "pending", "never"):
+            with self.subTest(token=token):
+                self.assertEqual("FAIL",
+                                 self._check(promised_first_output=token)["result_status"])
+
+    def test_the_actual_slot_keeps_its_own_three(self):
+        """Narrowing one column must not narrow the other: 121 stored projects
+        carry one of these."""
+        for token in ("pending", "never", "unconfirmed"):
+            with self.subTest(token=token):
+                self.assertEqual([], self._messages("actual_first_output",
+                                                    actual_first_output=token))
+
+    def test_a_real_date_wins_over_a_stray_sentinel_word(self):
+        """A qualifier is not a sentinel. "2019 (pending permits)" is a dated
+        promise and has to stay promotable in either column."""
+        self.assertEqual([], self._messages("promised_first_output",
+                                            promised_first_output="2019 (pending permits)"))
+
+    def test_an_empty_cell_is_told_which_sentinel_its_own_column_takes(self):
+        """The message used to suggest 'pending'/'never' in both columns, which
+        in the promised slot recommended exactly what is now refused."""
+        promised = self._messages("promised_first_output", promised_first_output="")
+        self.assertTrue(any("'n/a'" in m for m in promised), promised)
+        self.assertFalse(any("'pending'" in m for m in promised), promised)
+
     def test_the_flag_rule_does_not_ban_the_sentinel_it_now_requires(self):
         """"Do not write n/a" was written about free-text cells. Unqualified, it
         contradicts the promised_first_output rule directly above it."""

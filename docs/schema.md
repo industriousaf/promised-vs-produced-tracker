@@ -140,9 +140,17 @@ the promise itself. 40 rows collected before the extraction prompt said this
 carry `unconfirmed` in that column anyway. The number they resolve to is right,
 and the word is wrong; they are corrected as verification reaches them.
 
-The parser also still accepts `tbd`, `open`, `unknown` and a blank, all read as
-"not yet producing". Rows written before the vocabulary was narrowed keep
-resolving exactly as they did, but nothing should write them now.
+`schema.py` enforces this on `promised_first_output`: anything there but `n/a`
+or a date is an ERROR and the row FAILs rather than reaching the human gate.
+That is the closed-vocabulary rule in *What the check returns* above, applied to
+the column where it was actually being broken. `actual_first_output` is not yet
+checked the same way; its three tokens are the documented set, and `SENTINELS_FOR`
+in `schema.py` already names them for whenever that is wired.
+
+The parser still accepts `tbd`, `open`, `unknown` and a blank, all read as "not
+yet producing", so rows written before the vocabulary was narrowed keep
+resolving exactly as they did. Reading them and writing them are different
+questions: nothing may write them now.
 
 ## Details worth knowing
 
