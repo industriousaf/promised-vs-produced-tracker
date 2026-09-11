@@ -97,11 +97,20 @@ FIELD_LABELS = {
     "current_status": "status",
 }
 
+# The tab labels name the two sides of the question the project is named
+# after. "Promise" and "Status" broke that frame at the one moment a reviewer
+# is actually making the comparison: they read as two unrelated documents
+# rather than as the two halves of Promised vs. Produced.
+#
+# "Produced" is right even for a plant that produced nothing. It names the
+# question the source answers, not the answer -- the same way the project's own
+# title does. A source establishing that nothing has been produced is still
+# the produced side of the comparison.
 SHORT_SOURCE_LABEL = {
-    "promise_source": "Promise",
+    "promise_source": "Promised",
     "promised_date_source": "Promised date",
-    "status_source": "Status",
-    "actual_date_source": "Actual date",
+    "status_source": "Produced",
+    "actual_date_source": "Produced date",
 }
 
 _URL_TOKEN_RE = re.compile(r"https?://[^\s,;|\"'<>]+", re.IGNORECASE)

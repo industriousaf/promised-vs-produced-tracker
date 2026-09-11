@@ -738,7 +738,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 
     if promotable:
         # No tier picker, for the reason spelled out in cmd_review: this page
-        # shows the promise and the status, which are two halves of the row and
+        # shows the promised side and the produced side, two halves of one
         # not two readings of one claim, so V2 was never answerable from what
         # is on screen. The CLI queue stamps V1 too; a picker here would be the
         # same non-choice in the other interface. Deliberate V2 goes through

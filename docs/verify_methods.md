@@ -69,8 +69,8 @@ contradicted by the promise. Renegotiations, delays, and "ramping / unconfirmed"
 belong in `current_status` (and the `flag`), not swept away.
 
 **3. It's genuinely a promise paired with a produced outcome.** A real
-capital/jobs promise with a promised date on one side, and a status that closes
-the loop on the other. A bare announcement with no output signal, or two sources
+capital/jobs promise with a promised date on one side, and a source for what was
+produced on the other. A bare announcement with no output signal, or two sources
 that don't actually pair up, isn't ready — leave it in Screen.
 
 ## Promoting
@@ -93,8 +93,8 @@ unresolved and a second box saying "resolved the flag" recorded nothing. Change
 any other cell — with or without the flag — and the reason is required.
 
 **The guided queue always writes V1.** `review` and the web app's inspect page
-both show you the promise and the status — two documents covering two halves of
-the row, not two readings of one claim — so reading what they put in front of you
+both show you the promised side and the produced side — two documents covering
+two halves of one project, not two readings of one claim — so reading what they put in front of you
 is one source, however many links you clicked. Neither screen helps you find a
 corroborating source, so neither offers the choice: they used to ask, and the
 honest answer was always V1. `V2` is a deliberate act. Go find the second source,
