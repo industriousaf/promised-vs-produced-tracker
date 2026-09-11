@@ -36,6 +36,7 @@ an arbitrary address by editing the address bar.
 from __future__ import annotations
 
 import html
+import json
 import os
 import re
 import sys
@@ -296,6 +297,20 @@ def _date_words(token: str) -> list[str]:
     if year:
         out.append(year)
     return out or [t]
+
+
+def field_tabs(row) -> dict:
+    """{column: tab index} -- which tab highlights each cell.
+
+    The checklist links straight to the tab that marks a given cell, so "find
+    in source" lands on the right document rather than whichever one happened
+    to be open.
+    """
+    out = {}
+    for n, t in enumerate(tabs_for(row)):
+        for f in t.get("highlight", ()):
+            out.setdefault(f, n)
+    return out
 
 
 def needles_for(row, fields: list[str]) -> list[tuple[str, str, str]]:
@@ -809,7 +824,15 @@ _PANE_JS = """
     if (e.key === 'ArrowRight' || e.key === 'n') { go(1); }
     else if (e.key === 'ArrowLeft' || e.key === 'p') { go(-1); }
   });
-  if (marks.length) { go(1); } else { paint(); }
+  var start = (typeof START_FIELD === 'string' && START_FIELD) ? START_FIELD : null;
+  if (start) {
+    active = start;
+    Array.prototype.forEach.call(document.querySelectorAll('.chip[data-f]'), function (o) {
+      o.classList.toggle('on', o.dataset.f === active);
+    });
+    refilter();
+  } else if (marks.length) { go(1); } else { paint(); }
+
 })();
 """
 
@@ -892,7 +915,8 @@ def _row_for(stage: str, row_id: int):
 
 
 @router.get("/evidence/{stage}/{row_id}", response_class=HTMLResponse)
-def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto"):
+def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
+                  field: str = ""):
     """One cited page, rendered with the row's claims marked in it.
 
     The tab is addressed by INDEX into the row's own links, never by URL, so the
@@ -961,6 +985,7 @@ looking checked.</p></div>"""
 <button id="next" type="button" title="next highlight (→)">▶</button>
 <span>{chips}</span>
 <span style="opacity:.6">click a chip to walk just that cell · ← → to move</span>
-</div><script>{_PANE_JS}</script>"""
+</div><script>var START_FIELD = {json.dumps(field)};</script>
+<script>{_PANE_JS}</script>"""
 
     return _pane(page_title or origin, bar, f'<div id="doc">{doc}</div>', nav)

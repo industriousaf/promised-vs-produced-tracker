@@ -423,6 +423,151 @@ CHECK_BLIND_SPOTS = [
 ]
 
 
+_CHECKLIST_JS = """
+(function () {
+  var strips = Array.prototype.slice.call(document.querySelectorAll('.ck'));
+  if (!strips.length) { return; }
+  var tally = document.getElementById('cktally');
+  var left = document.getElementById('ckleft');
+  var go2 = document.getElementById('ckgo');
+  // Per row, per tab, gone when the tab closes. Nothing here is a record; it
+  // exists so tabbing away does not lose your place inside a row.
+  var KEY = 'pvp-ck-' + ROW_ID;
+  var state = {}, looked = {};
+  try { state = JSON.parse(sessionStorage.getItem(KEY) || '{}'); } catch (e) {}
+  try { looked = JSON.parse(sessionStorage.getItem(KEY + '-seen') || '{}'); } catch (e) {}
+
+  function save() {
+    try {
+      sessionStorage.setItem(KEY, JSON.stringify(state));
+      sessionStorage.setItem(KEY + '-seen', JSON.stringify(looked));
+    } catch (e) {}
+  }
+
+  function paint() {
+    var done = 0;
+    strips.forEach(function (s) {
+      var cell = s.dataset.cell, v = state[cell] || '';
+      var ok = s.querySelector('.ck-ok'), no = s.querySelector('.ck-no');
+      var lbl = s.querySelector('.ck-state');
+      s.classList.toggle('is-ok', v === 'ok');
+      s.classList.toggle('is-no', v === 'no');
+      ok.classList.toggle('on', v === 'ok');
+      no.classList.toggle('on', v === 'no');
+      // Confirmable only after you have opened this cell in the pane. Not
+      // proof of reading, but it stops a row being ticked clean without the
+      // document ever moving, which is the failure that would make the
+      // checklist worth less than no checklist.
+      ok.disabled = (v !== 'ok') && !looked[cell];
+      lbl.textContent = v === 'ok' ? 'confirmed'
+                      : v === 'no' ? 'not in this source'
+                      : looked[cell] ? 'opened, not settled' : '';
+      if (v) { done++; }
+    });
+    var all = (done === strips.length);
+    if (tally) {
+      tally.textContent = all ? ('all ' + strips.length + ' cells settled')
+                              : (done + ' of ' + strips.length + ' cells settled');
+      tally.classList.toggle('all', all);
+    }
+    if (left) {
+      var open = strips.filter(function (s) { return !state[s.dataset.cell]; })
+                       .map(function (s) { return s.dataset.cell; });
+      left.textContent = open.length ? ('still open: ' + open.join(', ')) : '';
+    }
+    // The next step, named. There is a tier note, a reason field and the
+    // derived cells between the last checklist strip and the button, so
+    // "settled everything, now what" is a real question at this point.
+    if (go2) {
+      go2.hidden = !all || !document.getElementById('verifyrow');
+    }
+    var wrap = document.querySelector('.cktally-wrap');
+    if (wrap) { wrap.classList.toggle('ready', all); }
+  }
+
+  strips.forEach(function (s) {
+    var cell = s.dataset.cell;
+    var go = s.querySelector('a.ck-go');
+    if (go) {
+      go.addEventListener('click', function () {
+        // The link navigates the pane on its own; this only records that you
+        // asked to see the cell, which is what unlocks "confirmed".
+        looked[cell] = 1; save(); setTimeout(paint, 0);
+      });
+    }
+    s.querySelector('.ck-ok').onclick = function () {
+      state[cell] = (state[cell] === 'ok') ? '' : 'ok'; save(); paint();
+    };
+    s.querySelector('.ck-no').onclick = function () {
+      state[cell] = (state[cell] === 'no') ? '' : 'no'; save(); paint();
+    };
+  });
+
+  if (go2) {
+    go2.onclick = function () {
+      var t = document.getElementById('verifyrow');
+      if (!t) { return; }
+      t.scrollIntoView({ block: 'center' });
+      // A brief mark so it is obvious where you landed. Colour only, 200ms,
+      // and skipped entirely for a reader who asked for less motion.
+      t.classList.add('landed');
+      setTimeout(function () { t.classList.remove('landed'); }, 1400);
+      var b = t.querySelector('button');
+      if (b) { b.focus(); }
+    };
+  }
+
+  paint();
+})();
+"""
+
+# The per-cell checklist. A scratchpad, not a record: it lives in the browser
+# for this tab only and nothing about it reaches the database.
+#
+# The job it does is small and real. Verifying a row means confirming six cells
+# against a document, and across 162 rows that is roughly a thousand
+# confirmations. Nothing tracked which cells you had already done inside a row,
+# so tabbing away at cell five meant starting the row again.
+#
+# Three states, not a checkbox, because a binary tick throws away the most
+# interesting answer. A cell the page does not carry is not "unchecked": its
+# absence is the finding, and the pane hint has always said so. So: not looked
+# at, confirmed here, or not in this source.
+#
+# `confirm` stays disabled until the pane reports that it scrolled to this
+# cell's marks. That is not proof of reading, but it stops a row being ticked
+# clean without the document ever moving, which is the failure mode that would
+# make the checklist worth less than no checklist.
+CHECKLIST_CELLS = ("announced", "promised_first_output", "actual_first_output",
+                   "promised_capital_usd", "promised_jobs", "current_status")
+
+
+def _check_strip(cell: str, row_id: int, ftabs: dict) -> str:
+    """One cell's three-state control.
+
+    "find in source" is an ordinary link with target="evidencepane", the same
+    mechanism the tab strip above the pane already uses. postMessage was the
+    first attempt and does not survive this iframe's sandbox: it carries no
+    allow-same-origin, so the frame has an opaque origin and nothing crosses
+    in either direction. A link needs no channel at all.
+    """
+    if cell not in CHECKLIST_CELLS:
+        return ""
+    tab = ftabs.get(cell)
+    if tab is None:
+        # No cited page marks this cell, so there is nothing to jump to. The
+        # only honest states left are "not in this source" and unset.
+        go = '<span class="ck-nolink">no source cites this cell</span>'
+    else:
+        go = (f'<a class="ck-go" target="evidencepane" '
+              f'href="/evidence/screen/{row_id}?tab={tab}&amp;field={esc(cell)}">'
+              f'find in source \u2192</a>')
+    return (f'<div class="ck" data-cell="{esc(cell)}">{go}'
+            f'<button type="button" class="ck-ok" disabled>confirmed</button>'
+            f'<button type="button" class="ck-no">not in this source</button>'
+            f'<span class="ck-state"></span></div>')
+
+
 def _check_panel(r, chk) -> str:
     """The check, as rules-with-values rather than a verdict and two counts."""
     report = []
@@ -504,8 +649,9 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
             return (f"""<div><label>sector</label>
         <select name="sector">{options}</select></div>""")
         return (f"""<div><label>{esc(c)}{hint_html}</label>
-        <input type="text" name="{esc(c)}" value="{esc(r[c])}"></div>""")
+        <input type="text" name="{esc(c)}" value="{esc(r[c])}">{_check_strip(c, r['id'], ftabs)}</div>""")
 
+    ftabs = evidence.field_tabs(r)
     fields = "".join(_field(c) for c in INSPECT_COLUMNS)
     derived = "".join(
         f"""<div><label>{esc(c)} <small>(derived)</small></label>
@@ -540,11 +686,11 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
       writes its own reason, so leave this empty for that.</label>
     <input type="text" name="edit_description"
            placeholder="e.g. corrected announced date to match the filing">
-    <p><button class="primary" type="submit">Promote to Verify</button></p>"""
+    <p id="verifyrow"><button class="primary" type="submit">Verify this row \u2192</button></p>"""
     else:
         promote_controls = (
             '<p class="msg">Re-check this row and reach '
-            "<b>PASS</b> or <b>CLEAN</b> before promoting to Verify.</p>"
+            "<b>PASS</b> or <b>CLEAN</b> before it can be verified.</p>"
         )
 
     check_note = (
@@ -579,10 +725,14 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 
   <div class="formcol">
     <div class="card">
-      <p>Confirm every cell against the pane, then promote. Any cell you change
+      <p>Confirm every cell against the pane, then verify. Any cell you change
       is applied to the new Verify row and logged in <code>verify_edits</code>.
       <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
       from the date strings and recompute when you edit a date.</p>
+      <div class="cktally-wrap"><span id="cktally" class="cktally"></span>
+      <span id="ckleft" class="cktally-left"></span><button type="button" id="ckgo" class="ckgo" hidden>verify this row \u2192</button></div>
+      <p><small>The strip under each cell is a scratchpad for your own place in
+      the row. It is not stored and does not gate verifying.</small></p>
       <form method="post" action="/screen/{r['id']}/promote">
         <div class="grid2">{fields}</div>
         <p><small>Verbatim source text — the exact page text each date came
@@ -596,6 +746,9 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
     </div>
   </div>
 </div>
+
+<script>var ROW_ID = {r['id']};</script>
+<script>{_CHECKLIST_JS}</script>
 
 <h2>Ask a model to check it against the links</h2>
 <div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
@@ -633,7 +786,7 @@ async def screen_inspect_promote(screen_id: int, request: Request):
             desc = flag_only_reason(changes, src["flag"]) or ""
         if changes and not desc:
             msg = ("You changed " + ", ".join(sorted(changes))
-                   + " — enter a reason (it goes to verify_edits) before promoting.")
+                   + ", enter a reason (it goes to verify_edits) before verifying.")
             return RedirectResponse(
                 f"/screen/{screen_id}/inspect?msg={html.escape(msg)}",
                 status_code=303,

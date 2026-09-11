@@ -330,6 +330,47 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .verdict-CLEAN { color: var(--success); font-family: var(--font-mono);
                  font-size: .9em; font-weight: 600; letter-spacing: .06em; }
 
+/* ---- the per-cell checklist (scratchpad, browser-only) ------------------ */
+.ck { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+    margin: .25rem 0 .1rem; }
+.ck a.ck-go, .ck button { font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em;
+    text-transform: uppercase; padding: .12rem .4rem; border-radius: 0;
+    border: 0.5px solid var(--rule); background: transparent; color: var(--type-3); }
+.ck a.ck-go { text-decoration: none; display: inline-block; }
+.ck a.ck-go:hover, .ck button:hover:not(:disabled) { border-color: var(--teal); color: var(--type-1); }
+.ck-nolink { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--type-3); opacity: .7; }
+.ck button:disabled { opacity: .35; cursor: default; }
+.ck .ck-ok.on { background: var(--success); border-color: var(--success); color: var(--cream); }
+.ck .ck-no.on { background: var(--warning); border-color: var(--warning); color: var(--cream); }
+.ck-state { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
+    color: var(--type-3); margin-left: .15rem; }
+.ck.is-ok .ck-state { color: var(--success); }
+.ck.is-no .ck-state { color: var(--warning); }
+/* The tally sticks to the top of the form column. It used to sit above the
+   fields, so it scrolled away exactly when it was needed: six cells is one
+   screen and a bit, and "how many left?" is a question you have while looking
+   at cell four, not cell one. */
+.cktally-wrap { position: sticky; top: 0; z-index: 2; margin: .2rem -1rem .9rem;
+    padding: .5rem 1rem; background: var(--ground-card);
+    border-bottom: 0.5px solid var(--rule); }
+.cktally { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--type-3); margin-right: .5rem; }
+.cktally.all { color: var(--success); }
+.cktally-left { font-family: var(--font-sans); font-size: .78rem;
+    color: var(--type-3); }
+/* Settled everything: the bar stops reporting and starts pointing. */
+.cktally-wrap.ready { border-bottom-color: var(--success); }
+.ckgo { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; padding: .25rem .7rem; border-radius: 0;
+    border: 0.5px solid var(--success); background: var(--success);
+    color: var(--cream); cursor: pointer; margin-left: auto; }
+.ckgo:hover { background: var(--teal); border-color: var(--teal); }
+.cktally-wrap { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+/* Where you landed, for a moment. Colour only, and nothing at all under
+   prefers-reduced-motion, which the global rule already handles. */
+#verifyrow.landed button { outline: 2px solid var(--success); outline-offset: 3px; }
+
 /* The verdict legend: definition, distribution and filter in one row. */
 .vlegend { display: flex; align-items: center; gap: .1rem .75rem; flex-wrap: wrap;
     margin: .1rem 0 1rem; padding: .5rem .7rem; border: 0.5px solid var(--rule-soft);
