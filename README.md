@@ -404,7 +404,7 @@ README.
 | Path | What it is |
 |---|---|
 | [`scoreboard.py`](scoreboard.py) | **The entry point.** A thin launcher for the pipeline CLI. |
-| [`pipeline/`](pipeline/) | **The pipeline.** The five tables, the commands, and the promotion gate. `collect/`, `tools/` and the web app all write through it. Also holds `settings.py` -- the one place every threshold, model and loop setting is defined -- and `schema.py`, the row validator. |
+| [`pipeline/`](pipeline/) | **The pipeline.** The six tables, the commands, and the promotion gate. `collect/`, `tools/` and the web app all write through it. Also holds `settings.py` -- the one place every threshold, model and loop setting is defined -- and `schema.py`, the row validator. |
 | [`collect/`](collect/) | **Ongoing collection.** The loops that find new projects and extract them, and the prompts they hand to each one. |
 | [`webapp/`](webapp/) | The browser interface, for reviewing rows against their sources and promoting them. |
 | [`tools/`](tools/) | Two standalone scripts nobody imports: bulk CSV load, and batch collection over the direct API. They stay scripts because they are rare and sharp. (`export` and `coverage` moved into `pipeline/`, which imports them.) |
@@ -416,7 +416,7 @@ Longer reference, kept out of this file:
 - [`docs/cli.md`](docs/cli.md) — every command, the manual and Claude Code paths,
   and a short offline test.
 - [`docs/collecting.md`](docs/collecting.md) — the collection loops in full.
-- [`docs/schema.md`](docs/schema.md) — the five tables, the date handling, and how
+- [`docs/schema.md`](docs/schema.md) — the six tables, the date handling, and how
   `flag` changes meaning between stages.
 
 ---

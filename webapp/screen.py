@@ -19,12 +19,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Request  # noqa: E402
-from fastapi.responses import HTMLResponse, RedirectResponse  # noqa: E402
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse  # noqa: E402
 
-from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E402
+from pipeline import source, screen, verify, orchestrate as orch, llm, settings  # noqa: E402
 from pipeline.db import (  # noqa: E402
-    connect, db_path, discover_databases, init_db, is_read_only, set_active_db,
-    table_counts,
+    READ_ONLY, connect, db_path, discover_databases, init_db, is_read_only,
+    set_active_db, table_counts,
 )
 from pipeline.settings import active as _crit  # noqa: E402
 from pipeline.dates import lag_label  # noqa: E402
@@ -431,18 +431,71 @@ _CHECKLIST_JS = """
   var left = document.getElementById('ckleft');
   var go2 = document.getElementById('ckgo');
   var walk = document.getElementById('ckwalk');
-  // Per project, per tab, gone when the tab closes. Nothing here is a record;
-  // it exists so tabbing away does not lose your place.
+  // The sessionStorage key. It holds one thing now -- which fields you have
+  // opened in the pane during this visit -- because everything that IS a record
+  // lives in screen_attested and arrives in ATTESTED.
   var KEY = 'pvp-ck-' + ROW_ID;
-  var state = {}, looked = {}, walking = false, armed = false;
-  try { state = JSON.parse(sessionStorage.getItem(KEY) || '{}'); } catch (e) {}
-  try { looked = JSON.parse(sessionStorage.getItem(KEY + '-seen') || '{}'); } catch (e) {}
+  var state = {}, looked = {}, stale = {}, walking = false, armed = false;
+
+  // What is settled comes from the database, not this browser. That is the
+  // whole reason closing the tab no longer loses your place, and the reason a
+  // confirmation means something a month from now.
+  //
+  // A stale one -- the field was edited after it was confirmed -- hydrates as
+  // unsettled, because the person confirmed a value the project no longer
+  // holds. The label says so rather than silently emptying the tick.
+  Object.keys(ATTESTED || {}).forEach(function (f) {
+    var a = ATTESTED[f];
+    if (a.stale) { stale[f] = 1; return; }
+    state[f] = (a.state === 'confirmed') ? 'ok' : 'no';
+    looked[f] = 1;
+  });
+
+  // Still the browser's, because it is not a record: it only remembers that you
+  // opened a field in the pane during this visit, which is what un-greys the
+  // confirm button.
+  try {
+    var seen = JSON.parse(sessionStorage.getItem(KEY + '-seen') || '{}');
+    Object.keys(seen).forEach(function (k) { looked[k] = 1; });
+  } catch (e) {}
+
+  // A stale field has to be opened again, even if you opened it earlier in this
+  // same visit. The value moved after someone vouched for it, so whatever was
+  // on screen before the edit is not what is being asked about now.
+  Object.keys(stale).forEach(function (k) { delete looked[k]; });
 
   function save() {
-    try {
-      sessionStorage.setItem(KEY, JSON.stringify(state));
-      sessionStorage.setItem(KEY + '-seen', JSON.stringify(looked));
-    } catch (e) {}
+    try { sessionStorage.setItem(KEY + '-seen', JSON.stringify(looked)); } catch (e) {}
+  }
+
+  function note(msg) {
+    var el = document.getElementById('ckerr');
+    if (el) { el.textContent = msg || ''; el.classList.toggle('on', !!msg); }
+  }
+
+  // One settle, one row in screen_attested. Optimistic: the tick appears at
+  // once and is taken back if the write is refused, because a checklist that
+  // waits on the network between every field is a checklist nobody finishes.
+  function record(cell, value, previous) {
+    var body = new FormData();
+    body.append('field', cell);
+    body.append('state', value === 'ok' ? 'confirmed' : 'not_in_source');
+    function undo(msg) { state[cell] = previous; paint(); note(msg); }
+    fetch('/screen/' + ROW_ID + '/attest', { method: 'POST', body: body })
+      .then(function (r) {
+        // A refused POST answers with the read-only page, not JSON.
+        return r.json().catch(function () {
+          return { ok: false, error: 'The server answered with a page instead '
+                                   + 'of an answer, so nothing was recorded.' };
+        });
+      })
+      .then(function (d) {
+        if (d && d.ok) { delete stale[cell]; note(''); paint(); return; }
+        undo((d && d.error) || 'That confirmation was not recorded.');
+      })
+      .catch(function () {
+        undo('Could not reach the server, so nothing was recorded.');
+      });
   }
 
   function unsettled() {
@@ -474,12 +527,16 @@ _CHECKLIST_JS = """
       ok.classList.toggle('on', v === 'ok');
       no.classList.toggle('on', v === 'no');
       // Confirmable only after the field has been opened in the pane. Not
-      // proof of reading, but it stops a project being ticked clean without
-      // the document ever moving.
-      ok.disabled = (v !== 'ok') && !looked[cell];
+      // proof of reading, and not what makes the stored record defensible --
+      // match_count is. But it stops a project being ticked clean without the
+      // document ever moving.
+      ok.disabled = !VERIFIER || ((v !== 'ok') && !looked[cell]);
+      no.disabled = !VERIFIER;
       lbl.textContent = v === 'ok' ? 'confirmed'
                       : v === 'no' ? 'not in this source'
+                      : stale[cell] ? 'changed since it was confirmed \u2014 look again'
                       : looked[cell] ? 'opened, not settled' : '';
+      s.classList.toggle('is-stale', !v && !!stale[cell]);
       // "Not in this source" is the one moment the model check earns its
       // place: the pane is a string matcher, so a value phrased differently
       // looks identical to one that is genuinely absent. Reading the page to
@@ -538,8 +595,14 @@ _CHECKLIST_JS = """
   // leaving the reader where they were.
   function settle(strip, value) {
     var cell = strip.dataset.cell;
-    state[cell] = (state[cell] === value) ? '' : value;
+    // No un-settling. The record is append-only and there is no row meaning
+    // "never mind": you can change a confirmation to the other answer, and you
+    // cannot take it back to blank.
+    if (state[cell] === value) { return; }
+    var previous = state[cell] || '';
+    state[cell] = value;
     save(); paint();
+    record(cell, value, previous);
     if (walking && state[cell]) {
       var next = unsettled()[0];
       if (next) { openField(next); }
@@ -612,25 +675,76 @@ _CHECKLIST_JS = """
 })();
 """
 
-# The per-cell checklist. A scratchpad, not a record: it lives in the browser
-# for this tab only and nothing about it reaches the database.
+# The per-field checklist. This used to be a scratchpad in the browser and is
+# now a record: every settle writes a row to `screen_attested` naming the
+# person, the field, the page they had open, and how many times the pane found
+# the value on it.
 #
-# The job it does is small and real. Verifying a row means confirming six cells
-# against a document, and across 162 rows that is roughly a thousand
-# confirmations. Nothing tracked which cells you had already done inside a row,
-# so tabbing away at cell five meant starting the row again.
+# Two jobs, and the second is why it is stored. Verifying a project means
+# settling six fields against a document, and across the remaining projects that
+# is near a thousand confirmations -- sessionStorage lost your place the moment
+# the tab closed, and the database does not. And the published claim stops being
+# "a human looked at this project" and becomes "this person settled these fields
+# against these pages on these dates", which is a much harder thing to wave away.
 #
 # Three states, not a checkbox, because a binary tick throws away the most
-# interesting answer. A cell the page does not carry is not "unchecked": its
-# absence is the finding, and the pane hint has always said so. So: not looked
-# at, confirmed here, or not in this source.
+# interesting answer. A field the page does not carry is not "unchecked": its
+# absence is the finding. So: not looked at, confirmed here, or not in this
+# source.
 #
-# `confirm` stays disabled until the pane reports that it scrolled to this
-# cell's marks. That is not proof of reading, but it stops a row being ticked
-# clean without the document ever moving, which is the failure mode that would
-# make the checklist worth less than no checklist.
-CHECKLIST_CELLS = ("announced", "promised_first_output", "actual_first_output",
-                   "promised_capital_usd", "promised_jobs", "current_status")
+# `confirm` stays disabled until the field has been opened in the pane. That is
+# not proof of reading, and it is not what makes the record defensible --
+# `match_count` is. A confirmation stored against a page where the value never
+# appeared is visible to anyone reading the table later.
+#
+# One list, in pipeline/screen.py, because which fields need a human eye is a
+# methodology fact and the writer has to reject anything else.
+CHECKLIST_CELLS = screen.ATTESTABLE_FIELDS
+
+
+# Who is verifying. A cookie, the same mechanism the list toggles already use at
+# shared.py, so the choice is made once per browser instead of typed once per
+# project. The value is only ever an address from settings.VERIFIERS: a list and
+# not a text box, because a box accepts "asdf@asdf.com" as readily as a real
+# address and a typed identity is exactly as forgeable as a typed name. Remove
+# someone from the list and their cookie stops being accepted, which is the
+# behaviour you want.
+VERIFIER_COOKIE = "pvp_verifier"
+VERIFIER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+
+
+def current_verifier(request: Request) -> str:
+    """The address this browser is verifying as, or "" if none is chosen."""
+    v = (request.cookies.get(VERIFIER_COOKIE) or "").strip()
+    return v if settings.may_verify(v) else ""
+
+
+def _verifier_bar(request: Request, who: str, screen_id: int) -> str:
+    """Who you are attesting as, and how to say otherwise.
+
+    Always rendered, never collapsed. A record naming the wrong person is worse
+    than no record, and the only defence available here is that the name is in
+    front of you the whole time you are ticking.
+    """
+    people = settings.verifiers()
+    if not people:
+        return ('<p class="ckwho none">No verifiers are configured, so nothing '
+                f'can be confirmed. Add an address to <code>VERIFIERS</code> in '
+                f'<code>{esc(settings.where("VERIFIERS"))}</code>.</p>')
+    if not who:
+        picks = " ".join(
+            f'<a class="ckwho-pick" href="/screen/{screen_id}/inspect?verifier={esc(p)}">{esc(p)}</a>'
+            for p in people)
+        return ('<p class="ckwho none">Confirmations are stored under your name. '
+                f'You are verifying as: {picks}</p>')
+    others = [p for p in people if p != who]
+    switch = ""
+    if others:
+        switch = " · switch to " + " ".join(
+            f'<a class="ckwho-pick" href="/screen/{screen_id}/inspect?verifier={esc(p)}">{esc(p)}</a>'
+            for p in others)
+    return (f'<p class="ckwho">Verifying as <b>{esc(who)}</b>. Every confirmation '
+            f'below is stored under this address and published with the data.{switch}</p>')
 
 
 def _check_strip(cell: str, row_id: int, ftabs: dict) -> str:
@@ -711,15 +825,23 @@ below, are the tools for it.</small></p>
 
 
 @router.get("/screen/{screen_id}/inspect", response_class=HTMLResponse)
-def screen_inspect(screen_id: int, msg: Optional[str] = None):
+def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
+                   verifier: Optional[str] = None):
     conn = _conn()
     try:
         r = screen.get_extracted(conn, screen_id)
         if r is None:
             return _page("Screen inspect", "<p>No project with that id.</p>", "Not found")
         chk = screen.latest_check(conn, screen_id)
+        attested = screen.attestation_state(conn, screen_id)
     finally:
         conn.close()
+
+    # ?verifier= picks who is attesting and is remembered in a cookie, the same
+    # shape as the list toggles. An address that is not on the list is ignored
+    # rather than stored, so a stale bookmark cannot put a name into the record.
+    picked = (verifier or "").strip()
+    who = picked if settings.may_verify(picked) else current_verifier(request)
 
     verdict = chk["result_status"] if chk else None
     promotable = verdict in ("PASS", "CLEAN")
@@ -822,9 +944,11 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
       <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
       from the date strings and recompute when you edit a date.</p>
       <div class="cktally-wrap"><span id="cktally" class="cktally"></span>
-      <span id="ckleft" class="cktally-left"></span><button type="button" id="ckwalk" class="ckwalk" hidden>start checking \u2192</button><button type="button" id="ckgo" class="ckgo" hidden>verify this project \u2192</button></div>
-      <p><small>The strip under each field is a scratchpad for your own place in
-      this project. It is not stored and does not gate verifying.</small></p>
+      <span id="ckleft" class="cktally-left"></span><span id="ckerr" class="ckerr"></span><button type="button" id="ckwalk" class="ckwalk" hidden>start checking \u2192</button><button type="button" id="ckgo" class="ckgo" hidden>verify this project \u2192</button></div>
+      {_verifier_bar(request, who, r['id'])}
+      <p><small>Settling a field records who confirmed it, which page was open,
+      and how many times the pane found the value on that page. It does not gate
+      verifying.</small></p>
       <form method="post" action="/screen/{r['id']}/promote">
         <div class="grid2">{fields}</div>
         <p><small>Verbatim source text — the exact page text each date came
@@ -839,7 +963,9 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
   </div>
 </div>
 
-<script>var ROW_ID = {r['id']};</script>
+<script>var ROW_ID = {r['id']};
+var ATTESTED = {json.dumps(attested)};
+var VERIFIER = {json.dumps(who)};</script>
 <script>{_CHECKLIST_JS}</script>
 
 <details class="byhand" id="agentbox">
@@ -847,7 +973,49 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 <div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
 </details>
 """
-    return _page(f"Screen #{screen_id}", body, msg, wide=True)
+    resp = _page(f"Screen #{screen_id}", body, msg, wide=True)
+    if picked and who == picked:
+        resp.set_cookie(VERIFIER_COOKIE, who,
+                        max_age=VERIFIER_COOKIE_MAX_AGE, samesite="lax")
+    return resp
+
+
+@router.post("/screen/{screen_id}/attest")
+async def screen_attest(screen_id: int, request: Request):
+    """Record one field settled by one person. Answers JSON, so the page stays put.
+
+    The URL and the hit count are not taken from the browser. They come from
+    what the pane itself resolved and counted when it last rendered this field,
+    which is the only end of that exchange the server can trust: the frame is
+    sandboxed with no same-origin access, so nothing can be read out of it, and
+    anything the page sent instead would be a value the reviewer could set.
+    A miss stores an unknown count rather than a guessed one.
+    """
+    def bad(msg: str, code: int = 400):
+        return JSONResponse({"ok": False, "error": msg}, status_code=code)
+
+    if READ_ONLY:
+        return bad("$SCOREBOARD_READONLY is set, so nothing can be written.")
+    who = current_verifier(request)
+    if not who:
+        return bad("Choose who you are verifying as before confirming a field.")
+
+    form = await request.form()
+    field = (form.get("field") or "").strip()
+    state = (form.get("state") or "").strip()
+    shown = evidence.last_shown("screen", screen_id, field) or {}
+
+    conn = _conn()
+    try:
+        screen.attest(conn, screen_id, field, state, who,
+                      source_url=shown.get("url"), tab_index=shown.get("tab"),
+                      match_count=shown.get("count"))
+        settled = screen.attestation_state(conn, screen_id).get(field, {})
+    except ValueError as exc:
+        return bad(str(exc))
+    finally:
+        conn.close()
+    return JSONResponse({"ok": True, "field": field, **settled})
 
 
 @router.post("/screen/{screen_id}/promote")

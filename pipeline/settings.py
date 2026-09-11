@@ -7,7 +7,7 @@ reading it off:
 
     python3 scoreboard.py config
 
-Three sections, and the division is worth keeping in mind because the sections
+Four sections, and the division is worth keeping in mind because the sections
 mean different things:
 
     1. WHAT COUNTS AS A PROJECT   methodology. Changing a threshold changes what
@@ -17,6 +17,8 @@ mean different things:
     3. HOW A COLLECTION RUN BEHAVES  operations, except for two settings that are
                                   not -- LEADS_PER_CALL and MAX_STALL decide what
                                   a run MEANS. See the note on each.
+    4. WHO MAY VERIFY             methodology. These addresses are published
+                                  beside the data they confirmed.
 
 These were four separate places once -- two Python modules and defaults written
 twice across collect/source.sh and collect/all.sh, because all.sh launches
@@ -419,6 +421,41 @@ def run_in_effect(stage: str | None = None, add=None) -> dict:
         "verbose": (verbose(stage), run_source("VERBOSE", stage)),
         "max_iters": (max_iters_in_effect(stage, add), run_source("MAX_ITERS", stage)),
     }
+
+
+# ========================================================================== #
+#  4. WHO MAY VERIFY                                                       #
+# ========================================================================== #
+#
+# The people allowed to confirm a field against a cited page. Their address is
+# written into `screen_attested.attested_by` on every confirmation, and those
+# rows are exported to a public CSV.
+#
+# A list and not a text box, and the difference is the whole point. A box
+# accepts "asdf@asdf.com" as readily as a real address, so a typed identity is
+# exactly as forgeable as a typed name while looking more convincing to whoever
+# reads the data later. Nothing here authenticates anyone either -- but adding
+# someone is a deliberate act by the project, so every attestation traces back
+# to a decision about who counts as a verifier, and there is nothing to typo.
+#
+# Addresses are published. Say so to anyone before adding them.
+VERIFIERS = [
+    "ashwin@industriousaf.org",
+]
+
+
+# --------------------------------------------------------------------------- #
+# What is actually in effect                                                   #
+# --------------------------------------------------------------------------- #
+
+def verifiers() -> list[str]:
+    """The addresses that may attest, in the order they are listed."""
+    return [v.strip() for v in VERIFIERS if v.strip()]
+
+
+def may_verify(address: str) -> bool:
+    """True when `address` is on the list. Nothing else may be written."""
+    return address.strip() in verifiers()
 
 
 # --------------------------------------------------------------------------- #

@@ -1031,3 +1031,191 @@ class TestModelCheckIsAnEscalation(unittest.TestCase):
         """Folding is not deleting: someone who wants to ask about several
         fields at once can still open it."""
         self.assertIn('id="agentform"', self._inspect())
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestAttestRoute(unittest.TestCase):
+    """Confirming a field writes a row, and only a named person can do it.
+
+    The checklist used to live in the browser, so a tick was worth nothing the
+    moment the tab closed and nothing could be said about who made it. These
+    pin the two halves of the replacement: the identity cannot be invented, and
+    the evidence about the page is taken from what the server rendered rather
+    than from anything the page sends back.
+    """
+
+    WHO = "ashwin@industriousaf.org"
+    PAGE = ("<html><body><p>The plant will create 1,500 jobs.</p>"
+            "</body></html>")
+
+    def setUp(self):
+        from pipeline import db as pdb, source as psource, screen as pscreen
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        lead = psource.insert_lead(conn, promise_source="https://example.com/p",
+                                   status_source="https://example.com/s", summary="x")
+        self.sid = pscreen.insert_extracted(conn, {
+            "project": "Attest Fab", "sector": "Semiconductors", "state": "TX",
+            "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+            "promised_jobs": 1500, "promised_first_output": "2024",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s",
+            "verification_tier": "P"}, source_collected_id=lead)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.client = TestClient(app)
+        # The pane fetches for real otherwise, and these tests must not leave
+        # the machine. The stub is what render_document counts against.
+        self._fetch = ev.fetch
+        ev.fetch = lambda url, via="auto": {
+            "ok": True, "via": "live", "final_url": url, "html": self.PAGE}
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        ev.fetch = self._fetch
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _stored(self) -> list:
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        try:
+            return conn.execute("SELECT * FROM screen_attested ORDER BY id").fetchall()
+        finally:
+            conn.close()
+
+    def _attest(self, field="promised_jobs", state="confirmed"):
+        return self.client.post(f"/screen/{self.sid}/attest",
+                                data={"field": field, "state": state})
+
+    def test_nobody_can_confirm_before_saying_who_they_are(self):
+        r = self._attest()
+        self.assertEqual(400, r.status_code)
+        self.assertEqual([], self._stored())
+
+    def test_an_address_off_the_list_cannot_be_chosen(self):
+        """?verifier= is a bookmarkable URL, so it is the obvious way to put a
+        name into the record that the project never approved."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier=stranger@example.com")
+        self.assertEqual(400, self._attest().status_code)
+        self.assertEqual([], self._stored())
+
+    def test_confirming_records_who_and_which_page(self):
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=promised_jobs")
+        self.assertEqual(200, self._attest().status_code)
+        row = self._stored()[0]
+        self.assertEqual(self.WHO, row["attested_by"])
+        self.assertEqual("promised_jobs", row["field"])
+        self.assertEqual("https://example.com/p", row["source_url"])
+        self.assertEqual("1500", row["value_at_time"])
+
+    def test_a_confirmation_against_a_page_without_the_value_stores_zero(self):
+        """The point of storing the count. The reviewer is not stopped -- a
+        value phrased differently looks identical to one that is absent -- but
+        the row says the page held no hits, and anyone can find those."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=announced")
+        self._attest(field="announced")
+        self.assertEqual(0, self._stored()[0]["match_count"])
+
+    def test_the_count_is_not_taken_from_the_browser(self):
+        """The frame is sandboxed with no same-origin access, so nothing can be
+        read out of it -- and anything the page sent instead would be a number
+        the reviewer could choose. A field never opened stores no count at all
+        rather than one the request supplied."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        r = self.client.post(f"/screen/{self.sid}/attest",
+                             data={"field": "promised_jobs", "state": "confirmed",
+                                   "match_count": "99", "source_url": "https://evil.test"})
+        self.assertEqual(200, r.status_code)
+        row = self._stored()[0]
+        self.assertIsNone(row["match_count"])
+        self.assertIsNone(row["source_url"])
+
+    def test_the_page_comes_back_carrying_what_was_settled(self):
+        """The reason closing the tab no longer loses your place."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self._attest()
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertRegex(body, r"var ATTESTED = .*promised_jobs")
+        self.assertIn("Verifying as", body)
+
+    def test_the_page_does_not_still_call_the_checklist_unstored(self):
+        """It said "It is not stored" for as long as that was true. A sentence
+        telling a reviewer their ticks go nowhere, over a control that now
+        publishes their name, is the worst of both."""
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertNotIn("It is not stored", body)
+        self.assertNotIn("scratchpad", body.lower())
+
+    def test_another_databases_project_one_cannot_lend_its_evidence(self):
+        """What the pane showed is remembered in the process, and ids restart at
+        1 in every database. Before the key carried the database, opening a
+        field on project #1 in one file left its URL and hit count sitting there
+        for project #1 in the next -- and the app has a database switcher, so
+        this is a click apart, not a contrivance."""
+        from pipeline import db as pdb, source as psource, screen as pscreen
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=promised_jobs")
+
+        other = Path(self.dir.name) / "other.db"
+        conn = pdb.connect(other); pdb.init_db(conn)
+        lead = psource.insert_lead(conn, promise_source="https://elsewhere.test/p",
+                                   status_source="https://elsewhere.test/s", summary="y")
+        sid = pscreen.insert_extracted(conn, {
+            "project": "Other Fab", "sector": "Semiconductors", "state": "AZ",
+            "announced": "2023-01", "promised_capital_usd": 2_000_000_000,
+            "promised_jobs": 800, "promised_first_output": "2026",
+            "actual_first_output": "pending", "current_status": "ANNOUNCED",
+            "promise_source": "https://elsewhere.test/p",
+            "status_source": "https://elsewhere.test/s",
+            "verification_tier": "P"}, source_collected_id=lead)
+        conn.commit(); conn.close()
+        self.assertEqual(self.sid, sid)            # the collision this is about
+        pdb.set_active_db(other)
+
+        self.client.get(f"/screen/{sid}/inspect?verifier={self.WHO}")
+        self._attest()
+        conn = pdb.connect(other)
+        try:
+            row = conn.execute("SELECT * FROM screen_attested").fetchone()
+        finally:
+            conn.close()
+        self.assertIsNone(row["source_url"])
+        self.assertIsNone(row["match_count"])
+
+    def test_a_stale_field_has_to_be_opened_again(self):
+        """Confirm a field, edit it, and the old look does not carry over. The
+        browser still remembers opening it this visit, but what was on screen
+        then is not the value being asked about now."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self._attest()
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        conn.execute("UPDATE screen_extracted SET promised_jobs = 4200 WHERE id = ?",
+                     (self.sid,))
+        conn.commit(); conn.close()
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertRegex(body, r'"promised_jobs": \{"state": "confirmed", "stale": true')
+        self.assertIn("delete looked[k]", body)
+
+    def test_a_read_only_process_records_nothing(self):
+        """$SCOREBOARD_READONLY opens the file read-only, and the write would
+        otherwise raise SystemExit from inside a request handler -- a refusal
+        that reads as a crash. The route checks first and answers in words."""
+        from webapp import screen as webscreen
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        webscreen.READ_ONLY = True
+        try:
+            r = self._attest()
+        finally:
+            webscreen.READ_ONLY = False
+        self.assertEqual(400, r.status_code)
+        self.assertIn("SCOREBOARD_READONLY", r.json()["error"])
+        self.assertEqual([], self._stored())

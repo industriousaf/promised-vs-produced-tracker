@@ -1,6 +1,6 @@
 # pipeline
 
-The Scoreboard itself: the five tables, the commands, and the human gate.
+The Scoreboard itself: the six tables, the commands, and the human gate.
 `collect/`, `tools/` and the web app all write through this. If you only read one
 directory, read this one.
 

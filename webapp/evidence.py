@@ -53,6 +53,7 @@ from fastapi import APIRouter  # noqa: E402
 from fastapi.responses import HTMLResponse  # noqa: E402
 
 from pipeline import screen, verify  # noqa: E402
+from pipeline.db import db_path  # noqa: E402
 
 from webapp.shared import _conn, esc  # noqa: E402
 
@@ -436,6 +437,38 @@ def _cache_put(key: str, value: dict):
         for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[: _CACHE_MAX // 2]:
             _CACHE.pop(k, None)
     _CACHE[key] = (time.time(), value)
+
+
+# {(database, stage, row_id, field): {"url", "tab", "count"}} -- what the pane
+# last showed for one field, so a confirmation can record the page it was made
+# against.
+#
+# The database is part of the key and not an afterthought. The app has a
+# switcher, ids restart at 1 in every file, and without it a confirmation made
+# in one database could be stamped with the URL and hit count of a different
+# project that happened to share an id in another. A test caught exactly that.
+#
+# The pane is served through a sandboxed frame with no same-origin access, so
+# nothing can be read back out of it. This is the other end of that: the server
+# already resolved the URL and counted the hits while rendering, so it keeps the
+# answer here instead of the page having to report it. Process-local, and a miss
+# is harmless -- the attestation simply stores an unknown count rather than a
+# guessed one.
+_SHOWN: dict[tuple, dict] = {}
+_SHOWN_MAX = 400
+
+
+def _remember_shown(stage: str, row_id: int, tab: int, url: str, counts: dict) -> None:
+    if len(_SHOWN) >= _SHOWN_MAX:
+        _SHOWN.clear()          # a reading aid, not a record; losing it costs nothing
+    for field, n in counts.items():
+        _SHOWN[(str(db_path()), stage, row_id, field)] = {
+            "url": url, "tab": tab, "count": n}
+
+
+def last_shown(stage: str, row_id: int, field: str) -> dict | None:
+    """What the pane last rendered for this field, or None if it never did."""
+    return _SHOWN.get((str(db_path()), stage, row_id, field))
 
 
 def _decompress(body: bytes, encoding: str) -> bytes:
@@ -1088,6 +1121,10 @@ not make the project wrong.</p>
 
     needles = needles_for(row, t["highlight"])
     doc, page_title, counts = render_document(res["html"], res.get("final_url") or t["url"], needles)
+    # Zeroes included: "the value is not on this page" is the more interesting
+    # half of the record, and render_document only reports fields it found.
+    _remember_shown(stage, row_id, tab, res.get("final_url") or t["url"],
+                    {c: counts.get(c, 0) for c in t["highlight"]})
 
     via_note = ""
     if res.get("via") == "wayback":

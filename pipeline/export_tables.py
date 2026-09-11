@@ -8,11 +8,13 @@ Reads ../outputs/scoreboard.db and writes one CSV per table into
     scoreboard_screen.csv        <- screen_extracted
     scoreboard_verify.csv        <- verify_verified
 
-    scoreboard_screen_check.csv  <- screen_check         the audit trail
-    scoreboard_verify_edits.csv  <- verify_edits
+    scoreboard_screen_check.csv      <- screen_check      the audit trail
+    scoreboard_screen_attested.csv   <- screen_attested
+    scoreboard_verify_edits.csv      <- verify_edits
 
-The first three are what someone opens to read the Scoreboard. The last two
-record what was checked and what was corrected after publication.
+The first three are what someone opens to read the Scoreboard. The last three
+record what the checker tested, which fields a person confirmed against which
+page, and what was corrected after publication.
 
 They are exported because scoreboard.db is committed, and git cannot diff a
 binary. Without them a commit can add fifty check runs, or a correction to a
@@ -59,6 +61,7 @@ STAGE_TABLES = {
 
 AUDIT_TABLES = {
     "screen_check": "screen_check",
+    "screen_attested": "screen_attested",
     "verify_edits": "verify_edits",
 }
 

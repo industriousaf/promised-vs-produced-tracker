@@ -1,16 +1,18 @@
 # The schema
 
-Five SQLite tables in `outputs/scoreboard.db`. The canonical definition is
+Six SQLite tables in `outputs/scoreboard.db`. The canonical definition is
 [`../pipeline/schema.py`](../pipeline/schema.py) — where
 this file and that one disagree, the code wins.
 
-Five SQL tables, a row's trust climbing left→right:
+Six SQL tables, a row's trust climbing left→right:
 
 ```
  SOURCE                SCREEN pt1           SCREEN pt2              VERIFY
  source_collected  →   screen_extracted →   screen_check           verify_verified
  links + summary       v0_out shape         schema.py result       v0_out shape
  (AI / human)          tier = P             + FK to screen         tier = V1/V2
+                                            screen_attested
+                                            what a person settled
                             └─ human reads both screens, promotes ──┘  (human gate)
                                                                     verify_edits
                                                                     (every edit logged)
@@ -72,6 +74,48 @@ Verify gate does not run strict.
 Whether the sources support the figures. The checker never opens a link. That is
 the human gate's whole job, and it is why a `CLEAN` row is still unpublished
 until a person promotes it. See [`verify_methods.md`](verify_methods.md).
+
+## What a person confirmed
+
+`screen_check` is the machine's opinion of a project's shape. `screen_attested`
+is the person's, and it is the record behind every promotion: one row per field
+settled, naming who settled it, which page they had open, and how many times the
+pane found that value on that page.
+
+| column | what it holds |
+|---|---|
+| `field` | one of the six checklist fields, rejected otherwise |
+| `state` | `confirmed`, or `not_in_source` when the page does not carry it |
+| `value_at_time` | what the field said when it was settled |
+| `source_url` | the page the pane had open |
+| `match_count` | hits the pane found there; `NULL` when it was never opened |
+| `attested_by` | an address from `VERIFIERS` in `settings.py` |
+
+Three properties are the point of the table.
+
+**Append-only.** Re-settling a field writes another row and the newest one
+counts, so someone changing their mind leaves both. Overwriting would hide the
+one thing worth seeing.
+
+**`value_at_time` makes staleness visible.** Edit a field after confirming it and
+the interface shows it as needing another look rather than leaving it ticked, so
+a confirmation always refers to a value the project still holds.
+
+**`match_count` is what makes the record hard to wave away.** Nothing here proves
+anyone read anything, and the checkbox is trivially tickable. What the table
+stores instead is what the machine saw beside what the person asserted: a
+confirmation recorded against a page where the value never appeared reads as
+zero, and anyone can find those.
+
+The address comes from a list in `settings.py`, not a text box. A box accepts
+`asdf@asdf.com` as readily as a real address, so a typed identity is exactly as
+forgeable as a typed name while looking more convincing to a reader. Nothing
+here authenticates anyone either, and the data should be described as
+self-identified. What the list buys is that adding someone is a deliberate act
+by the project, and that there is nothing to typo.
+
+It does not gate promotion. The command line has no such gate, so blocking one
+of two doors would imply a stronger claim than the data supports.
 
 ## Details worth knowing
 

@@ -1001,3 +1001,137 @@ class TestConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+class TestAttestation(Base):
+    """The human gate, stored.
+
+    Before this table the interface kept a checklist in sessionStorage, so what
+    a person had confirmed vanished when the tab closed and the published claim
+    could only ever be "a human looked at this project". These tests pin the
+    three properties that make the stored version worth more than that: it is
+    append-only, it notices when a confirmed value is edited afterwards, and it
+    records what the cited page actually contained beside what the person said.
+    """
+
+    WHO = "ashwin@industriousaf.org"
+
+    def setUp(self):
+        super().setUp()
+        self.sid = screen.insert_extracted(self.conn, a_row(),
+                                           source_collected_id=self.lead())
+
+    def test_the_table_exists_on_a_database_made_before_it_did(self):
+        """init_db is additive: the DDL runs on every command, so a database
+        created last week gets the table without a rebuild and keeps its rows."""
+        self.conn.execute("DROP TABLE screen_attested")
+        self.conn.commit()
+        init_db(self.conn)
+        names = {r[0] for r in self.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        self.assertIn("screen_attested", names)
+        self.assertEqual(
+            1, self.conn.execute("SELECT count(*) FROM screen_extracted").fetchone()[0])
+
+    def test_changing_your_mind_keeps_both_rows(self):
+        """Append-only, like screen_check and verify_edits. Overwriting would
+        hide a reviewer reversing themselves, which is the one movement in this
+        table a sceptical reader would most want to see."""
+        screen.attest(self.conn, self.sid, "promised_jobs", "confirmed", self.WHO)
+        screen.attest(self.conn, self.sid, "promised_jobs", "not_in_source", self.WHO)
+        self.assertEqual(2, self.conn.execute(
+            "SELECT count(*) FROM screen_attested").fetchone()[0])
+        state = screen.attestation_state(self.conn, self.sid)
+        self.assertEqual("not_in_source", state["promised_jobs"]["state"])
+
+    def test_editing_a_confirmed_field_makes_it_stale(self):
+        """A confirmation is about a value, not about a field. Edit the value
+        and the interface has to ask again -- otherwise the tick stays on screen
+        vouching for a number nobody ever read."""
+        screen.attest(self.conn, self.sid, "promised_jobs", "confirmed", self.WHO)
+        self.assertFalse(
+            screen.attestation_state(self.conn, self.sid)["promised_jobs"]["stale"])
+        self.conn.execute("UPDATE screen_extracted SET promised_jobs = 9999 WHERE id = ?",
+                          (self.sid,))
+        self.conn.commit()
+        self.assertTrue(
+            screen.attestation_state(self.conn, self.sid)["promised_jobs"]["stale"])
+
+    def test_an_integer_field_read_back_is_not_reported_as_changed(self):
+        """The staleness check compares strings, and `str(2000)` at the write
+        end against `2000` at the read end would call every numeric field stale
+        the moment the page reloaded."""
+        screen.attest(self.conn, self.sid, "promised_capital_usd", "confirmed", self.WHO)
+        self.assertFalse(screen.attestation_state(
+            self.conn, self.sid)["promised_capital_usd"]["stale"])
+
+    def test_it_stores_what_the_page_contained(self):
+        """The count is the anti-gaming signal: a confirmation against a page
+        holding zero hits is visible to anyone reading the table later."""
+        screen.attest(self.conn, self.sid, "promised_jobs", "confirmed", self.WHO,
+                      source_url="https://example.com/p", tab_index=0, match_count=0)
+        row = self.conn.execute("SELECT * FROM screen_attested").fetchone()
+        self.assertEqual(0, row["match_count"])
+        self.assertEqual("https://example.com/p", row["source_url"])
+
+    def test_it_refuses_a_field_that_is_not_on_the_checklist(self):
+        with self.assertRaises(ValueError):
+            screen.attest(self.conn, self.sid, "notes", "confirmed", self.WHO)
+
+    def test_it_refuses_an_answer_that_is_not_one_of_the_two(self):
+        with self.assertRaises(ValueError):
+            screen.attest(self.conn, self.sid, "promised_jobs", "yes", self.WHO)
+
+    def test_it_refuses_anyone_not_on_the_verifier_list(self):
+        """The whole reason the addresses are a list and not a text box. A
+        writer that accepted any string would make the identity in this column
+        worth exactly as much as a typed name, which is nothing."""
+        with self.assertRaises(ValueError):
+            screen.attest(self.conn, self.sid, "promised_jobs", "confirmed",
+                          "stranger@example.com")
+        self.assertEqual(0, self.conn.execute(
+            "SELECT count(*) FROM screen_attested").fetchone()[0])
+
+    def test_the_checklist_and_the_writer_share_one_list_of_fields(self):
+        """Two copies of a list like this is the bug this repository keeps
+        rediscovering, and here it would mean the interface offering a field the
+        writer rejects."""
+        from webapp import screen as webscreen
+        self.assertIs(webscreen.CHECKLIST_CELLS, screen.ATTESTABLE_FIELDS)
+
+    def test_the_export_carries_it(self):
+        """scoreboard.db is committed and git cannot diff a binary, so the
+        audit trail only reaches a reader through the CSVs."""
+        from pipeline.export_tables import ALL_TABLES
+        self.assertEqual("screen_attested", ALL_TABLES["screen_attested"])
+
+
+# --------------------------------------------------------------------------- #
+class TestVerifierList(unittest.TestCase):
+    """The addresses are published beside the data, so they are askable.
+
+    settings.py opens by saying to ask `config` what is in effect rather than
+    reading the file. A list that decides whose name goes into public data, and
+    that `config` does not mention, breaks that promise in the one place it
+    matters most."""
+
+    def test_config_names_who_may_verify(self):
+        import subprocess
+        out = subprocess.run(
+            [sys.executable, "scoreboard.py", "config"],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            capture_output=True, text=True).stdout
+        self.assertIn("WHO MAY VERIFY", out)
+        for who in settings.verifiers():
+            self.assertIn(who, out)
+
+    def test_an_address_off_the_list_is_refused(self):
+        self.assertFalse(settings.may_verify("stranger@example.com"))
+        self.assertFalse(settings.may_verify(""))
+
+    def test_surrounding_space_does_not_make_a_new_person(self):
+        """The address arrives from a cookie and a form, and " a@b " matching
+        nothing would be a confusing refusal; matching a second time under a
+        different string would be worse."""
+        self.assertTrue(settings.may_verify("  " + settings.VERIFIERS[0] + "  "))

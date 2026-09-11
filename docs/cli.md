@@ -39,7 +39,7 @@ It is gitignored. The database defaults to `outputs/scoreboard.db`.
 # Orientation
 python3 scoreboard.py                       # counts, and where to go next
 python3 scoreboard.py status                # row counts per stage
-python3 scoreboard.py initdb                # create the five tables
+python3 scoreboard.py initdb                # create the six tables
 python3 scoreboard.py config                # every setting in effect, with the line to edit
 python3 scoreboard.py criteria              # what counts as a project (the inclusion rules)
 python3 scoreboard.py models                # which model each stage runs, and why

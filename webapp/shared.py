@@ -347,7 +347,7 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .paneload-n { font-family: var(--font-serif); font-size: .85rem; color: var(--type-3);
     max-width: 34rem; }
 
-/* ---- the per-cell checklist (scratchpad, browser-only) ------------------ */
+/* ---- the per-field checklist (stored in screen_attested) ---------------- */
 .ck { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
     margin: .25rem 0 .1rem; }
 .ck a.ck-go, .ck button { font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em;
@@ -368,6 +368,26 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
     color: var(--type-3); margin-left: .15rem; }
 .ck.is-ok .ck-state { color: var(--success); }
 .ck.is-no .ck-state { color: var(--warning); }
+/* A confirmation whose field was edited afterwards. Terracotta and not red:
+   nothing is wrong, the value simply moved after someone vouched for it, and
+   the only thing being asked for is another look. */
+.ck.is-stale .ck-state { color: var(--terracotta); }
+
+/* Who is attesting. Never folded away and never a text box -- a record naming
+   the wrong person is worse than no record, and the one defence available on a
+   page with no sign-in is that the name stays in front of you while you tick. */
+.ckwho { font-size: .8rem; color: var(--type-2); margin: .1rem 0 .5rem; }
+.ckwho.none { color: var(--terracotta); }
+.ckwho-pick { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em;
+    border: 0.5px solid var(--rule); padding: .1rem .35rem; text-decoration: none;
+    color: var(--type-1); }
+.ckwho-pick:hover { border-color: var(--teal); background: var(--ground-page); }
+/* A write that did not land. Silence here would leave a tick on screen that
+   exists nowhere else, which is the one failure this whole table exists to
+   prevent. */
+.ckerr { font-family: var(--font-sans); font-size: .78rem; color: var(--terracotta);
+    margin-left: .5rem; display: none; }
+.ckerr.on { display: inline; }
 /* The tally sticks to the top of the form column. It used to sit above the
    fields, so it scrolled away exactly when it was needed: six cells is one
    screen and a bit, and "how many left?" is a question you have while looking

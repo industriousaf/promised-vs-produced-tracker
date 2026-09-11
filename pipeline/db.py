@@ -121,7 +121,7 @@ def discover_databases() -> list[dict]:
     scoreboard.db rename) are listed too, so an older copy can still be opened.
 
     This is what the web app's picker lists. Row count is the sum across the
-    five stage tables under whichever vocabulary the file uses, so a legacy and
+    stage tables under whichever vocabulary the file uses, so a legacy and
     a renamed copy of the same data report the same number."""
     root = DEFAULT_DB.parent
     found = {p.resolve(): p
@@ -323,7 +323,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
 
 
 # --------------------------------------------------------------------------- #
-# DDL -- the five tables (Source / Screen x2 / Verify x2)                        #
+# DDL -- the six tables (Source / Screen x3 / Verify x2)                         #
 # --------------------------------------------------------------------------- #
 
 # The 20 v0 columns as SQL fragments, plus each date's derived *_dt and verbatim
@@ -387,6 +387,33 @@ CREATE TABLE IF NOT EXISTS screen_check (
     report                TEXT                           -- JSON list of issue objects
 );
 
+-- THE HUMAN GATE ------------------------------------------------------------ --
+-- One field, confirmed by one named person against one cited page, at one time.
+-- This is the evidence behind a promotion: `verify_verified` records that a
+-- project was published, and this records which fields a person actually
+-- settled and what the page contained when they did.
+--
+-- Append-only, like screen_check and verify_edits. Someone changing their mind
+-- leaves both rows and the newest one counts; overwriting would hide the one
+-- thing worth seeing. `value_at_time` is what the field said at that moment, so
+-- a later edit shows the confirmation as stale instead of leaving it ticked.
+-- `match_count` is how many times the pane found the value on that page: not
+-- proof anyone read it, but a confirmation recorded against a page holding zero
+-- hits is visible to anyone reading this table later.
+CREATE TABLE IF NOT EXISTS screen_attested (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    datetime              TEXT NOT NULL,                 -- settled-at
+    screen_extracted_id   INTEGER NOT NULL REFERENCES screen_extracted(id),
+    field                 TEXT NOT NULL,                 -- one of the checklist fields
+    state                 TEXT NOT NULL                  -- the two words on the buttons
+        CHECK (state IN ('confirmed', 'not_in_source')),
+    value_at_time         TEXT,                          -- what the field said when settled
+    source_url            TEXT,                          -- the page the pane had open
+    tab_index             INTEGER,                       -- which of the project's links
+    match_count           INTEGER,                       -- hits the pane found; NULL = unknown
+    attested_by           TEXT NOT NULL                  -- an address from settings.VERIFIERS
+);
+
 -- VERIFY --------------------------------------------------------------------- --
 -- One published project row. Tier is V1/V2 -- never P. datetime = last-modified.
 CREATE TABLE IF NOT EXISTS verify_verified (
@@ -420,10 +447,10 @@ def _ensure_columns(conn: sqlite3.Connection, table: str, columns: list[str]) ->
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """Create the five tables if they don't already exist, then migrate older
+    """Create the six tables if they don't already exist, then migrate older
     databases forward by adding any date columns they predate.
 
-    No-ops on a legacy-vocabulary database: running the DDL there would add five
+    No-ops on a legacy-vocabulary database: running the DDL there would add six
     empty Source/Screen/Verify tables alongside the Bronze/Silver/Gold ones,
     quietly changing a file we only ever read."""
     if READ_ONLY:
@@ -456,13 +483,14 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-# The five tables, in pipeline order. Named once, so anything that has to offer
+# The six tables, in pipeline order. Named once, so anything that has to offer
 # them as a choice (the `count` command, for one) cannot drift out of step with
 # what `table_counts` actually reports.
 TABLES = [
     "source_collected",
     "screen_extracted",
     "screen_check",
+    "screen_attested",
     "verify_verified",
     "verify_edits",
 ]

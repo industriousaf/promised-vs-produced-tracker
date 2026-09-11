@@ -847,6 +847,17 @@ def cmd_config(conn, args):
         # max_iters is a formula; the constant a person edits is ITERS_PER_ROW.
         row(k, v, src, "ITERS_PER_ROW" if k == "max_iters" else k.upper())
     print()
+    print(bold("  WHO MAY VERIFY") + "                  methodology")
+    people = settings.verifiers()
+    if people:
+        # One line each, because the question this answers is "is my address in
+        # here" and a comma-joined list of six makes that a reading exercise.
+        for i, who in enumerate(people):
+            row("verifier" if i == 0 else "", who, "settings.py", "VERIFIERS")
+    else:
+        row("verifier", "nobody -- no field can be confirmed",
+            "settings.py", "VERIFIERS")
+    print()
     print("  Everything above is defined in pipeline/settings.py. Override any of")
     print("  it for one run without editing anything:")
     print("    CRITERIA=100M-or-200-jobs MAX_STALL=8 bash collect/all.sh")
@@ -1334,14 +1345,14 @@ def _epilog(prog: str) -> str:
       {ENTRY} --db other.db status    correct
       {ENTRY} status --db other.db    error
 
-  Every command creates the five tables when they are missing. A mistyped
+  Every command creates the six tables when they are missing. A mistyped
   path therefore opens a new empty database and reports zeros. If the counts
   look wrong, check the path.
 
 {_H}further reading{_H}
   docs/cli.md             every command in one list, the module map, and a
                           walkthrough on a copy of the database
-  docs/schema.md          the five tables, the 20 columns, and the date handling
+  docs/schema.md          the six tables, the 20 columns, and the date handling
   docs/collecting.md      every knob the collection loops take
   docs/verify_methods.md  what to look for before publishing a row
 
@@ -1356,9 +1367,9 @@ def _command_examples() -> dict:
     adding an entry here is the whole change.
     """
     return {
-        "initdb": f"""{_H}the five tables{_H}
-  Three stages, five tables: Screen and Verify each keep an audit table
-  beside the data.
+        "initdb": f"""{_H}the six tables{_H}
+  Three stages, six tables: Screen keeps two records beside the data and
+  Verify keeps one.
 
   source_collected    SOURCE  one lead: the two source links, an optional
                               date link, a summary, and how it was found.
@@ -1369,6 +1380,9 @@ def _command_examples() -> dict:
   screen_check        SCREEN  one checker run over one row above: FAIL,
                               PASS or CLEAN, the counts, and the report.
                               Append-only, so rechecks are all kept.
+  screen_attested     SCREEN  one field settled by one named person
+                              against one cited page, with how many times
+                              the pane found the value there. Append-only.
   verify_verified     VERIFY  one published row. One row per project,
                               tier V1 or V2, never P.
   verify_edits        VERIFY  one change to a published row, with the

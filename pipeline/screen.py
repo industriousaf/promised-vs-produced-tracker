@@ -524,3 +524,112 @@ def get_extracted(conn: sqlite3.Connection, screen_id: int) -> sqlite3.Row | Non
     return conn.execute(
         "SELECT * FROM screen_extracted WHERE id = ?", (screen_id,)
     ).fetchone()
+
+
+# --------------------------------------------------------------------------- #
+# The human gate: one person, one field, one cited page                        #
+# --------------------------------------------------------------------------- #
+
+# The fields a person settles by hand before promoting. Defined here rather than
+# in the web app because which fields need a human eye is a methodology fact,
+# and because two copies of a list like this is the bug this repository keeps
+# rediscovering. The web app imports it.
+#
+# `project`, `sector`, `state` and the source URLs are not here: they are either
+# the row's identity or the thing being read from, not a claim to check against
+# it. `current_status` is, because a plant's status is exactly the kind of
+# sentence a cited page either supports or does not.
+ATTESTABLE_FIELDS = (
+    "announced",
+    "promised_first_output",
+    "actual_first_output",
+    "promised_capital_usd",
+    "promised_jobs",
+    "current_status",
+)
+
+ATTEST_STATES = ("confirmed", "not_in_source")
+
+
+def field_value(row, field: str) -> str:
+    """One field as the string an attestation stores and later compares against.
+
+    Both the write and the staleness check go through here. Storing `str(row[f])`
+    at one end and comparing `row[f]` at the other would report every integer
+    cell as changed the moment it was read back.
+    """
+    v = row[field] if field in row.keys() else None
+    return "" if v is None else str(v)
+
+
+def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
+           state: str, attested_by: str, source_url: str | None = None,
+           tab_index: int | None = None, match_count: int | None = None) -> int:
+    """Record that `attested_by` settled one field. Returns the new row's id.
+
+    Append-only: re-settling a field writes another row and the newest one
+    counts. `value_at_time` is read from the stored row here rather than taken
+    from the caller, so it is always what the database actually held.
+    """
+    if field not in ATTESTABLE_FIELDS:
+        raise ValueError(f"{field!r} is not one of the checklist fields")
+    if state not in ATTEST_STATES:
+        raise ValueError(f"{state!r} is not one of {ATTEST_STATES}")
+    if not criteria.may_verify(attested_by):
+        raise ValueError(
+            f"{attested_by!r} is not on the verifier list. Add the address to "
+            f"VERIFIERS in {criteria.where('VERIFIERS')} before attesting.")
+    row = get_extracted(conn, screen_extracted_id)
+    if row is None:
+        raise ValueError(f"no screen_extracted row #{screen_extracted_id}")
+
+    cur = conn.execute(
+        """
+        INSERT INTO screen_attested
+            (datetime, screen_extracted_id, field, state, value_at_time,
+             source_url, tab_index, match_count, attested_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (now_iso(), screen_extracted_id, field, state, field_value(row, field),
+         source_url or None, tab_index, match_count, attested_by.strip()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def attestations(conn: sqlite3.Connection, screen_extracted_id: int) -> dict:
+    """{field: row} -- the newest attestation for each field of one project."""
+    out = {}
+    for r in conn.execute(
+        """
+        SELECT * FROM screen_attested
+        WHERE screen_extracted_id = ?
+        ORDER BY id
+        """,
+        (screen_extracted_id,),
+    ):
+        out[r["field"]] = r          # later rows overwrite earlier ones
+    return out
+
+
+def attestation_state(conn: sqlite3.Connection, screen_extracted_id: int) -> dict:
+    """{field: {"state", "stale", "match_count", "source_url", "by", "when"}}.
+
+    `stale` means the field has been edited since it was settled, so the
+    confirmation is about a value the row no longer holds. The interface shows
+    those as needing another look instead of leaving them ticked.
+    """
+    row = get_extracted(conn, screen_extracted_id)
+    if row is None:
+        return {}
+    out = {}
+    for field, a in attestations(conn, screen_extracted_id).items():
+        out[field] = {
+            "state": a["state"],
+            "stale": (a["value_at_time"] or "") != field_value(row, field),
+            "match_count": a["match_count"],
+            "source_url": a["source_url"],
+            "by": a["attested_by"],
+            "when": a["datetime"],
+        }
+    return out
