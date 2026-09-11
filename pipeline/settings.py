@@ -441,6 +441,7 @@ def run_in_effect(stage: str | None = None, add=None) -> dict:
 # Addresses are published. Say so to anyone before adding them.
 VERIFIERS = [
     "ashwin@industriousaf.org",
+    "lucas@industriousaf.org",
 ]
 
 

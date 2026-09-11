@@ -1093,13 +1093,6 @@ class TestAttestation(Base):
         self.assertEqual(0, self.conn.execute(
             "SELECT count(*) FROM screen_attested").fetchone()[0])
 
-    def test_the_checklist_and_the_writer_share_one_list_of_fields(self):
-        """Two copies of a list like this is the bug this repository keeps
-        rediscovering, and here it would mean the interface offering a field the
-        writer rejects."""
-        from webapp import screen as webscreen
-        self.assertIs(webscreen.CHECKLIST_CELLS, screen.ATTESTABLE_FIELDS)
-
     def test_the_export_carries_it(self):
         """scoreboard.db is committed and git cannot diff a binary, so the
         audit trail only reaches a reader through the CSVs."""

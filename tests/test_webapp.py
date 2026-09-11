@@ -1219,3 +1219,12 @@ class TestAttestRoute(unittest.TestCase):
         self.assertEqual(400, r.status_code)
         self.assertIn("SCOREBOARD_READONLY", r.json()["error"])
         self.assertEqual([], self._stored())
+
+    def test_the_checklist_and_the_writer_share_one_list_of_fields(self):
+        """Two copies of a list like this is the bug this repository keeps
+        rediscovering, and here it would mean the interface offering a field the
+        writer rejects. It lives in this module and not test_pipeline.py because
+        reading it imports the web app, which is the one part with dependencies."""
+        from pipeline import screen as pscreen
+        from webapp import screen as webscreen
+        self.assertIs(webscreen.CHECKLIST_CELLS, pscreen.ATTESTABLE_FIELDS)
