@@ -296,7 +296,7 @@ def picker_html(stage: str, row_id: int, row, default: tuple[str, ...] = ()) -> 
       target="agentpane">
   <p style="margin:.2rem 0 0"><b>Check this project against its own links.</b>
   The check reads the record's <i>shape</i> and never opens a page;
-  this opens them. Pick the cells you doubt — it quotes the sentence that proves
+  this opens them. Pick the fields you doubt — it quotes the sentence that proves
   each one, or, when the page does not carry it, goes and finds a URL that
   does.</p>
   <div class="cells">{boxes}</div>
@@ -348,7 +348,7 @@ def _answer_pane(reply: str, picked: list[str], model: str, foot: str) -> HTMLRe
 Scoreboard, and only your own reading of the sources verifies the project.</p>
 {render_reply(reply)}
 <p class="muted">Answers come from pages the model opened in this reply. Check any
-quote that decides a cell — that is the whole job of this screen.</p>
+quote that decides a field — that is the whole job of this screen.</p>
 <div class="cached">{foot}</div>""")
 
 
@@ -377,7 +377,7 @@ def agent_pane(stage: str, row_id: int, cell: list[str] = Query(default=[]),
     picked = sorted({f for f in cell if f in VERIFY_TARGETS}, key=order.index)
     if not picked:
         return _pane(
-            '<p class="muted">Tick the cells you want checked against their '
+            '<p class="muted">Tick the fields you want checked against their '
             "links, then press <b>Ask Claude</b>. It opens each cited page and "
             "says whether the page really carries that value — and if it does "
             "not, where the value actually is.</p>"
@@ -404,7 +404,7 @@ def agent_pane(stage: str, row_id: int, cell: list[str] = Query(default=[]),
             age = _ago(time.time() - float(hit.get("answered_at") or 0))
             foot = (f'<small class="muted">Answered {esc(age)} ago in '
                     f'{esc(str(hit.get("seconds", "?")))}s, kept on disk — this '
-                    f'cost no API call. Edit any cell it names and it is asked '
+                    f'cost no API call. Edit any field it names and it is asked '
                     f'again automatically.</small>'
                     f'<small><a href="{here}&again=1">Ask again →</a></small>')
             return _answer_pane(hit["reply"], picked, str(hit.get("model", model)),
@@ -433,7 +433,7 @@ def agent_pane(stage: str, row_id: int, cell: list[str] = Query(default=[]),
   usually 20–60s</div></div></div>
 <div class="bar"><i></i></div>
 <p class="muted">This is running on the server, not in this panel. Reload the
-page, fix a cell, or go and do something else — the check carries on and the
+page, fix a field, or go and do something else — the check carries on and the
 answer appears here when it lands. It will also be kept, so the same question
 does not cost a second call.</p>""", poll=3, poll_url=here)
 

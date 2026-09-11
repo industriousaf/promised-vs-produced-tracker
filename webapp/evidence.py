@@ -1002,7 +1002,7 @@ def pane_html(stage: str, row_id: int, row, tall: bool = True) -> str:
   sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
 </div>
 <p class="panehint">Highlighted in this tab: {esc(marks)}. Walk them with the
-arrows at the foot of the pane (or ← →); click a chip there to walk one cell
+arrows at the foot of the pane (or ← →); click a chip there to walk one field
 only. A value the page does <i>not</i> carry is the finding — the pane will show
 no highlight for it.</p>
 <script>{_TABS_JS}</script>
@@ -1068,7 +1068,7 @@ not make the project wrong.</p>
 <li><a href="?tab={tab}&amp;via=wayback">Ask the archive directly</a>, which
     sometimes finds a snapshot this did not.</li>
 <li>If the page is genuinely gone, find a replacement source and put it in the
-    project, or record what happened in <code>flag</code>. Do not leave the cell
+    project, or record what happened in <code>flag</code>. Do not leave the field
     looking checked.</li>
 </ol>
 <details class="err-raw"><summary>What the fetch actually returned</summary>
@@ -1101,7 +1101,7 @@ not make the project wrong.</p>
 <span id="pos"></span>
 <button id="next" type="button" title="next highlight (→)">▶</button>
 <span>{chips}</span>
-<span style="opacity:.6">click a chip to walk just that cell · ← → to move</span>
+<span style="opacity:.6">click a chip to walk just that field · ← → to move</span>
 </div><script>var START_FIELD = {json.dumps(field)};</script>
 <script>{_PANE_JS}</script>"""
 

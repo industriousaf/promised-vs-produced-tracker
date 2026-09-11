@@ -240,7 +240,7 @@ from screen_extracted #{esc(r['screen_extracted_id'])}</small></p>
   </div>
   <div class="formcol">
     <div class="card"><form method="post" action="/verify/{r['id']}/edit">
-      <p>Edit any cell below. Only changed cells are written; every save is
+      <p>Edit any field below. Only changed fields are written; every save is
       recorded in <code>verify_edits</code> with the reason you give.
       <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
       from the date strings — edit <code>announced</code> /
@@ -253,7 +253,7 @@ from screen_extracted #{esc(r['screen_extracted_id'])}</small></p>
       <p><small>Derived DATETIME interpretations (read-only):</small></p>
       <div class="grid2">{dt_display}</div>
       <label>Reason for this edit (goes to <code>verify_edits</code>) — required,
-      except when <code>flag</code> is the only cell you changed: that one writes
+      except when <code>flag</code> is the only field you changed: that one writes
       its own reason.</label>
       <input type="text" name="edit_description">
       <p><button class="primary" type="submit">Save edit</button></p>

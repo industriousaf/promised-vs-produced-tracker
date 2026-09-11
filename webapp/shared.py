@@ -376,6 +376,16 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .cktally.all { color: var(--success); }
 .cktally-left { font-family: var(--font-sans); font-size: .78rem;
     color: var(--type-3); }
+/* The guided walk: one button that opens the next unchecked field. */
+.ckwalk { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; padding: .25rem .7rem; border-radius: 0;
+    border: 0.5px solid var(--teal); background: var(--teal);
+    color: var(--cream); cursor: pointer; margin-left: auto; }
+.ckwalk:hover { background: var(--teal-dark); border-color: var(--teal-dark); }
+/* The field being checked right now. A hairline, not a highlight: the reader
+   is meant to be looking at the document, not at this. */
+.ck.is-now { box-shadow: -3px 0 0 var(--teal); padding-left: .4rem; }
+
 /* Settled everything: the bar stops reporting and starts pointing. */
 .cktally-wrap.ready { border-bottom-color: var(--success); }
 .ckgo { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;

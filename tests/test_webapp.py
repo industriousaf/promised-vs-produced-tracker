@@ -775,6 +775,58 @@ class TestProjectNotRow(unittest.TestCase):
     sentence means the factory rather than the record, it says project.
     """
 
+    # "cell" is the same fault as "row": spreadsheet vocabulary for a thing a
+    # person filling a form calls a field. The internals keep it -- the
+    # data-cell attribute, the `cell` form parameter, the .cells class, the JS
+    # variables -- because those are addresses, not sentences.
+    CELL_ALLOWED = (
+        'data-cell=',        # the strip's own attribute
+        'name="cell"',       # the agent picker's form parameter
+        'class="cells"',     # its container
+        'dataset.cell',      # JS
+        'state[cell]',
+        'looked[cell]',
+        'var cell',
+    )
+
+    def test_no_reader_facing_string_says_cell_about_a_field(self):
+        import ast
+        root = Path(__file__).resolve().parent.parent / "webapp"
+        bad = []
+        for f in sorted(root.glob("*.py")):
+            tree = ast.parse(f.read_text())
+            docs = {ast.get_docstring(tree, clean=False) or ""}
+            skip = set()
+            for n in ast.walk(tree):
+                if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                    d = ast.get_docstring(n, clean=False)
+                    if d:
+                        docs.add(d)
+                if isinstance(n, ast.Assign):
+                    for t in n.targets:
+                        if isinstance(t, ast.Name) and t.id.endswith(("_CSS", "_JS")):
+                            skip.update(id(x) for x in ast.walk(n.value))
+            for n in ast.walk(tree):
+                if id(n) in skip:
+                    continue
+                vals = []
+                if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                    vals = [n.value]
+                elif isinstance(n, ast.JoinedStr):
+                    vals = [v.value for v in n.values
+                            if isinstance(v, ast.Constant) and isinstance(v.value, str)]
+                for v in vals:
+                    if v in docs or ("<" not in v and "{" not in v):
+                        continue
+                    for m in re.finditer(r"\bcells?\b", v, re.I):
+                        ctx = " ".join(
+                            v[max(0, m.start() - 45):m.start() + 45].split())
+                        if any(a in ctx for a in self.CELL_ALLOWED):
+                            continue
+                        bad.append(f"{f.name}:{n.lineno}: …{ctx}…")
+        self.assertEqual(bad, [], "\n  ".join(
+            ["these say 'cell' where a reader means a field:"] + bad))
+
     # Storage senses. Each is a phrase where "row" is the true word, not a
     # leak: adding to this list should require saying which of the three it is.
     ALLOWED = (
