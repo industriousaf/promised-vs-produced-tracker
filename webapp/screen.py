@@ -73,15 +73,35 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
     def _row_html(r):
         chk = checks[r["id"]]
         verdict = chk["result_status"] if chk else None
+        # The per-row check button shows ONLY when there is no verdict yet.
+        #
+        # It used to sit on every row, beside a verdict that was already
+        # printed, which made it read as step one of two before "Inspect &
+        # promote". It is not: extraction runs the check straight afterwards,
+        # so every collected row arrives with one. The button did nothing a
+        # person wanted and quietly appended another screen_check row each
+        # press.
+        #
+        # It still earns its place on a row that has no check, which is what
+        # `screen-add` and the paste-JSON form below produce -- adding a row
+        # deliberately does not check it.
+        #
+        # The two reasons to RE-check both have better homes than a per-row
+        # button: a rule change regrades every row, so it belongs to "Run the
+        # deterministic check on all rows" at the top of this page, and a
+        # one-off re-check lives on the inspect page next to the report it
+        # would change.
+        check_btn = "" if verdict else (
+            f'<form class="inline" method="post" action="/screen/check">'
+            f'<input type="hidden" name="screen_id" value="{r["id"]}">'
+            f'<button type="submit">Run check</button></form>')
         # Promotion now lives INSIDE the per-row inspect page (so you can review
         # every extracted field first) -- the list just links there.
         return f"""<div class="card"><b>#{r['id']}</b> {esc(r['project'])}
           <small>({esc(r['sector'])}, {esc(r['state'])})</small>
           {_lineage_pill(r['id'], promoted, "Verify", "not promoted yet")}
           — check: {_verdict_span(verdict)}
-          <form class="inline" method="post" action="/screen/check">
-            <input type="hidden" name="screen_id" value="{r['id']}">
-            <button type="submit">Run check</button></form>
+          {check_btn}
           <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">Inspect &amp; promote →</button></a>
           <br><small>{esc(r['current_status'])}</small>
           {"<br><small>flag: " + esc(r['flag']) + "</small>" if r['flag'] else ""}

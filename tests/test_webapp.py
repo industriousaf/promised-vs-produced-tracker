@@ -426,3 +426,76 @@ class TestAgentCache(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestRowCheckButton(unittest.TestCase):
+    """The per-row "Run check" button appears only on a row with no verdict.
+
+    It used to sit on every row in the Screen list, next to a verdict that was
+    already printed, immediately before "Inspect & promote". That read as step
+    one of two. It was not: extraction runs the check seconds later, so every
+    collected row already has one, and pressing the button only appended
+    another screen_check row. A row added by hand has no check -- `screen-add`
+    deliberately does not run one -- and that is the case the button is for.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb
+        from pipeline import screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Checked Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "promise_source": "https://example.com/p", "status_source": "https://example.com/s",
+               "verification_tier": "P"}
+        a = psource.insert_lead(conn, promise_source="https://example.com/a",
+                                status_source="https://example.com/s", summary="x")
+        b = psource.insert_lead(conn, promise_source="https://example.com/b",
+                                status_source="https://example.com/s", summary="y")
+        self.checked = pscreen.insert_extracted(
+            conn, dict(row, flag="source states no production-start date"),
+            source_collected_id=a)
+        self.unchecked = pscreen.insert_extracted(
+            conn, dict(row, project="Unchecked Fab"), source_collected_id=b)
+        pscreen.run_check(conn, self.checked)      # only this one gets a verdict
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)               # never the real database
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _cards(self) -> dict:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        body = TestClient(app).get("/screen").text
+        out = {}
+        for chunk in body.split('<div class="card">'):
+            for sid in (self.checked, self.unchecked):
+                if f"<b>#{sid}</b>" in chunk:
+                    out[sid] = chunk
+        return out
+
+    def test_a_row_with_a_verdict_has_no_check_button(self):
+        card = self._cards()[self.checked]
+        self.assertIn("PASS", card)          # an open flag, so not CLEAN
+        self.assertIn("verdict-", card)      # the verdict is still shown
+        self.assertNotIn("Run check", card)
+
+    def test_a_row_with_no_verdict_still_offers_the_button(self):
+        card = self._cards()[self.unchecked]
+        self.assertIn("Run check", card)
+        self.assertIn("check: <span class=\"\">—</span>", card)
+
+    def test_the_bulk_recheck_survives(self):
+        """Removing the per-row button must not remove the only way to regrade
+        after a rule change."""
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.assertIn("/screen/check-all", TestClient(app).get("/screen").text)
