@@ -7,6 +7,7 @@ so this module never creates a server of its own.
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Optional
 
 import html
@@ -38,7 +39,8 @@ from pipeline.llm import LLMUnavailable  # noqa: E402
 from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
     _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
-    _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
+    _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_legend,
+    _verdict_span, esc,
     flag_only_reason,
 )
 
@@ -50,7 +52,8 @@ router = APIRouter()
 # --------------------------------------------------------------------------- #
 
 @router.get("/screen", response_class=HTMLResponse)
-def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str] = None):
+def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str] = None,
+                verdict: Optional[str] = None):
     conn = _conn()
     try:
         all_rows = screen.list_extracted(conn)
@@ -62,15 +65,36 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         # Resolved after the counts, so a drained queue falls back to "all"
         # rather than rendering an empty list under a toggle reading (0).
         show = _resolve_show(request, "/screen", show, n_pending)
-        rows = [r for r in all_rows if _keep(r["id"], promoted, show)]
-        checks = {r["id"]: screen.latest_check(conn, r["id"]) for r in rows}
+        staged = [r for r in all_rows if _keep(r["id"], promoted, show)]
+        # Every row's verdict, before the verdict filter narrows the list, so
+        # the legend below can state the whole distribution.
+        all_checks = {r["id"]: screen.latest_check(conn, r["id"]) for r in staged}
     finally:
         conn.close()
+
+    def _v(row_id):
+        """A row's latest verdict, or None. latest_check returns a sqlite3.Row,
+        which has no .get()."""
+        chk = all_checks.get(row_id)
+        return chk["result_status"] if chk is not None else None
+
+    verdict = verdict if verdict in ("CLEAN", "PASS", "FAIL") else None
+    rows = [r for r in staged if _v(r["id"]) == verdict] if verdict else staged
+    checks = all_checks
+
     toggle = _stage_toggle("/screen", show, {
         "all": f"All ({len(all_rows)})",
-        "pending": f"Not yet in Verify ({n_pending})",
-        "done": f"Already in Verify ({n_done})",
+        "pending": f"Not yet verified ({n_pending})",
+        "done": f"Verified ({n_done})",
     })
+
+    # The three verdicts, defined where they are used, with their counts, and
+    # each one a filter. A glossary elsewhere would be read once and forgotten;
+    # this sits beside the rows it describes, states the whole distribution
+    # (which is the question "is this healthy?"), and teaches the vocabulary by
+    # being the control you reach for.
+    counts = Counter(_v(r["id"]) for r in staged)
+    legend = _verdict_legend(counts, verdict, show)
 
     def _row_html(r):
         chk = checks[r["id"]]
@@ -101,10 +125,10 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         # every extracted field first) -- the list just links there.
         return f"""<div class="card"><b>#{r['id']}</b> {esc(r['project'])}
           <small>({esc(r['sector'])}, {esc(r['state'])})</small>
-          {_lineage_pill(r['id'], promoted, "Verify", "not promoted yet")}
-          check: {_verdict_span(verdict)}
+          {_lineage_pill(r['id'], promoted, "Verify", "not verified yet")}
+          check: {_verdict_span(verdict, chk)}
           {check_btn}
-          <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">Inspect &amp; promote →</button></a>
+          <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">Inspect &amp; verify →</button></a>
           <br><small>{esc(r['current_status'])}</small>
           {"<br><small>flag: " + esc(r['flag']) + "</small>" if r['flag'] else ""}
         </div>"""
@@ -133,10 +157,10 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         if n_blocked:
             links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
                               for r in q["blocked"][:8])
-            blocked_note = (f" A further <b>{n_blocked}</b> cannot be promoted until a "
+            blocked_note = (f" A further <b>{n_blocked}</b> cannot be verified until a "
                             f"failing check is fixed: {links}.")
         lede = (f"<p><b>{n_ready} row(s) are waiting for you.</b> Open one, check "
-                "every field against the two sources, then promote it. Nothing "
+                "every field against the two sources, then verify it. Nothing "
                 "reaches the published Scoreboard until a person does this."
                 + blocked_note + "</p>")
     else:
@@ -150,10 +174,26 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
 <code>python3 scoreboard.py review</code></small></p></div>
 
 <h2>Rows ({len(rows)} of {len(all_rows)})</h2>
-<p><form class="inline" method="post" action="/screen/check-all">
-  <button type="submit">Run the deterministic check on all rows</button></form></p>
 {toggle}
+{legend}
 {items}
+
+<details class="byhand">
+<summary>Re-check every row</summary>
+<div class="card">
+  <p>All {len(all_rows)} rows already carry a check; it runs seconds after each
+  row is extracted. Re-checking is for one situation: you changed the inclusion
+  rules in <code>pipeline/settings.py</code>. Each row is judged against the
+  phase that admitted it, so a change there is the only thing that can make a
+  stored verdict wrong, and nothing else in this interface will tell you.</p>
+  <p><small>This reads the shape of every row again. It never opens a source
+  link; that is the job of the check on the review screen, which asks a model
+  to read the cited pages. It appends {len(all_rows)} new rows to
+  <code>screen_check</code>, which keeps its history rather than overwriting.</small></p>
+  <form class="inline" method="post" action="/screen/check-all">
+    <button type="submit">Re-check all {len(all_rows)} rows</button></form>
+</div>
+</details>
 
 <hr>
 <h2>Add rows by hand</h2>
@@ -419,7 +459,7 @@ def _check_panel(r, chk) -> str:
 
     blind = "".join(f"<li>{b}</li>" for b in CHECK_BLIND_SPOTS)
     return f"""<details class="explain">
-<summary>What the deterministic check tested on this row, and what it cannot test</summary>
+<summary>What this check tested on this row, and what it cannot test</summary>
 <p><small>It reads the <b>shape</b> of the row. Every rule below is
 <code>pipeline/schema.py</code> applied to the cells as they stand, and each
 verdict is the checker's own, read back from the stored report — not re-decided
@@ -503,7 +543,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
     <p><button class="primary" type="submit">Promote to Verify</button></p>"""
     else:
         promote_controls = (
-            '<p class="msg">Run the deterministic check and reach '
+            '<p class="msg">Re-check this row and reach '
             "<b>PASS</b> or <b>CLEAN</b> before promoting to Verify.</p>"
         )
 
@@ -522,12 +562,12 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 <h2 class="rowtitle">Screen #{r['id']} \u00b7 {esc(r['project'])}
   <small>({esc(r['sector'])}, {esc(r['state'])})</small></h2>
 <p><small>from source_collected #{esc(r['source_collected_id'])} ·
-  extracted {esc(r['datetime'])} · check: {_verdict_span(verdict)}</small></p>
+  extracted {esc(r['datetime'])} · check: {_verdict_span(verdict, chk)}</small></p>
 
 <div class="card">
   <form class="inline" method="post" action="/screen/check">
     <input type="hidden" name="screen_id" value="{r['id']}">
-    <button type="submit">Run the deterministic check</button></form>
+    <button type="submit">Re-check this row</button></form>
   {check_note}
   {_check_panel(r, chk)}
 </div>

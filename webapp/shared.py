@@ -330,6 +330,27 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .verdict-CLEAN { color: var(--success); font-family: var(--font-mono);
                  font-size: .9em; font-weight: 600; letter-spacing: .06em; }
 
+/* The verdict legend: definition, distribution and filter in one row. */
+.vlegend { display: flex; align-items: center; gap: .1rem .75rem; flex-wrap: wrap;
+    margin: .1rem 0 1rem; padding: .5rem .7rem; border: 0.5px solid var(--rule-soft);
+    background: var(--ground-card); }
+.vlegend-l { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--type-3); margin-right: .3rem; }
+.vkey { display: inline-flex; align-items: baseline; gap: .4rem;
+    text-decoration: none; padding: .15rem .45rem; border: 0.5px solid transparent; }
+.vkey:hover { border-color: var(--rule); }
+.vkey.on { border-color: var(--teal); background: var(--ground-deep); }
+.vkey-n { font-family: var(--font-mono); font-size: .95rem; font-weight: 500;
+    font-variant-numeric: tabular-nums; color: var(--type-1); }
+.vkey-g { font-family: var(--font-sans); font-size: .78rem; color: var(--type-3); }
+.vkey-clear { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--type-3); margin-left: auto; }
+
+.verdict-gloss { font-family: var(--font-sans); font-size: .8rem;
+    font-weight: 400; letter-spacing: 0; color: var(--type-3);
+    margin-left: .4rem; }
+.verdict-none { font-family: var(--font-mono); font-size: .9em;
+    color: var(--type-3); letter-spacing: .06em; }
 table { border-collapse: collapse; width: 100%; font-family: var(--font-sans);
         font-size: .85rem; }
 td, th { border: 0.5px solid var(--rule); padding: .3rem .45rem; text-align: left; }
@@ -554,10 +575,34 @@ def _cell(row, col):
         return None
 
 
-def _verdict_span(v: str | None) -> str:
-    v = v or "—"
-    cls = f"verdict-{v}" if v in ("FAIL", "PASS", "CLEAN") else ""
-    return f'<span class="{cls}">{esc(v)}</span>'
+def _verdict_span(v: str | None, chk=None) -> str:
+    """The verdict, never on its own.
+
+    PASS and CLEAN are both positive words with no visible ordering, and the
+    bare tokens left a reader guessing which was better and why. The ordering
+    is CLEAN, then PASS, then FAIL, which is the opposite of how the names
+    sort. So the token always arrives with the thing it is actually reporting:
+    a count of open flags, or nothing open, or blocked.
+
+    The token stays because it is the stored `result_status` and the CLI and
+    the docs use it. It just never appears alone.
+    """
+    if v not in ("FAIL", "PASS", "CLEAN"):
+        return '<span class="verdict-none">not checked</span>'
+    n_err = n_warn = 0
+    if chk is not None:
+        try:
+            n_err, n_warn = chk["n_errors"], chk["n_warnings"]
+        except (KeyError, IndexError, TypeError):
+            pass
+    if v == "FAIL":
+        gloss = f"blocked, {n_err} error(s)" if n_err else "blocked from Verify"
+    elif v == "PASS":
+        gloss = f"{n_warn} open flag(s)" if n_warn else "a flag to settle"
+    else:
+        gloss = "nothing open"
+    return (f'<span class="verdict-{v}">{esc(v)}</span>'
+            f'<span class="verdict-gloss">{esc(gloss)}</span>')
 
 
 # --------------------------------------------------------------------------- #
@@ -638,6 +683,45 @@ def _stage_toggle(path: str, show: str, labels: dict[str, str]) -> str:
         f'href="{path}?show={mode}">{lbl}</a>'
         for mode, lbl in labels.items()
     ) + "</div>"
+
+
+VERDICT_MEANING = {
+    # Ordered best to worst, which is NOT how the names sort. Stated once, here,
+    # and rendered wherever the three appear together.
+    "CLEAN": ("nothing open",
+              "Shaped correctly, in range, and no flag left for a person."),
+    "PASS":  ("a flag to settle",
+              "Shaped correctly and in range, with a note the extraction left. "
+              "Verifiable: verifying is what settles the flag."),
+    "FAIL":  ("blocked",
+              "A schema error. Usually figures that clear neither half of the "
+              "size floor. Cannot be verified until it is fixed."),
+}
+
+
+def _verdict_legend(counts, active: str | None, show: str) -> str:
+    """The three verdicts defined where they are used, with counts, as filters.
+
+    A glossary on another page is read once and forgotten. This sits beside the
+    rows it describes, so the definition arrives at the moment it is needed; it
+    carries the distribution, which is the "is this healthy?" question; and
+    each entry filters, so the vocabulary is learned by using it rather than by
+    being told.
+    """
+    base = f"/screen?show={show}"
+    cells = []
+    for v, (short, long) in VERDICT_MEANING.items():
+        n = counts.get(v, 0)
+        on = " on" if active == v else ""
+        href = base if active == v else f"{base}&verdict={v}"
+        cells.append(
+            f'<a class="vkey{on}" href="{href}" title="{esc(long)}">'
+            f'<span class="vkey-n">{n}</span>'
+            f'<span class="verdict-{v}">{v}</span>'
+            f'<span class="vkey-g">{esc(short)}</span></a>')
+    clear = (f'<a class="vkey-clear" href="{base}">clear</a>' if active else "")
+    return ('<div class="vlegend"><span class="vlegend-l">check results</span>'
+            + "".join(cells) + clear + "</div>")
 
 
 def _lineage_pill(row_id: int, downstream: dict[int, list[int]],

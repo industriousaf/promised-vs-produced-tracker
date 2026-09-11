@@ -81,13 +81,13 @@ def source_page(request: Request, msg: Optional[str] = None, show: Optional[str]
     rows = [r for r in all_rows if _keep(r["id"], extracted, show)]
     toggle = _stage_toggle("/source", show, {
         "all": f"All ({len(all_rows)})",
-        "pending": f"Not yet in Screen ({n_pending})",
-        "done": f"Already in Screen ({n_done})",
+        "pending": f"Not yet screened ({n_pending})",
+        "done": f"Screened ({n_done})",
     })
 
     items = "".join(
         f"""<div class="card"><b>#{r['id']}</b> {esc(r['summary'])}
-        {_lineage_pill(r['id'], extracted, "Screen", "not extracted yet")}<br>
+        {_lineage_pill(r['id'], extracted, "Screen", "not screened yet")}<br>
         <small>promise:</small> {esc(r['promise_source'])}<br>
         <small>status:</small> {esc(r['status_source'])}
         {"<br><small>date:</small> " + esc(r['promised_date_source']) if r['promised_date_source'] else ""}

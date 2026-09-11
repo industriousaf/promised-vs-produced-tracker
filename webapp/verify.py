@@ -102,7 +102,7 @@ def verify_page(
         <small>tier {esc(r['verification_tier'])} · {edit_counts[r['id']]} edit(s)</small>
         <br><small>flag: {esc(r['flag'])}</small></div>"""
         for r in rows
-    ) or "<p>(no Verify rows yet — promote a passing Screen row)</p>"
+    ) or "<p>(nothing published yet. Verify a Screen row to start the Scoreboard.)</p>"
 
     def _sel(cur: str, val: str) -> str:
         return " selected" if cur == val else ""

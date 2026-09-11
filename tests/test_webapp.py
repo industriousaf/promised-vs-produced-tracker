@@ -491,7 +491,7 @@ class TestRowCheckButton(unittest.TestCase):
     def test_a_row_with_no_verdict_still_offers_the_button(self):
         card = self._cards()[self.unchecked]
         self.assertIn("Run check", card)
-        self.assertIn("check: <span class=\"\">—</span>", card)
+        self.assertIn("not checked", card)   # was a bare em-dash, which said nothing
 
     def test_the_bulk_recheck_survives(self):
         """Removing the per-row button must not remove the only way to regrade
@@ -499,6 +499,18 @@ class TestRowCheckButton(unittest.TestCase):
         from fastapi.testclient import TestClient
         from webapp.main import app
         self.assertIn("/screen/check-all", TestClient(app).get("/screen").text)
+
+    def test_the_bulk_recheck_is_below_the_rows_and_says_what_it_is_for(self):
+        """It used to sit between the heading and the filter, labelled "run the
+        deterministic check on all rows", which named the implementation and
+        not the job and read as the next thing to do. It is maintenance: the
+        only thing that can make a stored verdict wrong is a rule change."""
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        b = TestClient(app).get("/screen").text
+        self.assertLess(b.index('class="toggle"'), b.index("/screen/check-all"))
+        self.assertNotIn("deterministic check on all rows", b)
+        self.assertIn("pipeline/settings.py", b)      # names the one reason
 
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
@@ -595,3 +607,98 @@ class TestChromePlacement(unittest.TestCase):
         """Quiet on the canonical file; loud anywhere else, because promoting
         into a scratch copy believing it is the real one cannot be undone."""
         self.assertIn("NOT THE CANONICAL DB", self._get())
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestOneVocabularyPerTransition(unittest.TestCase):
+    """A stage transition is described in one set of words, and a verdict never
+    appears on its own.
+
+    The Screen list said the same fact three ways at once: the filter read "Not
+    yet in Verify", the pill on every row read "not promoted yet", and the
+    button read "promote". Promotion is the CLI's verb; a person reading a list
+    needs the stage, and the stages are named.
+
+    Separately, PASS and CLEAN are both positive words whose order is not
+    visible in the words. CLEAN is the best of the three, which is the reverse
+    of how they sort alphabetically and of how most readers rank them.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        base = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+                "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+                "promised_jobs": 1500, "promised_first_output": "2024",
+                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                "promise_source": "https://example.com/p",
+                "status_source": "https://example.com/s", "verification_tier": "P"}
+        for n, extra in ((1, {"flag": "announcement gives no start date"}), (2, {})):
+            lead = psource.insert_lead(conn, promise_source=f"https://example.com/{n}",
+                                       status_source="https://example.com/s", summary="x")
+            rid = pscreen.insert_extracted(
+                conn, dict(base, project=f"Fab {n}", **extra), source_collected_id=lead)
+            pscreen.run_check(conn, rid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _screen(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get("/screen?show=all").text
+
+    def test_promote_is_not_shown_to_a_reader(self):
+        b = self._screen()
+        self.assertNotIn("not promoted yet", b)
+        self.assertNotIn("Inspect &amp; promote", b)
+
+    def test_the_pill_and_the_filter_agree(self):
+        b = self._screen()
+        self.assertIn("not verified yet", b)
+        self.assertIn("Not yet verified", b)
+
+    def test_a_pass_says_how_many_flags_are_open(self):
+        self.assertRegex(self._screen(), r">PASS</span><span class=\"verdict-gloss\">1 open flag")
+
+    def test_a_clean_says_nothing_is_open(self):
+        self.assertRegex(self._screen(), r">CLEAN</span><span class=\"verdict-gloss\">nothing open")
+
+    def test_no_verdict_token_ever_renders_alone(self):
+        """Two contexts gloss a verdict: a row (.verdict-gloss) and the legend
+        (.vkey-g). Both count; a token with neither beside it does not."""
+        import re
+        b = self._screen()
+        seen = 0
+        for m in re.finditer(r'<span class="verdict-(FAIL|PASS|CLEAN)">[A-Z]+</span>', b):
+            tail = b[m.end():m.end() + 32]
+            seen += 1
+            self.assertTrue(
+                tail.startswith('<span class="verdict-gloss">') or tail.startswith('<span class="vkey-g">'),
+                f"bare verdict token at offset {m.start()}: {tail!r}")
+        self.assertGreater(seen, 0)
+
+    def test_the_legend_defines_all_three_with_counts(self):
+        """Defined where they are used, not in a glossary somewhere else."""
+        b = self._screen()
+        self.assertIn('class="vlegend"', b)
+        for v in ("CLEAN", "PASS", "FAIL"):
+            self.assertIn(f'>{v}</span>', b)
+        self.assertIn("nothing open", b)
+        self.assertIn("blocked", b)
+
+    def test_each_verdict_filters(self):
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        c = TestClient(app)
+        self.assertIn("verdict=PASS", c.get("/screen?show=all").text)
+        only_pass = c.get("/screen?show=all&verdict=PASS").text
+        self.assertIn("Fab 1", only_pass)        # the flagged row
+        self.assertNotIn("Fab 2", only_pass)     # the clean one
