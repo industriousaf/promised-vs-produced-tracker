@@ -480,6 +480,13 @@ _CHECKLIST_JS = """
       lbl.textContent = v === 'ok' ? 'confirmed'
                       : v === 'no' ? 'not in this source'
                       : looked[cell] ? 'opened, not settled' : '';
+      // "Not in this source" is the one moment the model check earns its
+      // place: the pane is a string matcher, so a value phrased differently
+      // looks identical to one that is genuinely absent. Reading the page to
+      // tell those apart, and finding a URL that does carry it, is the part
+      // that is slow by hand.
+      var ask = s.querySelector('.ck-ask');
+      if (ask) { ask.hidden = (v !== 'no'); }
       if (v) { done++; }
     });
     var all = (done === strips.length);
@@ -550,6 +557,23 @@ _CHECKLIST_JS = """
     }
     s.querySelector('.ck-ok').onclick = function () { settle(s, 'ok'); };
     s.querySelector('.ck-no').onclick = function () { settle(s, 'no'); };
+    var ask = s.querySelector('.ck-ask');
+    if (ask) {
+      ask.onclick = function () {
+        var box = document.getElementById('agentbox');
+        var form = document.getElementById('agentform');
+        if (!box || !form) { return; }
+        box.open = true;
+        // This field only. The escalation is about one value, and a picker
+        // arriving pre-ticked with six is the panel this replaced.
+        Array.prototype.forEach.call(
+          form.querySelectorAll('input[name="cell"]'), function (b) {
+            b.checked = (b.value === cell);
+          });
+        form.submit();
+        box.scrollIntoView({ block: 'start' });
+      };
+    }
   });
 
   if (walk) {
@@ -632,6 +656,7 @@ def _check_strip(cell: str, row_id: int, ftabs: dict) -> str:
     return (f'<div class="ck" data-cell="{esc(cell)}">{go}'
             f'<button type="button" class="ck-ok" disabled>confirmed</button>'
             f'<button type="button" class="ck-no">not in this source</button>'
+            f'<button type="button" class="ck-ask" hidden>ask a model where it is</button>'
             f'<span class="ck-state"></span></div>')
 
 
@@ -817,8 +842,10 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
 <script>var ROW_ID = {r['id']};</script>
 <script>{_CHECKLIST_JS}</script>
 
-<h2>Ask a model to check it against the links</h2>
+<details class="byhand" id="agentbox">
+<summary>Ask a model to read the cited pages</summary>
 <div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
+</details>
 """
     return _page(f"Screen #{screen_id}", body, msg, wide=True)
 

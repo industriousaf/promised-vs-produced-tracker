@@ -969,3 +969,65 @@ class TestVerifyButtonIsNeverGated(unittest.TestCase):
         """Not a gate, but not silent either: a button equally live at zero and
         at six would say the checklist is decoration."""
         self.assertIn('id="verifynote"', self._inspect())
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestModelCheckIsAnEscalation(unittest.TestCase):
+    """The model check is reachable from a field, not a block on every page.
+
+    It was a full-width panel at the foot of every inspect page, listing the
+    same six fields the checklist already lists. Its one genuinely valuable
+    case is narrow: the pane is a string matcher, so a value the page phrases
+    differently looks identical to a value the page does not carry. Reading the
+    page to tell those apart, and finding a URL that does carry it, is the part
+    that is slow by hand -- and that is exactly the moment a reviewer marks a
+    field "not in this source".
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "promise_source": "https://example.com/p",
+               "status_source": "https://example.com/s", "verification_tier": "P"}
+        lead = psource.insert_lead(conn, promise_source="https://example.com/a",
+                                   status_source="https://example.com/s", summary="x")
+        self.rid = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+        pscreen.run_check(conn, self.rid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _inspect(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get(f"/screen/{self.rid}/inspect").text
+
+    def test_the_panel_is_folded_not_open_on_the_page(self):
+        b = self._inspect()
+        i = b.index('id="agentbox"')
+        self.assertTrue(b[i - 40:i].rstrip().endswith("<details class=\"byhand\""),
+                        b[i - 60:i + 20])
+        self.assertNotIn("<details class=\"byhand\" id=\"agentbox\" open", b)
+
+    def test_every_field_carries_a_hidden_escalation(self):
+        """Hidden in the markup, revealed by marking a field absent. Shipping
+        it hidden rather than injecting it keeps the page working without
+        JavaScript having to build controls."""
+        b = self._inspect()
+        self.assertEqual(b.count('class="ck-ask" hidden'), 6)
+
+    def test_the_panel_still_exists_for_the_whole_project(self):
+        """Folding is not deleting: someone who wants to ask about several
+        fields at once can still open it."""
+        self.assertIn('id="agentform"', self._inspect())

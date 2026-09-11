@@ -261,8 +261,12 @@ from screen_extracted #{esc(r['screen_extracted_id'])}</small></p>
   </div>
 </div>
 
-<h2>Ask a model to check it against the links</h2>
+<details class="byhand">
+<summary>Ask a model to read the cited pages</summary>
+<p class="pagelede">This project is already published. Re-reading its sources is
+for a figure somebody has challenged, not routine work.</p>
 <div class="card">{agent_pane.picker_html("verify", r["id"], r)}</div>
+</details>
 
 <h2>Edit history</h2>
 <table><tr><th>when</th><th>edit_description</th></tr>{history}</table>

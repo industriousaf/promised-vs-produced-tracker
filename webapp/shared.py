@@ -360,6 +360,10 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .ck button:disabled { opacity: .35; cursor: default; }
 .ck .ck-ok.on { background: var(--success); border-color: var(--success); color: var(--cream); }
 .ck .ck-no.on { background: var(--warning); border-color: var(--warning); color: var(--cream); }
+.ck .ck-ask { border-color: var(--terracotta); color: var(--terracotta); }
+.ck .ck-ask:hover { background: var(--terracotta); color: var(--cream);
+    border-color: var(--terracotta); }
+
 .ck-state { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
     color: var(--type-3); margin-left: .15rem; }
 .ck.is-ok .ck-state { color: var(--success); }
