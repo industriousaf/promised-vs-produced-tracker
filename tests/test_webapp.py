@@ -702,3 +702,57 @@ class TestOneVocabularyPerTransition(unittest.TestCase):
         only_pass = c.get("/screen?show=all&verdict=PASS").text
         self.assertIn("Fab 1", only_pass)        # the flagged row
         self.assertNotIn("Fab 2", only_pass)     # the clean one
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestFetchErrorsAreReadable(unittest.TestCase):
+    """A failed fetch says what happened, not what the interpreter said.
+
+    The pane used to headline the raw exception, so a reviewer checking a
+    factory's capital figure was shown "URLError: <urlopen error [Errno 8]
+    nodename nor servname provided, or not known>". Whether the source is
+    gone, refusing, or merely slow leads to three different next steps, and
+    none of them is legible in that string.
+    """
+
+    def _x(self, error, status=0, host="example.org"):
+        return ev.explain_fetch_error({"error": error, "status": status}, host)
+
+    def test_dns_failure_says_the_domain_did_not_resolve(self):
+        h, m = self._x("URLError: <urlopen error [Errno 8] nodename nor "
+                       "servname provided, or not known>", host="georgia.org")
+        self.assertIn("did not resolve", h)
+        self.assertNotIn("Errno", h)
+        self.assertNotIn("URLError", h)
+
+    def test_refusal_is_distinguished_from_absence(self):
+        self.assertIn("refused", self._x("HTTP 403 Forbidden", 403)[0])
+        self.assertIn("gone", self._x("HTTP 404 Not Found", 404)[0])
+
+    def test_a_server_error_says_it_may_work_later(self):
+        h, m = self._x("HTTP 503 Service Unavailable", 503)
+        self.assertIn("server error", h)
+        self.assertIn("retrying", m)
+
+    def test_a_timeout_names_the_budget(self):
+        self.assertIn("25 seconds", self._x("TimeoutError: timed out")[1])
+
+    def test_an_unrecognised_error_still_gets_a_sentence(self):
+        h, m = self._x("ValueError: something odd", host="weird.example")
+        self.assertIn("weird.example", h)
+        self.assertIn("something odd", m)     # raw text kept, just not first
+
+    def test_no_headline_leaks_an_exception_type(self):
+        for e, st in (("URLError: <urlopen error [Errno 8] x>", 0),
+                      ("HTTP 403 Forbidden", 403), ("HTTP 404 Not Found", 404),
+                      ("TimeoutError: timed out", 0),
+                      ("SSLCertVerificationError: certificate verify failed", 0)):
+            h, _ = self._x(e, st)
+            for leak in ("Error:", "Errno", "urlopen", "Traceback"):
+                self.assertNotIn(leak, h, f"{leak!r} leaked into: {h!r}")
+
+    def test_the_internal_ladder_vocabulary_is_gone(self):
+        """"step 6 of the fetch ladder" named an implementation detail no
+        reader can act on."""
+        src = Path(ev.__file__).read_text()
+        self.assertNotIn("fetch ladder", src)

@@ -330,6 +330,23 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .verdict-CLEAN { color: var(--success); font-family: var(--font-mono);
                  font-size: .9em; font-weight: 600; letter-spacing: .06em; }
 
+/* ---- the pane's loading state ------------------------------------------ */
+/* The pane is a server-side fetch of somebody else's site, so between click
+   and paint there were several seconds of blank white with nothing said. The
+   veil sits over the frame and lifts on its load event. */
+.panewrap { position: relative; }
+.paneload { position: absolute; inset: 0; z-index: 1; display: flex;
+    flex-direction: column; justify-content: center; gap: .5rem;
+    padding: 2rem; background: var(--ground-card);
+    border: 0.5px solid var(--rule); }
+.paneload.done { display: none; }
+.paneload-l { font-family: var(--font-mono); font-size: 11px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--teal); }
+.paneload-h { font-family: var(--font-mono); font-size: 1rem; color: var(--type-1);
+    word-break: break-all; }
+.paneload-n { font-family: var(--font-serif); font-size: .85rem; color: var(--type-3);
+    max-width: 34rem; }
+
 /* ---- the per-cell checklist (scratchpad, browser-only) ------------------ */
 .ck { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
     margin: .25rem 0 .1rem; }

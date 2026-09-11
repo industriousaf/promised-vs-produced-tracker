@@ -509,9 +509,58 @@ def _get(url: str) -> dict:
                 "error": f"{type(e).__name__}: {e}"}
 
 
+def explain_fetch_error(res: dict, host: str) -> tuple[str, str]:
+    """(what happened, what it means) in a reviewer's words.
+
+    The catch-all fetch path stores `TypeName: message`, which put things like
+    "URLError: <urlopen error [Errno 8] nodename nor servname provided, or not
+    known>" at the top of the pane as the headline. That is the interpreter
+    talking to a programmer. A person checking a factory's capital figure needs
+    to know whether the source is gone, refusing, or merely slow, because those
+    lead to different next steps.
+
+    The raw text is kept and shown, just not first.
+    """
+    raw = (res.get("error") or "").strip()
+    low = raw.lower()
+    status = res.get("status") or 0
+
+    if status in (401, 403):
+        return (f"{host} refused the request",
+                "The site blocks automated readers. It will usually open "
+                "normally in your own browser.")
+    if status in (404, 410):
+        return (f"The page is gone from {host}",
+                "The URL no longer exists at the origin. The archive is the "
+                "next place to look, then a replacement URL.")
+    if 500 <= status <= 599:
+        return (f"{host} returned a server error",
+                "The site is broken or overloaded right now, not necessarily "
+                "later. Worth retrying before treating it as unreadable.")
+    if "nodename nor servname" in low or "name or service not known" in low \
+            or "gaierror" in low or "getaddrinfo" in low:
+        return (f"{host} did not resolve",
+                "The domain does not exist, or this machine cannot look it "
+                "up. Check the address, and check you are online.")
+    if "timed out" in low or "timeout" in low:
+        return (f"{host} did not answer in time",
+                "The request was given 25 seconds. A slow site sometimes "
+                "answers on a second try.")
+    if "connection refused" in low:
+        return (f"{host} refused the connection",
+                "Nothing is listening at that address for this request.")
+    if "certificate" in low or "ssl" in low:
+        return (f"{host} has a certificate that did not verify",
+                "The connection could not be trusted, so it was not made.")
+    if "not html" in low or "not readable text" in low:
+        return (f"{host} did not return a readable page",
+                raw)
+    return (f"{host} could not be read", raw or "No further detail.")
+
+
 def _wayback(url: str) -> dict:
     """The nearest Wayback snapshot, read through the `id_` form so the archive's
-    own toolbar and scripts are not part of the page. Step 3 of the fetch ladder
+    own toolbar and scripts are not part of the page. The archive step
     in `pipeline/prompts/fetching.md`, which is where a third of cited pages end
     up: governor's-office and state-agency releases rotate off within a year or
     two, and this Scoreboard cites a lot of them."""
@@ -771,6 +820,14 @@ mark.hl.off { background: transparent; color: inherit; outline: none; }
               cursor: pointer; }
 #nav button:disabled { opacity: .4; cursor: default; }
 #pos { font-variant-numeric: tabular-nums; min-width: 5.5rem; }
+.err-h { font-size: 1.15rem; font-weight: 600; margin: 0 0 .5rem; }
+.err-m { margin: 0 0 .7rem; max-width: 46rem; }
+.err-do { margin: 1.2rem 0 .3rem; }
+.err-do-l { margin: 0; padding-left: 1.3rem; max-width: 46rem; }
+.err-do-l li { margin-bottom: .45rem; }
+.err-raw { margin-top: 1.3rem; opacity: .75; }
+.err-raw summary { cursor: pointer; font-size: .85rem; }
+.err-raw code { word-break: break-all; }
 .chip { border: 1px solid #8887; border-radius: 999px; padding: .05rem .55rem;
         cursor: pointer; user-select: none; }
 .chip.on { background: #fde68a; color: #111; border-color: #d97706; }
@@ -854,6 +911,45 @@ def _pane(title: str, bar: str, main: str, nav: str) -> HTMLResponse:
 # reload the page around them and cannot cost the reviewer a half-filled form.
 # The script only repaints which tab looks selected; with JS off the pane still
 # changes, it just stops saying which tab it is showing.
+_PANELOAD_JS = """
+(function () {
+  var frame = document.querySelector('iframe[name="evidencepane"]');
+  var veil = document.getElementById('paneload');
+  var host = document.getElementById('paneloadhost');
+  if (!frame || !veil) { return; }
+
+  function show(h) {
+    if (h && host) { host.textContent = h; }
+    veil.classList.remove('done');
+  }
+  function hide() { veil.classList.add('done'); }
+
+  frame.addEventListener('load', hide);
+  // Nothing here may READ the frame. It is sandboxed without allow-same-origin,
+  // so it has an opaque origin: contentDocument is null and touching
+  // contentWindow.location throws a SecurityError. An earlier version of this
+  // function did exactly that and died on the spot, taking the click handler
+  // below with it -- the load handler above had already registered, so the
+  // veil lifted correctly and never appeared again, which looked like the
+  // feature simply not working.
+  //
+  // A hard ceiling instead, so a fetch that never returns cannot leave the
+  // veil up forever. The server's own fetch timeout is 25s.
+  setTimeout(hide, 30000);
+
+  // Anything that retargets the pane starts another fetch.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[target="evidencepane"]') : null;
+    if (!a) { return; }
+    var h = '';
+    try { h = new URL(a.href, location.href).searchParams.get('tab') !== null
+              ? (a.querySelector('small') ? a.querySelector('small').textContent : '')
+              : ''; } catch (err) {}
+    show(h);
+  }, true);
+})();
+"""
+
 _TABS_JS = """
 (function () {
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs a'));
@@ -894,14 +990,23 @@ def pane_html(stage: str, row_id: int, row, tall: bool = True) -> str:
     height = "tall" if tall else "short"
     return f"""
 <div class="tabs">{strip}</div>
+<div class="panewrap">
+<div class="paneload" id="paneload" aria-live="polite">
+  <span class="paneload-l">Loading the cited page</span>
+  <span class="paneload-h" id="paneloadhost">{esc(tabs[0]["host"])}</span>
+  <span class="paneload-n">fetched fresh each time, so a slow site is slow here.
+  If the origin refuses, the pane falls back to the Wayback Machine.</span>
+</div>
 <iframe class="pane {height}" name="evidencepane" title="cited page"
   src="/evidence/{esc(stage)}/{row_id}?tab=0"
   sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
+</div>
 <p class="panehint">Highlighted in this tab: {esc(marks)}. Walk them with the
 arrows at the foot of the pane (or ← →); click a chip there to walk one cell
 only. A value the page does <i>not</i> carry is the finding — the pane will show
 no highlight for it.</p>
-<script>{_TABS_JS}</script>"""
+<script>{_TABS_JS}</script>
+<script>{_PANELOAD_JS}</script>"""
 
 
 def _row_for(stage: str, row_id: int):
@@ -949,15 +1054,27 @@ def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
         bar = (f'<b>{esc(SHORT_SOURCE_LABEL.get(t["field"], t["field"]))}</b> '
                f'<a href="{esc(t["url"])}" target="_blank">{esc(origin)} ↗</a> '
                f'<span class="warn">could not be read</span>')
+        headline, meaning = explain_fetch_error(res, origin)
         body = f"""<div class="empty">
-<p><b>{esc(res['error'])}</b>{note}</p>
-<p>The archive was tried too and did not answer either. This is step 6 of the
-fetch ladder: an unreadable page is a fact about the source, not about the row.
-Open it yourself —
-<a href="{esc(t['url'])}" target="_blank">{esc(t['url'])}</a> — or
-<a href="?tab={tab}&amp;via=wayback">ask the Wayback Machine directly</a>.</p>
-<p>If nothing works, say so in <code>flag</code> rather than leaving the cell
-looking checked.</p></div>"""
+<p class="err-h">{esc(headline)}</p>
+<p class="err-m">{esc(meaning)}</p>
+<p class="err-m">The Wayback Machine was tried as well and had nothing. A page
+that cannot be read is a fact about the source, not about the row, so it does
+not make the row wrong.</p>
+<p class="err-do"><b>What to do</b></p>
+<ol class="err-do-l">
+<li>Open it yourself:
+    <a href="{esc(t['url'])}" target="_blank">{esc(t['url'])}</a></li>
+<li><a href="?tab={tab}&amp;via=wayback">Ask the archive directly</a>, which
+    sometimes finds a snapshot this did not.</li>
+<li>If the page is genuinely gone, find a replacement source and put it in the
+    row, or record what happened in <code>flag</code>. Do not leave the cell
+    looking checked.</li>
+</ol>
+<details class="err-raw"><summary>What the fetch actually returned</summary>
+<p><code>{esc(res.get('error') or 'no error text')}</code>
+{f"<br>HTTP status {esc(str(res.get('status')))}" if res.get('status') else ""}</p>
+</details></div>"""
         return _pane("unreadable", bar, body, "")
 
     needles = needles_for(row, t["highlight"])
