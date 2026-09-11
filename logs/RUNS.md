@@ -18,8 +18,9 @@ Figures are as each run reported them (`collect/tally.py --summary`).
 | 20260906T182230Z | SCREEN | claude-opus-4-8 | high | 100 | 1338 | 42,529,218 | 154.9 | 100 rows |
 | 20260907T070342Z | DATES | claude-opus-4-8 | high | 29 | 310 | 12,463,605 | 45.0 | — |
 | 20260910T032533Z | SCREEN | claude-opus-4-8 | high | 20 | 293 | 14,475,414 | 40.6 | 20 rows |
+| 20260910T042032Z | SCREEN | claude-opus-4-8 | high | 158 | 1983 | 90,815,897 | 282.3 | 158 rows |
 
-**187,228,413 tokens across all five runs.**
+**278,044,310 tokens across all six runs.**
 
 | run | what it was | totals | after |
 |---|---|---|---|
@@ -28,6 +29,7 @@ Figures are as each run reported them (`collect/tally.py --summary`).
 | 20260906T182230Z | N=100 collection | 120 iters, 2135 turns, 313.3 min, $106.45 | Screen holds 212 rows |
 | 20260907T070342Z | first-output date backfill | 29 iters, 310 turns, 45.0 min, $17.66 | 24 of 29 undated rows dated |
 | 20260910T032533Z | N=20 Screen-only, first run at the $1B floor | 20 iters, 293 turns, 40.6 min, $18.26 | Screen holds 20 rows |
+| 20260910T042032Z | the remaining 158 leads, Screen-only | 158 iters, 1983 turns, 282.3 min, $118.32 | Screen holds 178 rows; every Source lead extracted |
 
 The DATES run changed no row counts. It filled `actual_first_output` on Screen
 rows that had produced but carried no date for it, and cited each in
@@ -41,6 +43,7 @@ Web search runs on a second model, and its tokens are included above:
 | 20260905T150042Z | 48,834,289 | 4,305,947 | 259 |
 | 20260906T182230Z | 77,151,137 | 6,979,682 | 391 |
 | 20260910T032533Z | 14,072,223 | 403,191 | 5 |
+| 20260910T042032Z | 87,864,879 | 2,951,018 | 28 |
 
 The 5 on the last row is not an anomaly. That run was SCREEN only, and
 extraction reads the two links already stored on a Source lead rather than
