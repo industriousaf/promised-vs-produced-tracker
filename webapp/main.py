@@ -111,22 +111,76 @@ def dashboard(request: Request, msg: Optional[str] = None):
         c = table_counts(conn)
         q = screen.review_queue(conn)
         qual = quality.measure(conn)
+        # The latest verdict per Screen row. screen_check keeps history, so
+        # counting the table would double-count any row checked twice.
+        verdicts = dict(conn.execute("""
+            SELECT k.result_status, COUNT(*) FROM screen_check k
+            JOIN (SELECT screen_extracted_id, MAX(id) AS id FROM screen_check
+                  GROUP BY screen_extracted_id) last ON last.id = k.id
+            GROUP BY 1""").fetchall())
     finally:
         conn.close()
 
     n_ready, n_blocked = len(q["ready"]), len(q["blocked"])
 
-    # The five tiles were the whole page: five numbers, no verb, and nothing
-    # saying which of them was waiting on the person reading it. They link now,
-    # and the block below says what to do -- because "23 screened" is a triumph
-    # or a backlog depending on a fact the tiles do not show.
+    # Five tiles, one per TABLE, is not what the pipeline is. screen_check is
+    # exactly one row per screen_extracted row by construction, so "173" next
+    # to "173" printed the same number twice; verify_edits is an audit log, not
+    # a stage. Five equal boxes in a row also stated that these are five equal
+    # steps, when the methodology says three layers with the last one a
+    # human-only gate.
+    #
+    # So: three stages, the drop between them visible, and every number given
+    # something to be measured against. 173/173/173/0/0 could equally have
+    # meant "healthy and waiting on you" or "broke after Screen", and nothing
+    # on the page distinguished those.
+    n_eligible = n_ready + c["verify_verified"]
+    lost_at_screen = c["source_collected"] - c["screen_extracted"]
+
+    def _gate(n, label):
+        return (f'<div class="gate"><span class="gate-n">{n}</span>'
+                f'<span class="gate-l">{label}</span></div>')
+
+    verdict_bits = " \u00b7 ".join(
+        f'<span class="verdict-{k}">{verdicts.get(k, 0)} {k.lower()}</span>'
+        for k in ("CLEAN", "PASS", "FAIL") if verdicts.get(k))
+
+    cta = ""
+    if n_ready:
+        cta = (f'<a href="/screen?show=pending" class="stage-cta">'
+               f'<button class="primary" type="button">{n_ready} waiting on you \u2192</button></a>')
+
     body = f"""
-<div class="stages">
-  <a href="/source"><div><div class="n">{c['source_collected']}</div>Source<br><small>collected</small></div></a>
-  <a href="/screen"><div><div class="n">{c['screen_extracted']}</div>Screen<br><small>extracted</small></div></a>
-  <a href="/screen"><div><div class="n">{c['screen_check']}</div>Screen<br><small>checks</small></div></a>
-  <a href="/verify"><div><div class="n">{c['verify_verified']}</div>Verify<br><small>verified</small></div></a>
-  <a href="/verify"><div><div class="n">{c['verify_edits']}</div>Verify<br><small>edits</small></div></a>
+<div class="pipe">
+
+  <div class="stage">
+    <div class="stage-name">Source</div>
+    <div class="stage-body"><span class="stage-n">{c['source_collected']}</span>
+      leads collected <span class="stage-note">agentic</span></div>
+    <a href="/source" class="stage-link">inspect \u2192</a>
+  </div>
+
+  {_gate(c['screen_extracted'], 'extracted' + (f', {lost_at_screen} not extracted' if lost_at_screen else ''))}
+
+  <div class="stage">
+    <div class="stage-name">Screen</div>
+    <div class="stage-body"><span class="stage-n">{c['screen_extracted']}</span>
+      rows checked <span class="stage-note">agentic</span>
+      <div class="stage-sub">{verdict_bits or 'no checks yet'}</div></div>
+    <a href="/screen" class="stage-link">inspect \u2192</a>
+  </div>
+
+  {_gate(n_eligible, 'eligible to publish' + (f', {n_blocked} blocked by a failing check' if n_blocked else ''))}
+
+  <div class="stage stage-end">
+    <div class="stage-name">Verify</div>
+    <div class="stage-body"><span class="stage-n">{c['verify_verified']}</span>
+      of {n_eligible} published <span class="stage-note">human gate</span>
+      <div class="stage-sub"><a href="/verify">the Scoreboard</a> \u00b7
+        {c['verify_edits']} edit(s) logged</div></div>
+    {cta}
+  </div>
+
 </div>
 """
 
@@ -148,13 +202,10 @@ def dashboard(request: Request, msg: Optional[str] = None):
     if n_ready:
         top = q["ready"][0]
         ready_bit = f"""
-<p><b>{n_ready} row(s) are waiting for you</b> to check them against their sources.
-Nothing reaches the published Scoreboard until you do — Verify is a human gate, by
-design, and no amount of collecting will move these along.</p>
-<p><a href="/screen?show=pending"><button class="primary" type="button">
-Start reviewing — {n_ready} waiting →</button></a></p>
-<p><small>Largest capital first. First up: {esc(top['project'])}.
-Or work the same queue in a terminal with <code>python3 scoreboard.py review</code>.</small></p>"""
+<p>Largest capital first, so wherever you stop, the Scoreboard above that point
+is complete. First up: <b>{esc(top['project'])}</b>.</p>
+<p><small>Or work the same queue in a terminal:
+<code>python3 scoreboard.py review</code></small></p>"""
 
     blocked_bit = ""
     if n_blocked:
@@ -164,7 +215,7 @@ Or work the same queue in a terminal with <code>python3 scoreboard.py review</co
 <p><small>{n_blocked} row(s) cannot be published until a failing check is fixed:
 {links}.</small></p>"""
 
-    body += f'<div class="card"><h2>Your move</h2>{ready_bit}{blocked_bit}</div>'
+    body += f'<div class="card">{ready_bit}{blocked_bit}</div>'
     body += _quality_card(qual)
     return _page("Dashboard", body, msg)
 

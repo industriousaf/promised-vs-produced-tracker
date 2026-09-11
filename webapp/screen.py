@@ -37,7 +37,7 @@ from pipeline.llm import LLMUnavailable  # noqa: E402
 
 from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
-    _cell, _conn, _db_bar, _downstream_map, _keep, _lineage_pill, _page,
+    _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
     flag_only_reason,
 )
@@ -51,19 +51,21 @@ router = APIRouter()
 
 @router.get("/screen", response_class=HTMLResponse)
 def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str] = None):
-    show = _resolve_show(request, "/screen", show)
     conn = _conn()
     try:
         all_rows = screen.list_extracted(conn)
         promoted = _downstream_map(conn, "verify_verified", "screen_extracted_id")
+        queue = screen.review_queue(conn)
+
+        n_done = sum(1 for r in all_rows if r["id"] in promoted)
+        n_pending = len(all_rows) - n_done
+        # Resolved after the counts, so a drained queue falls back to "all"
+        # rather than rendering an empty list under a toggle reading (0).
+        show = _resolve_show(request, "/screen", show, n_pending)
         rows = [r for r in all_rows if _keep(r["id"], promoted, show)]
         checks = {r["id"]: screen.latest_check(conn, r["id"]) for r in rows}
-        queue = screen.review_queue(conn)
     finally:
         conn.close()
-
-    n_done = sum(1 for r in all_rows if r["id"] in promoted)
-    n_pending = len(all_rows) - n_done
     toggle = _stage_toggle("/screen", show, {
         "all": f"All ({len(all_rows)})",
         "pending": f"Not yet in Verify ({n_pending})",

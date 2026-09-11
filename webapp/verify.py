@@ -37,7 +37,7 @@ from pipeline.llm import LLMUnavailable  # noqa: E402
 
 from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
-    _cell, _conn, _db_bar, _downstream_map, _keep, _lineage_pill, _page,
+    _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
     flag_only_reason,
 )
@@ -123,7 +123,7 @@ def verify_page(
         )
 
     filter_panel = f"""
-<h2>Explore-filter — capital / jobs thresholds</h2>
+<h3>Explore-filter: capital / jobs thresholds</h3>
 <div class="card">
   <p>Probe thresholds other than the active inclusion floor
   ({_crit().describe()}, phase {_crit().id}) without changing the gate.
@@ -146,7 +146,7 @@ def verify_page(
 """
     sector_chips = " · ".join(esc(s) for s in sorted(all_sectors())) or "(none)"
     sector_panel = f"""
-<h2>Sector vocabulary</h2>
+<h3>Sector vocabulary</h3>
 <div class="card">
   <p>A <b>closed</b> set of manufacturing sectors. Manual edits pick from a
   dropdown on each Verify row; a sector outside this vocabulary is rejected by
@@ -156,7 +156,17 @@ def verify_page(
   <p>{sector_chips}</p>
 </div>
 """
-    body = f"{filter_panel}{sector_panel}<h2>Published rows ({len(rows)})</h2>{items}"
+    # The Scoreboard leads. This page opened with a threshold-probing tool and
+    # the sector vocabulary above the published rows, which put two reference
+    # panels in front of the thing the methodology calls "the Scoreboard in its
+    # final form". Both are still here, folded, because neither is what a
+    # person came to this page to see.
+    lede = ('<p class="pagelede">The published Scoreboard. Every row here was '
+            'read against its two sources by a person; nothing reaches this '
+            'table any other way.</p>')
+    tools = (f'<details class="byhand"><summary>Explore and reference</summary>'
+             f'{filter_panel}{sector_panel}</details>')
+    body = f"{lede}<h2>Published rows ({len(rows)})</h2>{items}{tools}"
     return _page("Verify", body, msg)
 
 

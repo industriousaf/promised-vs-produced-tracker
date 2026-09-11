@@ -24,8 +24,8 @@ from fastapi.responses import HTMLResponse  # noqa: E402
 
 from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E402
 from pipeline.db import (  # noqa: E402
-    connect, db_path, discover_databases, init_db, is_read_only, set_active_db,
-    table_counts,
+    DEFAULT_DB, READ_ONLY, connect, db_path, discover_databases, init_db,
+    is_read_only, set_active_db, table_counts,
 )
 from pipeline.dates import lag_label  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
@@ -157,6 +157,79 @@ body.wide .wrap { max-width: 1560px; }
         color: #B0ACA5; transition: color .15s; }
 .band nav a:hover { color: var(--cream); }
 
+/* A page lede: one sentence saying what this screen is for, in the serif,
+   under the h1. */
+.pagelede { font-family: var(--font-serif); font-size: 1rem; color: var(--type-2);
+    max-width: 46rem; margin: 0 0 1.6rem; }
+
+/* Routes nobody uses, kept but folded away. */
+.byhand { margin-top: 2.5rem; border-top: 0.5px solid var(--rule-soft);
+    padding-top: 1rem; }
+.byhand > summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--type-3); }
+.byhand > summary:hover { color: var(--teal); }
+.byhand h3 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--type-3); font-weight: 500;
+    margin: 1.6rem 0 .5rem; }
+.byhand h3:first-of-type { margin-top: .4rem; }
+
+/* ---- the pipeline, as a funnel ----------------------------------------- */
+/* Three stages stacked, with the gate between them shown as its own row, so
+   the drop from one stage to the next is a thing you can see rather than
+   arithmetic you have to do. The old five tiles sat side by side, which said
+   these were five equal steps; they were five tables, and two of them were not
+   stages at all. */
+.pipe { margin: 1.4rem 0 2rem; }
+.stage { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+    border: 0.5px solid var(--rule); border-radius: 0;
+    background: var(--ground-card); padding: .9rem 1.1rem; }
+/* Verify is where the Scoreboard actually exists, so it gets the weight. */
+.stage-end { border-color: var(--teal); }
+.stage-name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--teal); min-width: 5.5rem; }
+.stage-body { flex: 1; min-width: 14rem; }
+.stage-n { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 500;
+    font-variant-numeric: tabular-nums; color: var(--type-1); margin-right: .35rem; }
+.stage-note { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--type-3); margin-left: .5rem; }
+.stage-sub { font-family: var(--font-sans); font-size: .82rem; color: var(--type-2);
+    margin-top: .25rem; }
+.stage-link { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--type-3); text-decoration: none; }
+.stage-link:hover { color: var(--teal); }
+
+/* The gate. A short rule with the number that survived it. */
+.gate { display: flex; align-items: baseline; gap: .55rem; padding: .4rem 0 .4rem 1.1rem;
+    margin-left: 1.1rem; border-left: 0.5px solid var(--rule); }
+.gate-n { font-family: var(--font-mono); font-size: .95rem; font-weight: 500;
+    font-variant-numeric: tabular-nums; color: var(--type-2); }
+.gate-l { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--type-3); }
+.stage-cta { text-decoration: none; }
+
+/* ---- the database, in the band ----------------------------------------- */
+/* Quiet while you are on the canonical file. Loud the moment you are not,
+   because promoting rows into a scratch copy believing it is the real one is
+   the one mistake this interface cannot undo. */
+.dbstatus { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+    color: #8FA5A2; margin-left: 1.25rem; white-space: nowrap; }
+.dbstatus-alt { color: var(--cream); }
+.dbflag { margin-left: .5rem; padding: .1rem .4rem; letter-spacing: .1em; }
+.dbflag.ro  { background: var(--danger); color: var(--cream); }
+.dbflag.alt { background: var(--terracotta); color: var(--cream); }
+
+/* ---- the footer: the switcher lives here ------------------------------- */
+/* Switching is a two-or-three-times-a-year action. It had the best space on
+   every page; it now has the worst, which is the correct amount. */
+.pagefoot { border-top: 0.5px solid var(--rule); margin-top: 3rem;
+    padding: 1.1rem 0 2rem; }
+.dbswitch { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.dbswitch label { margin: 0; }
+.dbswitch select { font-family: var(--font-mono); font-size: 11px; padding: .2rem;
+    width: auto; max-width: 30rem; }
+.footpath { font-family: var(--font-mono); font-size: 10px; color: var(--type-3);
+    margin: .5rem 0 0; word-break: break-all; }
+
 /* ---- the wordmark: design system Section 01, SM tier ------------------- */
 /* Two lines at one cap-height. Line 1 reads the brand; line 2 reveals the
    second reading, INDUSTRIO-USA-F. The double rule is two rings with a
@@ -185,6 +258,10 @@ h1 { font-family: var(--font-serif); font-size: 28px; line-height: 1.2;
 .subtitle { font-family: var(--font-mono); font-size: 11px;
      letter-spacing: .18em; text-transform: uppercase; color: var(--type-3);
      margin: 0 0 1.1rem; }
+/* An h2 that opens a card does not get the section rule: the card's own
+   border is already the separation, and the stacked margins left a band of
+   empty paper above every heading. */
+.card > h2:first-child { margin-top: 0; padding-top: 0; border-top: none; }
 h2 { font-family: var(--font-mono); font-size: 12px; letter-spacing: .2em;
      text-transform: uppercase; color: var(--teal); font-weight: 500;
      margin-top: 2.2rem; padding-top: .9rem;
@@ -349,21 +426,70 @@ VOCABULARY = {
 }
 
 
-def _db_bar() -> str:
-    """The database picker: every scoreboard*.db under outputs/, one click to switch."""
-    current = db_path()
+def _db_status() -> str:
+    """One line in the band naming the database in use.
+
+    Switching databases is something a person does two or three times a year;
+    knowing which database they are looking at matters on every click, because
+    promoting rows into a scratch copy while believing it is the real one is
+    not recoverable. Those two jobs were one full-width card at the top of
+    every page, which gave the rare control the best space on the screen and
+    left the constant status as grey small print underneath it.
+
+    So the status stays, quietly, in the spec-label register where the rest of
+    the metadata lives. It raises its voice only when something is not the
+    default: a scratch copy, or a read-only process. The switcher itself is in
+    the footer.
+    """
+    current = Path(db_path())
+    canonical = current.resolve() == Path(DEFAULT_DB).resolve()
+
+    # Two different things used to share the name "read-only": a legacy-
+    # vocabulary file, and $SCOREBOARD_READONLY for the whole process. The bar
+    # only ever reported the first, so a read-only run displayed "writable"
+    # while every write refused. Either one means you cannot write.
+    ro = is_read_only() or READ_ONLY
+
+    if ro:
+        note = '<span class="dbflag ro">READ-ONLY</span>'
+    elif not canonical:
+        note = '<span class="dbflag alt">NOT THE CANONICAL DB</span>'
+    else:
+        note = ""
+    cls = "dbstatus" + ("" if canonical and not ro else " dbstatus-alt")
+    return (f'<span class="{cls}" title="{html.escape(str(current))}">'
+            f'{html.escape(current.name)}{note}</span>')
+
+
+def table_counts_safe() -> dict:
+    """Row counts, or zeros if the file cannot be opened. The band renders on
+    every page including error pages, so it must never be the thing that
+    raises."""
+    try:
+        conn = _conn()
+        try:
+            return table_counts(conn)
+        finally:
+            conn.close()
+    except Exception:
+        return {}
+
+
+def _db_switcher() -> str:
+    """The switcher, in the footer. Rare control, quiet placement."""
     options = []
     for d in discover_databases():
         label = f"{d['rel']}  \u00b7  {VOCABULARY.get(d['flavour'], d['flavour'])}, {d['rows']} rows"
         sel = " selected" if d["active"] else ""
         options.append(f'<option value="{html.escape(str(d["path"]))}"{sel}>{html.escape(label)}</option>')
-    badge = ('<span class="ro">read-only</span>' if is_read_only()
-             else '<span class="rw">writable</span>')
-    return f"""<form class="dbbar" method="post" action="/db">
+    return f"""<footer class="pagefoot"><div class="wrap">
+<form class="dbswitch" method="post" action="/db">
 <label for="dbsel">Database</label>
 <select id="dbsel" name="path">{''.join(options)}</select>
-<button type="submit">Switch</button>{badge}
-<small>{html.escape(str(current))}</small></form>"""
+<button type="submit">Switch</button>
+</form>
+<p class="footpath">{html.escape(str(db_path()))}</p>
+</div></footer>"""
 
 
 
@@ -403,13 +529,14 @@ def _page(title: str, body: str, msg: str | None = None,
 <header class="band"><div class="wrap">
 {WORDMARK}
 <nav><a href="/">Dashboard</a><a href="/source">Source</a><a href="/screen">Screen</a><a href="/verify">Verify</a></nav>
+{_db_status()}
 </div></header>
 <div class="wrap">
-<h1>Promised vs. Produced</h1>
-<p class="subtitle">Source \u2192 Screen \u2192 Verify</p>
-{_db_bar()}
+<h1>{html.escape(title)}</h1>
 {banner}{body}
-</div></body></html>"""
+</div>
+{_db_switcher()}
+</body></html>"""
     return HTMLResponse(doc)
 
 
@@ -450,20 +577,30 @@ SHOW_COOKIE = {"/source": "pvp_show_source", "/screen": "pvp_show_screen"}
 SHOW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365   # a year; it is a UI preference
 
 
-def _resolve_show(request: Request, stage: str, show: str | None) -> str:
+def _resolve_show(request: Request, stage: str, show: str | None,
+                  n_pending: int | None = None) -> str:
     """The toggle to render with.
 
     An explicit `?show=` in the URL wins (that's the user clicking the toggle);
-    otherwise fall back to the remembered choice, then to "all"."""
+    otherwise fall back to the remembered choice, then to a default.
+
+    The default is "pending", because these pages exist to work a queue and a
+    queue that opens showing finished items alongside unfinished ones makes the
+    reader do filtering the page could do. With one exception: when nothing is
+    pending, "pending" renders an empty list under a toggle reading (0), which
+    looks like a broken page rather than a finished stage. Source hit this the
+    moment every lead had been extracted. Pass `n_pending` and the default
+    falls back to "all" when the queue is empty.
+    """
     if show in SHOW_MODES:
         return show
     remembered = request.cookies.get(SHOW_COOKIE[stage])
     if remembered in SHOW_MODES:
+        # A remembered "pending" on a drained queue has the same problem.
+        if remembered == "pending" and n_pending == 0:
+            return "all"
         return remembered
-    # "pending" rather than "all" on a first visit: these pages exist to work a
-    # queue, and a queue that opens showing the finished items alongside the
-    # unfinished ones makes the reader do the filtering the page could do.
-    return "pending"
+    return "all" if n_pending == 0 else "pending"
 
 
 def _remember_show(resp: HTMLResponse, stage: str, show: str) -> HTMLResponse:

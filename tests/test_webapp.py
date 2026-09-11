@@ -499,3 +499,99 @@ class TestRowCheckButton(unittest.TestCase):
         from fastapi.testclient import TestClient
         from webapp.main import app
         self.assertIn("/screen/check-all", TestClient(app).get("/screen").text)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestDashboardIsAPipeline(unittest.TestCase):
+    """The dashboard states three stages, not five tables, and every number is
+    given something to be measured against.
+
+    It used to print five equal tiles, one per table. Two of them were not
+    stages: screen_check is one row per Screen row by construction, so it
+    printed the same number twice, and verify_edits is an audit log. Five equal
+    boxes also asserted five equal steps, when the methodology is three layers
+    with the last one a human-only gate.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "promise_source": "https://example.com/p",
+               "status_source": "https://example.com/s", "verification_tier": "P"}
+        lead = psource.insert_lead(conn, promise_source="https://example.com/a",
+                                   status_source="https://example.com/s", summary="x")
+        rid = pscreen.insert_extracted(conn, dict(row), source_collected_id=lead)
+        pscreen.run_check(conn, rid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _body(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get("/").text
+
+    def test_three_stages_named_not_five_tables(self):
+        b = self._body()
+        for stage in ("Source", "Screen", "Verify"):
+            self.assertIn(f'<div class="stage-name">{stage}</div>', b)
+        self.assertEqual(b.count('class="stage-name"'), 3)
+
+    def test_the_audit_log_is_not_a_stage(self):
+        b = self._body()
+        self.assertNotIn('<div class="stage-name">Verify edits', b)
+        self.assertIn("edit(s) logged", b)      # still reported, as a detail
+
+    def test_published_count_carries_a_denominator(self):
+        """0 alone is unreadable: 0 of how many, and is that expected?"""
+        self.assertRegex(self._body(), r"<span class=\"stage-n\">\s*0\s*</span>\s*of \d+ published")
+
+    def test_the_gate_between_stages_is_shown(self):
+        self.assertIn('class="gate"', self._body())
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestChromePlacement(unittest.TestCase):
+    """Rare controls do not get the best space on every page."""
+
+    def setUp(self):
+        from pipeline import db as pdb
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path); pdb.init_db(conn); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _get(self, path="/"):
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get(path).text
+
+    def test_the_switcher_is_in_the_footer_not_above_the_content(self):
+        b = self._get()
+        self.assertIn('class="dbswitch"', b)
+        self.assertLess(b.index('class="wrap"'), b.index('class="dbswitch"'))
+        self.assertIn("pagefoot", b)
+
+    def test_the_band_names_the_database(self):
+        self.assertIn('class="dbstatus', self._get())
+
+    def test_a_scratch_database_says_so(self):
+        """Quiet on the canonical file; loud anywhere else, because promoting
+        into a scratch copy believing it is the real one cannot be undone."""
+        self.assertIn("NOT THE CANONICAL DB", self._get())
