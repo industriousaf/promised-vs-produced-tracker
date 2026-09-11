@@ -570,6 +570,72 @@ class TestScreenPromptContract(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+class TestSentinelVocabulary(unittest.TestCase):
+    """One word per fact, and the prompt teaches only words the parser knows.
+
+    The prompt offered six sentinels -- pending, never, unconfirmed, n/a, tbd,
+    open -- for three behaviours the parser actually distinguishes, so four of
+    them were undocumented synonyms. The model picked from the list by feel and
+    put `unconfirmed` in `promised_first_output` 40 times out of the 44 projects
+    with no promised date, which is the one slot dates.py says it cannot mean:
+    there it reads as "produced but undated", about a promise that was never an
+    event. Nothing computed a wrong number, because a promise with no date is
+    "no promise recorded" either way -- but 40 published rows asserted something
+    their own source did not.
+    """
+
+    def setUp(self):
+        from pipeline import llm
+        self.prompt = llm.render_screen_prompt({
+            "id": 1, "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s",
+            "promised_date_source": None, "summary": "a test lead"})
+
+    def test_each_sentinel_resolves_to_the_fact_the_prompt_claims(self):
+        """The prompt is a contract with dates.py. A token taught here that the
+        parser reads differently is worse than no token at all."""
+        from pipeline import dates
+        for token, kind in (("n/a", "to_be_completed"),      # no promise stated
+                            ("pending", "to_be_completed"),  # not produced yet
+                            ("never", "cancelled"),
+                            ("unconfirmed", "produced_undated")):
+            iso, got = dates.interpret_date(token)
+            self.assertIsNone(iso, token)
+            self.assertEqual(kind, got, token)
+
+    def test_it_defines_all_four_and_names_the_field_each_belongs_to(self):
+        self.assertIn("The four sentinels", self.prompt)
+        for token in ("`n/a`", "`pending`", "`never`", "`unconfirmed`"):
+            self.assertIn(token, self.prompt)
+
+    def test_it_forbids_unconfirmed_in_the_promised_slot(self):
+        """The actual defect, pinned. 40 of 173 projects carry it."""
+        self.assertIn("Never `unconfirmed` here", self.prompt)
+        self.assertIn("cannot** appear in `promised_first_output`", self.prompt)
+
+    def test_it_no_longer_offers_the_synonyms(self):
+        """tbd and open may still be parsed, for rows already written, but the
+        prompt must stop presenting them as choices."""
+        self.assertNotIn("`pending`, `never`, `unconfirmed`, `n/a`, `tbd`, `open`",
+                         self.prompt)
+
+    def test_the_parser_still_reads_the_retired_tokens(self):
+        """Narrowing what is taught must not change what already parses: 4 rows
+        hold `tbd` and rerunning the checker on them has to give the same
+        answer it gave the day they were written."""
+        from pipeline import dates
+        for token in ("tbd", "open", "unknown"):
+            self.assertEqual((None, "to_be_completed"), dates.interpret_date(token))
+
+    def test_the_flag_rule_does_not_ban_the_sentinel_it_now_requires(self):
+        """"Do not write n/a" was written about free-text cells. Unqualified, it
+        contradicts the promised_first_output rule directly above it."""
+        self.assertIn("`None`, `null`, or `n/a` into `flag` or any other free-text cell",
+                      self.prompt)
+
+
+# --------------------------------------------------------------------------- #
 class TestVerbatimQuotesAtVerify(Base):
     """A human at the Verify gate must be able to correct the *_raw cells.
 

@@ -117,6 +117,33 @@ by the project, and that there is nothing to typo.
 It does not gate promotion. The command line has no such gate, so blocking one
 of two doors would imply a stronger claim than the data supports.
 
+## When a date cell holds no date
+
+Four words, one per fact. Anyone reading the CSVs needs these, because a date
+column full of English is otherwise unreadable, and two of them are opposites.
+
+| token | column | what it asserts | `lag_years` / `slip_years` |
+|---|---|---|---|
+| `n/a` | `promised_first_output` | No cited source stated a promised first-output date. | slip is `-3.0`, "no promise recorded", once a real output date exists |
+| `pending` | `actual_first_output` | Has **not** produced yet. The right-censoring flag. | both `-1.0`, "to be completed" |
+| `never` | `actual_first_output` | Cancelled; it will not produce. | both `-2.0`, "cancelled" |
+| `unconfirmed` | `actual_first_output` | **Has** produced or is operating, but no cited source dates first output. | both `-4.0`, "produced, date unknown" |
+
+`pending` and `unconfirmed` are the pair that gets confused, and they say the
+opposite thing. Collapsing them once recorded five operating plants as never
+having produced, which a survival model counts as still waiting. That is why
+`-1.0` and `-4.0` are different numbers rather than one "no answer".
+
+`unconfirmed` cannot mean anything in `promised_first_output`: a promise is not
+an event that can have happened, so the only thing that can be missing there is
+the promise itself. 40 rows collected before the extraction prompt said this
+carry `unconfirmed` in that column anyway. The number they resolve to is right,
+and the word is wrong; they are corrected as verification reaches them.
+
+The parser also still accepts `tbd`, `open`, `unknown` and a blank, all read as
+"not yet producing". Rows written before the vocabulary was narrowed keep
+resolving exactly as they did, but nothing should write them now.
+
 ## Details worth knowing
 
 - **Reset:** delete `outputs/scoreboard.db` (or point `SCOREBOARD_DB` elsewhere)

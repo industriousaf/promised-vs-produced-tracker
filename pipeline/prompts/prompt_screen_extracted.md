@@ -35,9 +35,9 @@ the originating Source row's id, include it as `source_collected_id` for lineage
 | `announced_raw` | **The exact source text** the `announced` date was read from, copied **verbatim** (e.g. `announced the project in May 2020`). Provenance only — never parsed. |
 | `promised_capital_usd` | Integer US dollars, digits only in the value (no `$`, `,`, or words). e.g. `12000000000`. Use the **initial** announcement's figure; do **not** sum later re-announcements/expansions (see re-announcement discipline below). |
 | `promised_jobs` | Integer, digits only. Count **direct** promised jobs only — not "regional," "supported," "induced," or construction jobs (record `2000`, not a `10000` regional claim). |
-| `promised_first_output` | **Normalized token:** a 4-digit year (optionally narrowed to a month/quarter/qualifier — and **to the exact day when the source states one**, e.g. `2024`, `2025 (first half)`, `2024-Q4`, `2025-03`, `2022-12-30`) **or** a sentinel: `pending`, `never`, `unconfirmed`, `n/a`, `tbd`, `open`. Keep whatever precision the source gives — the pipeline honours a full `YYYY-MM-DD` and resolves anything coarser to its healthy-middle `promised_first_output_dt`. |
+| `promised_first_output` | **Normalized token:** a 4-digit year (optionally narrowed to a month/quarter/qualifier — and **to the exact day when the source states one**, e.g. `2024`, `2025 (first half)`, `2024-Q4`, `2025-03`, `2022-12-30`) **or** the single sentinel `n/a`, when no cited source states a promised first-output date. **Never `unconfirmed` here** — that word means something else (see *The four sentinels* below). Keep whatever precision the source gives — the pipeline honours a full `YYYY-MM-DD` and resolves anything coarser to its healthy-middle `promised_first_output_dt`. |
 | `promised_first_output_raw` | **The exact source text** the promised-date token was read from, copied **verbatim** (e.g. `production is slated to begin in the first half of 2025`). Provenance only — never parsed. |
-| `actual_first_output` | **Normalized token** — same rule as `promised_first_output`: a real first-output date if it has produced, else a sentinel (`pending` if not yet, `never` if cancelled). Resolved to `actual_first_output_dt`. |
+| `actual_first_output` | **Normalized token** — same date shapes as `promised_first_output`: a real first-output date if it has produced, else exactly one of `pending` (not yet producing), `never` (cancelled), or `unconfirmed` (it HAS produced but no cited source dates it). Resolved to `actual_first_output_dt`. |
 | `actual_first_output_raw` | **The exact source text** the actual-date token was read from, copied **verbatim**. Provenance only — never parsed. |
 | `current_status` | Non-empty short free-text status (e.g. `AT VOLUME`, `DELAYED; …`, `PRODUCING slow ramp`). |
 | `lag_years` | **Do not supply — the pipeline computes it** deterministically (see *Date interpretation* below). A float: years from `announced` to `actual_first_output`; sentinel `-1` ("to be completed") if not produced yet, `-2` ("cancelled") if the promise was cancelled. |
@@ -68,6 +68,29 @@ you supply the **first two**:
    sentence). If the raw text is already clean, the token is just that text tidied to the
    canonical shape.
 3. **`*_dt` — the resolved ISO date**, computed by the pipeline from the token (below).
+
+### The four sentinels
+
+A date cell that holds no date holds one of exactly four words, and each one is a
+different fact. Use no others: `tbd`, `open`, `unknown`, `none` and a blank are read
+as "not yet producing" and will quietly say something you did not mean.
+
+| token | field | what it asserts |
+|---|---|---|
+| `n/a` | `promised_first_output` only | No cited source states a promised first-output date. There was no promise to measure slip against. |
+| `pending` | `actual_first_output` only | The plant has **not** produced yet. This is the right-censoring flag. |
+| `never` | `actual_first_output` only | Cancelled. It will not produce. |
+| `unconfirmed` | `actual_first_output` only | It **has** produced, or is operating, but no cited source dates first output. An event with a missing date. |
+
+The two that get confused are `pending` and `unconfirmed`, and they are opposites:
+`pending` says the plant has not produced, `unconfirmed` says it has and nobody dated
+it. Collapsing them once recorded five operating plants as never having produced, which
+a survival model counts as still waiting.
+
+`unconfirmed` therefore **cannot** appear in `promised_first_output`. A promise is not an
+event that can have happened; the only thing missing there is the promise itself, which
+is `n/a`. `announced` takes no sentinel at all — a project with no announcement month
+does not belong in the Scoreboard.
 
 If you omit a `*_raw`, the pipeline falls back to storing the token as the raw — so always
 provide the real verbatim quote when you can; that is the whole point of this field.
@@ -152,18 +175,21 @@ re-announcements per rule 4") — never sum them into `promised_capital_usd`.
 `flag` is where extraction problems surface — the row still gets written, the problem is
 just recorded:
 
-- A source can't be opened / scraped / 404s → note which one and that the affected field
-  is unconfirmed.
+- A source can't be opened / scraped / 404s → note which one and which field could not
+  be checked against it. Say it in words; do not reach for the token `unconfirmed`, which
+  asserts something specific about first output.
 - A needed value isn't in the sources → say which field and leave it as the best-supported
   value or a sentinel.
 - A **discrepancy** between sources, or between a source and the lead → state it plainly
   (e.g. "announcement is dated 2019-03-27, not 2019-01"). Surface contradictions; do not
   silently pick a side.
 - Clean extraction → **omit the key entirely**, or give it an empty string. Do not
-  write the word `None`, `null`, or `n/a`: that is a missing value wearing the
-  costume of a present one, and every check downstream reads it as real content.
-  The same goes for any other cell you have nothing for — `promised_date_source`
-  with no separate document is omitted, not filled in with `None`.
+  write the word `None`, `null`, or `n/a` into `flag` or any other free-text cell:
+  that is a missing value wearing the costume of a present one, and every check
+  downstream reads it as real content. The same goes for any other cell you have
+  nothing for — `promised_date_source` with no separate document is omitted, not
+  filled in with `None`. The one place `n/a` is a real value, not a costume, is
+  `promised_first_output`, where it is the sentinel meaning no promise was stated.
 
 ## Principles
 
