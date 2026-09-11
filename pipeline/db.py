@@ -38,8 +38,8 @@ from pipeline.schema_check import (
     RAW_DATE_COLUMNS,
 )
 
-SCOREBOARD_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = SCOREBOARD_ROOT / "outputs" / "scoreboard.db"
+TRACKER_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DB = TRACKER_ROOT / "outputs" / "tracker.db"
 
 
 def now_iso() -> str:
@@ -48,13 +48,16 @@ def now_iso() -> str:
 
 
 def db_path() -> Path:
-    """The picker's choice, else $SCOREBOARD_DB, else the default file.
+    """The picker's choice, else $TRACKER_DB, else the default file.
 
-    $MEDALLION_DB is still honoured as a deprecated alias, so shells and
-    scripts set up before the scoreboard.db rename keep working."""
+    This project has been renamed twice -- medallion, then scoreboard, now
+    tracker -- and both older variables are still honoured, so a shell or a
+    script set up under either name keeps working. Deprecated, not supported:
+    they are read, never written, and nothing here should print them."""
     if _ACTIVE is not None:
         return _ACTIVE
-    override = os.getenv("SCOREBOARD_DB") or os.getenv("MEDALLION_DB")
+    override = (os.getenv("TRACKER_DB") or os.getenv("SCOREBOARD_DB")
+                or os.getenv("MEDALLION_DB"))
     return Path(override) if override else DEFAULT_DB
 
 
@@ -115,17 +118,18 @@ def is_read_only(path: str | Path | None = None) -> bool:
 
 
 def discover_databases() -> list[dict]:
-    """Every scoreboard*.db under outputs/, with its vocabulary and row count.
+    """Every tracker*.db under outputs/, with its vocabulary and row count.
 
-    Legacy `medallion*.db` files (the name this database used before the
-    scoreboard.db rename) are listed too, so an older copy can still be opened.
+    Files under the two older names this database has had -- `scoreboard*.db`
+    and before that `medallion*.db` -- are listed too, so a copy made under
+    either one can still be opened.
 
     This is what the web app's picker lists. Row count is the sum across the
     stage tables under whichever vocabulary the file uses, so a legacy and
     a renamed copy of the same data report the same number."""
     root = DEFAULT_DB.parent
     found = {p.resolve(): p
-             for pattern in ("scoreboard*.db", "medallion*.db")
+             for pattern in ("tracker*.db", "scoreboard*.db", "medallion*.db")
              for p in root.rglob(pattern)}
     out = []
     for path in sorted(found.values()):
@@ -159,7 +163,7 @@ def _legacy_view(src: Path) -> Path:
     is rebuilt whenever the source's size or mtime changes."""
     stat = src.stat()
     dest = (Path(tempfile.gettempdir()) /
-            f"scoreboard_legacyview_{abs(hash((str(src.resolve()), stat.st_mtime_ns, stat.st_size)))}.db")
+            f"tracker_legacyview_{abs(hash((str(src.resolve()), stat.st_mtime_ns, stat.st_size)))}.db")
     if dest.exists():
         return dest
     tmp = dest.with_suffix(".partial")
@@ -184,7 +188,7 @@ def _autoexport(target: Path) -> None:
     runs, and a failed export must not turn a successful promotion into a
     traceback.
     """
-    if os.getenv("SCOREBOARD_NO_AUTOEXPORT"):
+    if os.getenv("TRACKER_NO_AUTOEXPORT") or os.getenv("SCOREBOARD_NO_AUTOEXPORT"):
         return
     try:
         # A same-package import; lazy only so a database write never pays for
@@ -194,13 +198,16 @@ def _autoexport(target: Path) -> None:
         print(f"(database changed -- refreshed {export_dir(db=target)}/)", file=sys.stderr)
     except Exception as exc:                                    # noqa: BLE001
         print(f"warning: could not refresh outputs/csv_tables/ ({exc}). "
-              "Run `python3 scoreboard.py export` before committing.", file=sys.stderr)
+              "Run `python3 tracker.py export` before committing.", file=sys.stderr)
 
 
 # Set once at import: a process is read-only for its whole life, or it is not.
 # Reading it per-call would let a long-running process change mode halfway
 # through, which is exactly the ambiguity this is meant to remove.
-READ_ONLY = os.getenv("SCOREBOARD_READONLY", "").strip() not in ("", "0", "false", "no")
+# $SCOREBOARD_READONLY is the previous name and still works, for the same reason
+# $SCOREBOARD_DB does: a shell that exported it should not silently start writing.
+READ_ONLY = (os.getenv("TRACKER_READONLY") or os.getenv("SCOREBOARD_READONLY")
+             or "").strip() not in ("", "0", "false", "no")
 
 
 class _ReadOnlyConnection(sqlite3.Connection):
@@ -208,7 +215,7 @@ class _ReadOnlyConnection(sqlite3.Connection):
 
     SQLite's own refusal is `sqlite3.OperationalError: attempt to write a
     readonly database`, which reads like a permissions bug on the file. The
-    cause is almost always that SCOREBOARD_READONLY is still exported from an
+    cause is almost always that TRACKER_READONLY is still exported from an
     earlier command, so say that instead.
     """
 
@@ -222,9 +229,9 @@ class _ReadOnlyConnection(sqlite3.Connection):
         if "readonly database" not in str(exc):
             raise exc
         raise SystemExit(
-            "This command writes, and $SCOREBOARD_READONLY is set, so the "
+            "This command writes, and $TRACKER_READONLY is set, so the "
             "database was opened read-only.\n"
-            "    unset SCOREBOARD_READONLY\n"
+            "    unset TRACKER_READONLY\n"
             "and run it again."
         ) from None
 
@@ -250,7 +257,7 @@ class _ReadOnlyConnection(sqlite3.Connection):
 class _SyncingConnection(sqlite3.Connection):
     """A connection that keeps the CSV exports in step with the database.
 
-    scoreboard.db is committed, and git cannot diff a binary, so the CSVs beside
+    tracker.db is committed, and git cannot diff a binary, so the CSVs beside
     it are how a change becomes readable in a review. Keeping them in step by
     hand does not work: it depends on remembering, at the moment you are
     thinking about something else.
@@ -285,7 +292,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     knowing (and without the original file ever being modified)."""
     target = Path(path) if path is not None else db_path()
     if READ_ONLY:
-        # $SCOREBOARD_READONLY=1 -- every command in this process can read and
+        # $TRACKER_READONLY=1 -- every command in this process can read and
         # none can write. It exists because checking something is not supposed
         # to change it, and repeatedly did: a `screen-check --all` run to prove
         # the CLI still worked wrote 23 rows into the real database, and an `export`
@@ -299,9 +306,9 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
             # mode=ro cannot create a file, so a missing database fails here
             # rather than at the first write. Say which of the two it is.
             raise SystemExit(
-                f"No database at {target}, and $SCOREBOARD_READONLY is set, so "
+                f"No database at {target}, and $TRACKER_READONLY is set, so "
                 "one cannot be created.\n"
-                "    unset SCOREBOARD_READONLY\n"
+                "    unset TRACKER_READONLY\n"
                 "and run it again."
             ) from None
     elif schema_flavour(target) == "legacy":
@@ -310,7 +317,7 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     else:
         conn = sqlite3.connect(str(target), factory=_SyncingConnection)
         # Mirror to CSV only for the database that is committed. A --db copy, a
-        # SCOREBOARD_DB pointed elsewhere, or the web app's picker must never
+        # TRACKER_DB pointed elsewhere, or the web app's picker must never
         # write their rows over the real exports.
         try:
             if target.resolve() == DEFAULT_DB.resolve():
@@ -454,7 +461,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     empty Source/Screen/Verify tables alongside the Bronze/Silver/Gold ones,
     quietly changing a file we only ever read."""
     if READ_ONLY:
-        # $SCOREBOARD_READONLY=1 means this process may not write, and `main()`
+        # $TRACKER_READONLY=1 means this process may not write, and `main()`
         # calls this on EVERY command -- so without this line the whole read-only
         # mode stops working the moment a migration is pending. That is not
         # hypothetical: adding `actual_date_source` put every existing database

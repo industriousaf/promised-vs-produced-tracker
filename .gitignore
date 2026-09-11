@@ -1,4 +1,4 @@
-# The Scoreboard's ignores. This is the only .gitignore in the repository.
+# The Tracker's ignores. This is the only .gitignore in the repository.
 #
 # It used to say these rules lived in a root .gitignore one directory up and
 # must not be repeated here. That was true while this was aici/scoreboard/
@@ -8,7 +8,7 @@
 # and absent on everyone else's machine. An untracked .env holding an API key
 # would have shown up as a file waiting to be added.
 #
-# The data product IS committed. outputs/scoreboard.db and the CSV exports
+# The data product IS committed. outputs/tracker.db and the CSV exports
 # beside it are what someone clones this repository for, so nothing below may
 # exclude them.
 
@@ -42,7 +42,7 @@ config.env
 # commands open it read-write. Those copies stay local. The canonical database
 # is the one exception.
 *.db
-!outputs/scoreboard.db
+!outputs/tracker.db
 
 # Run transcripts from collect/. A routine run is noise -- large, append-only,
 # and it changes every time, so committing them all would bury the diffs that

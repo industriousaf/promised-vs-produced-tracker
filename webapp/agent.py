@@ -13,7 +13,7 @@ prove them, and shows the reply: confirmed with a quote and where to find it, or
 not confirmed with a URL where the value actually lives. It writes nothing. No
 promotion depends on it, and no verdict of its is stored — a machine judgment on
 a provenance question would become a thing people cite, and the whole design of
-this Scoreboard is that only a person's reading promotes a row.
+this Tracker is that only a person's reading promotes a row.
 
 Two flavours, the same two the collection stages have:
 
@@ -36,7 +36,7 @@ import os
 import re
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json  # noqa: E402
@@ -56,7 +56,7 @@ from webapp.shared import _conn, esc  # noqa: E402
 router = APIRouter()
 
 # The cells worth asking about, in the order the review works through them. The
-# two date cells lead because they are what this Scoreboard measures and what the
+# two date cells lead because they are what this Tracker measures and what the
 # checker is least able to help with: capital and jobs are at least bounded by
 # the size floor, but a wrong date passes every deterministic rule there is.
 CHECKABLE = [
@@ -336,7 +336,7 @@ def _no_key_pane(row, picked: list[str], why: str) -> HTMLResponse:
 below is exactly what the API path would have sent. Copy it into a web-search
 capable assistant, read the answer there, and come back to the form. To stop
 copying it, put <code>ANTHROPIC_API_KEY</code> in a <code>config.env</code>
-beside <code>scoreboard.py</code>.</p>
+beside <code>tracker.py</code>.</p>
 <textarea rows="16" onclick="this.select()">{esc(prompt)}</textarea></div>""")
 
 
@@ -345,7 +345,7 @@ def _answer_pane(reply: str, picked: list[str], model: str, foot: str) -> HTMLRe
     return _pane(f"""
 <p class="muted">{esc(model)} read this project's cited pages and was asked about
 {names}. It is <b>advice, not a verdict</b> — nothing here is written to the
-Scoreboard, and only your own reading of the sources verifies the project.</p>
+Tracker, and only your own reading of the sources verifies the project.</p>
 {render_reply(reply)}
 <p class="muted">Answers come from pages the model opened in this reply. Check any
 quote that decides a field — that is the whole job of this screen.</p>

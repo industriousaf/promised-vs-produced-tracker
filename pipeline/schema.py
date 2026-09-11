@@ -1,8 +1,8 @@
 """
 schema.py -- the canonical schema + hand-verification
-pipeline for the Promised vs. Produced scoreboard.
+pipeline for the Promised vs. Produced Tracker.
 
-This is the "verifiable by hand" step from scoreboard/old/SPEC.md. It does NOT
+This is the "verifiable by hand" step from tracker/old/SPEC.md. It does NOT
 pull from the web, enter data, or call any model. It is the contract every row
 must satisfy before a human runs the citation pass -- run it, read the report,
 fix the rows it flags, run it again. That loop is the whole Level 1 pipeline.
@@ -30,9 +30,9 @@ Design notes
 
 Usage
 -----
-    python -m pipeline.schema PATH/TO/scoreboard.csv
-    python -m pipeline.schema PATH/TO/scoreboard.csv --strict
-    python -m pipeline.schema PATH/TO/scoreboard.csv --quiet   # summary only
+    python -m pipeline.schema PATH/TO/tracker.csv
+    python -m pipeline.schema PATH/TO/tracker.csv --strict
+    python -m pipeline.schema PATH/TO/tracker.csv --quiet   # summary only
 
 Exit code is 0 when the file passes (no ERRORs; also no WARNs under --strict),
 1 otherwise -- so it drops straight into a pre-commit hook or CI gate.
@@ -55,13 +55,13 @@ from pipeline import settings as _criteria  # noqa: E402
 # Controlled vocabularies                                                      #
 # --------------------------------------------------------------------------- #
 
-# The required core columns (the 13-column v0 "source" shape). Every scoreboard must
+# The required core columns (the 13-column v0 "source" shape). Every tracker must
 # carry these, in any order.
 REQUIRED_COLUMNS = [
     "project",
     "sector",
     # The country the facility is in, and its subdivision inside that country.
-    # `country` exists from the start even though the Scoreboard is US-only,
+    # `country` exists from the start even though the Tracker is US-only,
     # because the plan covers allied countries and adding one should be a config
     # change in settings.py rather than a migration of every stored row. A blank
     # cell means the phase's only country.
@@ -95,7 +95,7 @@ PROVENANCE_COLUMNS = [
     "flag",
     "promised_date_source",
     "actual_date_source",
-    # WHICH RULES ADMITTED THIS ROW. The Scoreboard is built by sweeping at a
+    # WHICH RULES ADMITTED THIS ROW. The Tracker is built by sweeping at a
     # high threshold and lowering it later, and without this stamp a later,
     # looser sweep is indistinguishable from the earlier one -- "no $300M plants
     # in 2019" and "we were not looking for $300M plants in 2019" collapse into
@@ -278,7 +278,7 @@ def sector_status(value: str, crit=None) -> tuple[str, str] | None:
 def check_country(value: str, crit=None) -> str | None:
     """The country must be one this phase covers.
 
-    Empty is allowed and means the phase's only country -- the Scoreboard was
+    Empty is allowed and means the phase's only country -- the Tracker was
     US-only before the column existed, so a blank cell on an older row is not a
     defect. It becomes one the moment a phase covers more than one country,
     because then the cell is genuinely load-bearing.
@@ -488,7 +488,7 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
     #
     # An unparseable lag is an error. An *open* lag is not flagged at all: it
     # means the plant has not produced yet, which is the ordinary state of a
-    # tracked project and the very thing this Scoreboard exists to record. It
+    # tracked project and the very thing this Tracker exists to record. It
     # was a WARN, which put "not yet publishable" on 72% of the rows that had
     # already been published, and left CLEAN identifying finished factories
     # rather than well-formed rows. The fact is already on the row, in
@@ -602,8 +602,8 @@ def report(path: str, issues: list[Issue], nrows: int, quiet: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Validate a Promised vs. Produced scoreboard CSV against the canonical schema.")
-    ap.add_argument("csv_path", help="path to the scoreboard CSV")
+    ap = argparse.ArgumentParser(description="Validate a Promised vs. Produced Tracker CSV against the canonical schema.")
+    ap.add_argument("csv_path", help="path to the Tracker CSV")
     ap.add_argument("--strict", action="store_true",
                     help="treat warnings as failures (for validating a CSV by "
                          "hand; the Verify gate does NOT use this)")

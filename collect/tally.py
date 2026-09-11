@@ -35,7 +35,7 @@ import json
 import sys
 from collections import Counter
 
-# The pipeline needs 3.9 or newer; scoreboard.py says so at the door. Nothing
+# The pipeline needs 3.9 or newer; tracker.py says so at the door. Nothing
 # in this file depends on anything later.
 
 

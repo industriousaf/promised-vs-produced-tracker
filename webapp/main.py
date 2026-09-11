@@ -8,16 +8,16 @@ alone.
 What it is FOR is the review workflow: opening a Screen row beside its sources,
 correcting cells, and promoting it to Verify with the reason recorded in
 `verify_edits`. Reading the data does not need it -- the CSV exports and
-`scoreboard.py verify-list` both do that with nothing installed.
+`tracker.py verify-list` both do that with nothing installed.
 
 This module creates the app and mounts the three stage modules onto it. The
 pages themselves live in source.py, screen.py and verify.py; the stylesheet,
 page skeleton and formatting helpers in shared.py.
 
-Run it from the scoreboard directory:
+Run it from the repository root:
 
     pip install -r pipeline/requirements.txt
-    python3 scoreboard.py webapp --reload
+    python3 tracker.py webapp --reload
     # then open http://localhost:8100
 
 The `webapp` command runs uvicorn in process, so it does not depend on the `uvicorn` script
@@ -33,7 +33,7 @@ import json
 import os
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Request  # noqa: E402
@@ -176,7 +176,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
     <div class="stage-name">Verify</div>
     <div class="stage-body"><span class="stage-n">{c['verify_verified']}</span>
       of {n_eligible} published <span class="stage-note">human gate</span>
-      <div class="stage-sub"><a href="/verify">the Scoreboard</a> \u00b7
+      <div class="stage-sub"><a href="/verify">the Tracker</a> \u00b7
         {c['verify_edits']} edit(s) logged</div></div>
     {cta}
   </div>
@@ -189,23 +189,23 @@ def dashboard(request: Request, msg: Optional[str] = None):
             body += """
 <div class="card"><h2>Nothing here yet</h2>
 <p>This database is empty. Collect some projects first — from a terminal, in
-<code>scoreboard/</code>:</p>
+<code>tracker/</code>:</p>
 <pre>N=5 bash collect/all.sh</pre></div>"""
         else:
             body += f"""
 <div class="card"><h2>Nothing waiting for you</h2>
 <p>All {c['verify_verified']} project(s) have been through the human gate.
-<a href="/verify">See the Scoreboard</a>.</p></div>"""
+<a href="/verify">See the Tracker</a>.</p></div>"""
         return _page("Dashboard", body, msg)
 
     ready_bit = ""
     if n_ready:
         top = q["ready"][0]
         ready_bit = f"""
-<p>Largest capital first, so wherever you stop, the Scoreboard above that point
+<p>Largest capital first, so wherever you stop, the Tracker above that point
 is complete. First up: <b>{esc(top['project'])}</b>.</p>
 <p><small>Or work the same queue in a terminal:
-<code>python3 scoreboard.py review</code></small></p>"""
+<code>python3 tracker.py review</code></small></p>"""
 
     blocked_bit = ""
     if n_blocked:
@@ -223,8 +223,8 @@ is complete. First up: <b>{esc(top['project'])}</b>.</p>
 def _quality_card(m: dict) -> str:
     """Five bars, and no blended score.
 
-    The counts on the tiles above cannot say whether the Scoreboard is any good --
-    "23 screened" is a finished Scoreboard or a backlog depending on facts they do
+    The counts on the tiles above cannot say whether the Tracker is any good --
+    "23 screened" is a finished Tracker or a backlog depending on facts they do
     not carry. These five say it. They are shown side by side rather than
     combined because a single number invites an argument about the weights, and
     a referee will ask what is in it.
@@ -247,7 +247,7 @@ def _quality_card(m: dict) -> str:
     f = m["flags"]
     n_prov, n_subst = len(f["provenance"]), len(f["substantive"])
     return f"""
-<div class="card"><h2>Can this Scoreboard carry the claim?</h2>
+<div class="card"><h2>Can this Tracker carry the claim?</h2>
 {rows}
 <p style="margin-top:1rem"><b>Open questions.</b> {n_prov + n_subst} of {m['total']}
 projects carry an unresolved flag, of two very different kinds:</p>
@@ -259,7 +259,7 @@ projects carry an unresolved flag, of two very different kinds:</p>
 </ul>
 <p><small>Counting these together is why every project looked flagged and the warning
 carried no signal. Same numbers in a terminal:
-<code>python3 scoreboard.py quality</code></small></p></div>"""
+<code>python3 tracker.py quality</code></small></p></div>"""
 
 
 

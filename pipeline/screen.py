@@ -235,7 +235,7 @@ def _refuse_if_published(conn: sqlite3.Connection, screen_id: int, project: str)
         f"screen #{screen_id} ({project}) was published as verify #{ids}. "
         f"Writing the date here would fix the Screen row and leave the "
         f"published one reading 'unconfirmed'. Verify is a human gate:\n"
-        f"    scoreboard.py verify-edit --id {published[0]} "
+        f"    tracker.py verify-edit --id {published[0]} "
         f"--set actual_first_output=YYYY-MM --set actual_date_source=URL "
         f"--desc \"first output dated from <source>\""
     )
@@ -463,7 +463,7 @@ def review_queue(conn: sqlite3.Connection) -> dict:
 
     Returns {"ready": [rows], "blocked": [rows], "published": int}. `ready` is
     largest capital first, which is the order review is meant to proceed in: the
-    Scoreboard is made complete from the top down, so wherever review stops, the
+    Tracker is made complete from the top down, so wherever review stops, the
     claim above that point is intact. `blocked` is the rows whose deterministic
     check FAILs -- promotion refuses those until the row is fixed.
 
@@ -486,7 +486,7 @@ def list_extracted(conn: sqlite3.Connection,
                    by_capital: bool = False) -> list[sqlite3.Row]:
     """Screen rows, by id (insertion order) or largest capital first.
 
-    Capital order is how verification is meant to proceed: the Scoreboard is made
+    Capital order is how verification is meant to proceed: the Tracker is made
     complete from the top down, so wherever review stops, the claim above that
     point is intact. promised_capital_usd is TEXT, so it is cast for sorting and
     rows without a figure sort last."""
@@ -503,7 +503,7 @@ def published_undated(conn: sqlite3.Connection) -> list[tuple[sqlite3.Row, int]]
     """(verify row, verify id) for PUBLISHED rows that still carry no date.
 
     The backfill cannot touch these, and they are the ones that matter most:
-    'unconfirmed' in `verify_verified` is on the published Scoreboard, not in a
+    'unconfirmed' in `verify_verified` is on the published Tracker, not in a
     staging table. Returned so the run says so at the end instead of leaving
     them to be noticed.
 

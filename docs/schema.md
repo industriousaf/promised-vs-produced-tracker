@@ -1,6 +1,6 @@
 # The schema
 
-Six SQLite tables in `outputs/scoreboard.db`. The canonical definition is
+Six SQLite tables in `outputs/tracker.db`. The canonical definition is
 [`../pipeline/schema.py`](../pipeline/schema.py) — where
 this file and that one disagree, the code wins.
 
@@ -152,7 +152,7 @@ questions: nothing may write them now.
 
 ## Details worth knowing
 
-- **Reset:** delete `outputs/scoreboard.db` (or point `SCOREBOARD_DB` elsewhere)
+- **Reset:** delete `outputs/tracker.db` (or point `TRACKER_DB` elsewhere)
   to start clean. Add `outputs/*.db` to `.gitignore` if you don't want to commit
   them.
 - **Which tables per stage:** Source = `source_collected`; Screen =
@@ -182,7 +182,7 @@ questions: nothing may write them now.
   code change on purpose, so what counts as in scope cannot move at runtime without a
   commit recording it. (`schema.py` only re-exports the set; editing it there does
   nothing.)
-- **`criteria_id` names the rule that admitted the row.** The Scoreboard is built by
+- **`criteria_id` names the rule that admitted the row.** The Tracker is built by
   sweeping at a high threshold first and lowering it, and every row records which
   sweep admitted it — `1B-or-2000-jobs`, `100M-or-200-jobs`. The name is the rule
   spelled out rather than a handle like `p1`, because it lives in a CSV column

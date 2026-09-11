@@ -46,7 +46,7 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter  # noqa: E402
@@ -605,7 +605,7 @@ def _wayback(url: str) -> dict:
     own toolbar and scripts are not part of the page. The archive step
     in `pipeline/prompts/fetching.md`, which is where a third of cited pages end
     up: governor's-office and state-agency releases rotate off within a year or
-    two, and this Scoreboard cites a lot of them."""
+    two, and this Tracker cites a lot of them."""
     api = "https://archive.org/wayback/available?url=" + urllib.parse.quote(url, safe="")
     probe = _get(api)
     snap = ""

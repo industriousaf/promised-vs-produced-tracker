@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Request  # noqa: E402
@@ -102,7 +102,7 @@ def verify_page(
         <small>tier {esc(r['verification_tier'])} · {edit_counts[r['id']]} edit(s)</small>
         <br><small>flag: {esc(r['flag'])}</small></div>"""
         for r in rows
-    ) or "<p>(nothing published yet. Verify a project to start the Scoreboard.)</p>"
+    ) or "<p>(nothing published yet. Verify a project to start the Tracker.)</p>"
 
     def _sel(cur: str, val: str) -> str:
         return " selected" if cur == val else ""
@@ -156,12 +156,12 @@ def verify_page(
   <p>{sector_chips}</p>
 </div>
 """
-    # The Scoreboard leads. This page opened with a threshold-probing tool and
+    # The Tracker leads. This page opened with a threshold-probing tool and
     # the sector vocabulary above the published rows, which put two reference
-    # panels in front of the thing the methodology calls "the Scoreboard in its
+    # panels in front of the thing the methodology calls "the Tracker in its
     # final form". Both are still here, folded, because neither is what a
     # person came to this page to see.
-    lede = ('<p class="pagelede">The published Scoreboard. Every project here was '
+    lede = ('<p class="pagelede">The published Tracker. Every project here was '
             'read against its two sources by a person; nothing reaches this '
             'table any other way.</p>')
     tools = (f'<details class="byhand"><summary>Explore and reference</summary>'

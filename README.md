@@ -1,4 +1,4 @@
-# The Promised vs. Produced Scoreboard
+# The Promised vs. Produced Tracker
 
 A US factory gets announced with a capital figure, a job count, and a target date
 for first output. Years later the outcomes vary widely. Some plants are producing
@@ -7,12 +7,12 @@ little public data tracking which is which.
 
 This directory builds that data. It collects the announcement and the current
 status for each project, extracts them into a fixed set of columns, and publishes
-the rows a person has checked. The result is the **Scoreboard**, stored in one
-SQLite file, `outputs/scoreboard.db`, which grows as projects are added.
+the rows a person has checked. The result is the **Tracker**, stored in one
+SQLite file, `outputs/tracker.db`, which grows as projects are added.
 
-What you clone is a **multi-command CLI**. One entry point, `scoreboard.py`, with
+What you clone is a **multi-command CLI**. One entry point, `tracker.py`, with
 a subcommand for each step: read the data, add to it, check a row, publish it.
-`python3 scoreboard.py --help` lists them all.
+`python3 tracker.py --help` lists them all.
 
 A row is published only after someone opens its two source links and confirms the
 figures match. The automated check catches malformed and out-of-range values, but
@@ -22,7 +22,7 @@ signs off on every published row.
 **Contents**
 
 - [What counts as a project](#what-counts-as-a-project)
-- [See the Scoreboard](#see-the-scoreboard)
+- [See the Tracker](#see-the-tracker)
 - [How a project gets in](#how-a-project-gets-in)
 - [Add data](#add-data)
 - [Publish a row](#publish-a-row)
@@ -35,7 +35,7 @@ signs off on every published row.
 ## What counts as a project
 
 A project is in scope when **all** of these hold. The thresholds belong to a
-**phase** — the Scoreboard is made complete at a high threshold first and lowered
+**phase** — the Tracker is made complete at a high threshold first and lowered
 in later sweeps, and every row records the phase that admitted it, so a later,
 looser sweep stays distinguishable from an earlier one. Two are defined:
 
@@ -44,7 +44,7 @@ looser sweep stays distinguishable from an earlier one. Two are defined:
 | `100M-or-200-jobs` | capital ≥ $100,000,000 **OR** ≥ 200 direct promised jobs | the rule this repository's rows were collected under |
 | `1B-or-2000-jobs` | capital ≥ $1,000,000,000 **OR** ≥ 2,000 direct promised jobs | the high threshold |
 
-`scoreboard.py config` prints which is in force with the line to edit, and `pipeline/settings.py` is
+`tracker.py config` prints which is in force with the line to edit, and `pipeline/settings.py` is
 the only place any of it is set.
 
 | | Rule |
@@ -63,7 +63,7 @@ If this table and that file ever disagree, the file is correct.
 
 ---
 
-## See the Scoreboard
+## See the Tracker
 
 Three ways in, depending on what you want to do.
 
@@ -73,15 +73,15 @@ The published rows are exported to a flat file. Open it in Excel, a text editor,
 or anything else:
 
 ```
-outputs/csv_tables/scoreboard_verify.csv
+outputs/csv_tables/tracker_verify.csv
 ```
 
-`scoreboard_source.csv` and `scoreboard_screen.csv` beside it hold the two
-earlier stages, and `scoreboard_screen_check.csv` and
-`scoreboard_verify_edits.csv` hold the audit trail. Regenerate all five with
-`python3 scoreboard.py export`.
+`tracker_source.csv` and `tracker_screen.csv` beside it hold the two
+earlier stages, and `tracker_screen_check.csv` and
+`tracker_verify_edits.csv` hold the audit trail. Regenerate all five with
+`python3 tracker.py export`.
 
-These rows are CC BY 4.0 — use them anywhere, credit the Scoreboard when you
+These rows are CC BY 4.0 — use them anywhere, credit the Tracker when you
 publish one. See [License](#license) below.
 
 ### 2. Use the command line — nothing installed
@@ -89,11 +89,11 @@ publish one. See [License](#license) below.
 Python 3.9 or newer, standard library only. From this directory:
 
 ```bash
-python3 scoreboard.py status             # row counts per stage
-python3 scoreboard.py verify-list        # the published scoreboard
-python3 scoreboard.py screen-list        # rows waiting for review (-> = unverified)
-python3 scoreboard.py verify-show --id 6 # one row + its edit history
-python3 scoreboard.py --help             # every command
+python3 tracker.py status             # row counts per stage
+python3 tracker.py verify-list        # the published tracker
+python3 tracker.py screen-list        # rows waiting for review (-> = unverified)
+python3 tracker.py verify-show --id 6 # one row + its edit history
+python3 tracker.py --help             # every command
 ```
 
 Those read only. Every command that writes is named as such below.
@@ -103,9 +103,9 @@ Unix that name is guaranteed to mean Python 3, while a bare `python` may be
 missing or may be Python 2. Nothing in the pipeline depends on the spelling —
 if your system keeps the right interpreter somewhere else, under conda or pyenv
 or a distribution that ships only `python`, use that name instead.
-`./scoreboard.py` works too, and names no interpreter at all.
+`./tracker.py` works too, and names no interpreter at all.
 
-What does matter is the version, **3.9 or newer**. `scoreboard.py` checks at the
+What does matter is the version, **3.9 or newer**. `tracker.py` checks at the
 door and says so, rather than failing later from somewhere inside the code.
 
 The collection scripts resolve the interpreter once and take `PY=` as an
@@ -120,12 +120,12 @@ PY=/opt/homebrew/bin/python3.12 bash collect/all.sh
 ```bash
 python3 -m venv .venv && source .venv/bin/activate   # recommended, not required
 pip install -r pipeline/requirements.txt
-python3 scoreboard.py webapp             # then open http://localhost:8100
+python3 tracker.py webapp             # then open http://localhost:8100
 ```
 
 The `webapp` command runs uvicorn in process, so it works whether or not the
 `uvicorn` script landed on your `PATH`. `--port` moves it, `--reload` restarts on
-source changes, and `--db` composes, so `python3 scoreboard.py --db /tmp/try.db
+source changes, and `--db` composes, so `python3 tracker.py --db /tmp/try.db
 webapp` reviews a copy instead of the real data.
 
 Reading the data is the *least* of what this is for. Its real job is the
@@ -139,12 +139,12 @@ lives. If you just want to look, options 1 and 2 are faster and need no install.
 See [`webapp/`](webapp/).
 
 The CSVs in option 1 carry every column of their table, in table order, sorted by
-`id`, with NULLs as empty cells. Three hold the Scoreboard; the two named
+`id`, with NULLs as empty cells. Three hold the Tracker; the two named
 `_check` and `_edits` hold the audit trail, which is exported because
-`scoreboard.db` is committed and git cannot diff a binary. Without them a commit
+`tracker.db` is committed and git cannot diff a binary. Without them a commit
 could add fifty check runs, or a correction to a published figure, and show
-nothing but "scoreboard.db changed". `pipeline/export_tables.py` takes `--db` to
-read a different database and `--out-dir` to write somewhere else. `python3 scoreboard.py export`
+nothing but "tracker.db changed". `pipeline/export_tables.py` takes `--db` to
+read a different database and `--out-dir` to write somewhere else. `python3 tracker.py export`
 is the same exporter as a command; `--out-dir` works there too.
 
 ---
@@ -214,7 +214,7 @@ names. The pipeline can read those files but never writes to them.
 One command finds new projects and extracts them into rows:
 
 ```bash
-python3 scoreboard.py collect --n 10
+python3 tracker.py collect --n 10
 ```
 
 Each iteration starts one `claude -p` process that searches the web and writes
@@ -226,7 +226,7 @@ the database de-duplicates.
 Check the plan before spending anything:
 
 ```bash
-python3 scoreboard.py collect --n 5 --dry-run
+python3 tracker.py collect --n 5 --dry-run
 ```
 
 Each stage starts one process per iteration, so `--n 10` across both stages is 20
@@ -241,7 +241,7 @@ On macOS, `caffeinate -i` holds off idle sleep for exactly as long as the comman
 it wraps, then releases, so there is no setting to remember to undo:
 
 ```bash
-caffeinate -i python3 scoreboard.py collect --n 30
+caffeinate -i python3 tracker.py collect --n 30
 ```
 
 It does **not** survive closing the lid, which sleeps the machine by another
@@ -260,7 +260,7 @@ writes are described under **What a run costs** below.
 
 ### Five ways in, and only two of them need Anthropic to collect anything
 
-Collection is the only part of the Scoreboard that touches a model on its own.
+Collection is the only part of the Tracker that touches a model on its own.
 The data model, the checker, the human gate, the exports and the coverage measure
 are standard-library Python with no provider anywhere; the review screen's
 agentic check is optional, advisory, and stores nothing.
@@ -282,7 +282,7 @@ export ANTHROPIC_API_KEY=sk-ant-...          # this shell only
 ```
 
 or, to stop typing it, a **`config.env` in this directory** — beside
-`scoreboard.py`, not inside `pipeline/` or `webapp/`:
+`tracker.py`, not inside `pipeline/` or `webapp/`:
 
 ```
 # config.env  (gitignored; never commit a key)
@@ -290,7 +290,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 It is loaded on `import pipeline`, so every entry point sees it: the CLI, the web
-app's agentic check, `tools/gather.py`, and the collection scripts. `SCOREBOARD_DB`,
+app's agentic check, `tools/gather.py`, and the collection scripts. `TRACKER_DB`,
 `MODEL` and `EFFORT` can live there too. Simple `KEY=value` lines; `#` comments and
 blank lines are ignored; a missing file is not an error. Confirm it is being read
 without printing it:
@@ -351,8 +351,8 @@ function, so the choice is only about how you would rather read the sources.
 
 | | Needs | Best for |
 |---|---|---|
-| `python3 scoreboard.py review` | nothing | working the queue in order. Prints each row's figures and both links, then asks about them one at a time. |
-| `python3 scoreboard.py webapp` | `pip install` | reading a row *inside* its sources: the cited pages render in the review screen with the row's claims highlighted in them, and any of the 20 cells is editable in the form beside. |
+| `python3 tracker.py review` | nothing | working the queue in order. Prints each row's figures and both links, then asks about them one at a time. |
+| `python3 tracker.py webapp` | `pip install` | reading a row *inside* its sources: the cited pages render in the review screen with the row's claims highlighted in them, and any of the 20 cells is editable in the form beside. |
 | `verify-promote` by hand | nothing | one particular row, or a script. |
 
 The rest of this section is the third route, which is also what the other two
@@ -361,18 +361,18 @@ run underneath.
 Find a row that passed its check and read it:
 
 ```bash
-python3 scoreboard.py screen-list --by-capital   # biggest first; -> = still unverified
-python3 scoreboard.py screen-show --id 42        # the row and its sources
+python3 tracker.py screen-list --by-capital   # biggest first; -> = still unverified
+python3 tracker.py screen-show --id 42        # the row and its sources
 ```
 
-Work largest first. The Scoreboard is made complete from the top down, so
+Work largest first. The Tracker is made complete from the top down, so
 wherever you stop, the claim above that point holds.
 
 Open its `promise_source` and `status_source` links. Confirm they support the
 capital figure, the job count, and the dates. Then publish it:
 
 ```bash
-python3 scoreboard.py verify-promote --screen-id 42 --tier V1 \
+python3 tracker.py verify-promote --screen-id 42 --tier V1 \
     --flag "Resolved: two independent sources agree on the announced date."
 ```
 
@@ -384,7 +384,7 @@ Corrections after publication always require a reason, and are written to
 `verify_edits`:
 
 ```bash
-python3 scoreboard.py verify-edit --id 6 \
+python3 tracker.py verify-edit --id 6 \
     --set current_status="Delayed — production pushed to 2027" \
     --desc "Re-read the Q3 release."
 ```
@@ -397,18 +397,18 @@ covers what to look for while reviewing.
 ## What is in here
 
 If you are here to **use** it rather than change it, you will touch three things:
-`scoreboard.py`, `collect/`, and `outputs/` -- plus `webapp/` to review rows.
+`tracker.py`, `collect/`, and `outputs/` -- plus `webapp/` to review rows.
 Everything else is machinery. Each of the three pipeline directories has its own
 README.
 
 | Path | What it is |
 |---|---|
-| [`scoreboard.py`](scoreboard.py) | **The entry point.** A thin launcher for the pipeline CLI. |
+| [`tracker.py`](tracker.py) | **The entry point.** A thin launcher for the pipeline CLI. |
 | [`pipeline/`](pipeline/) | **The pipeline.** The six tables, the commands, and the promotion gate. `collect/`, `tools/` and the web app all write through it. Also holds `settings.py` -- the one place every threshold, model and loop setting is defined -- and `schema.py`, the row validator. |
 | [`collect/`](collect/) | **Ongoing collection.** The loops that find new projects and extract them, and the prompts they hand to each one. |
 | [`webapp/`](webapp/) | The browser interface, for reviewing rows against their sources and promoting them. |
 | [`tools/`](tools/) | Two standalone scripts nobody imports: bulk CSV load, and batch collection over the direct API. They stay scripts because they are rare and sharp. (`export` and `coverage` moved into `pipeline/`, which imports them.) |
-| [`outputs/`](outputs/) | `scoreboard.db`, plus `csv_tables/` holding a flat CSV export of each stage. |
+| [`outputs/`](outputs/) | `tracker.db`, plus `csv_tables/` holding a flat CSV export of each stage. |
 | `docs/` `logs/` `scratch/` `tests/` | Reference, run transcripts (local only -- `logs/RUNS.md` is the committed record), working files, and the test suite. Nothing to click. |
 
 Longer reference, kept out of this file:
@@ -425,17 +425,17 @@ Longer reference, kept out of this file:
 
 - Run every command from this directory, the one holding this README.
 - **The CSV exports keep themselves in step.** Any command that changes
-  `outputs/scoreboard.db` refreshes `outputs/csv_tables/` as it closes, so the
+  `outputs/tracker.db` refreshes `outputs/csv_tables/` as it closes, so the
   two are never committed out of sync. The database is committed and git cannot
   diff a binary, so those CSVs are how a change becomes readable in a review.
   This happens for the committed database only: a `--db` copy never overwrites
-  the real exports. `SCOREBOARD_NO_AUTOEXPORT=1` turns it off, and any command
+  the real exports. `TRACKER_NO_AUTOEXPORT=1` turns it off, and any command
   will then warn you that the CSVs have fallen behind.
-- The database is `outputs/scoreboard.db`. Override it with `SCOREBOARD_DB=/path/to/other.db`
+- The database is `outputs/tracker.db`. Override it with `TRACKER_DB=/path/to/other.db`
   or `--db` on any command. Most commands open it read-write.
-- `SCOREBOARD_READONLY=1` opens it read-only for that command: everything that reads
+- `TRACKER_READONLY=1` opens it read-only for that command: everything that reads
   still works, everything that writes refuses and says which flag to unset. Use it
-  when you are checking on the Scoreboard rather than changing it — poking at a research
+  when you are checking on the Tracker rather than changing it — poking at a research
   dataset to confirm something is fine should not be able to alter it. Cheaper and
   more certain than copying the file first.
 - Keep the database on a local disk. SQLite locking is unreliable over network
@@ -451,15 +451,15 @@ Longer reference, kept out of this file:
 Two licenses, because this repository holds two things. Which one applies
 depends on which file you took.
 
-**The data is CC BY 4.0.** That is `outputs/scoreboard.db` and every CSV in
+**The data is CC BY 4.0.** That is `outputs/tracker.db` and every CSV in
 `outputs/csv_tables/`. Use it for anything, commercial work included. The one
 condition is attribution: when you publish a figure or a number drawn from
-these rows, name the Scoreboard in the caption or the sentence. This line
+these rows, name the Tracker in the caption or the sentence. This line
 satisfies it:
 
 ```
-The Promised vs. Produced Scoreboard, IndustriousAF. CC BY 4.0.
-https://github.com/ashwinl4/promised-vs-produced-scoreboard
+The Promised vs. Produced Tracker, IndustriousAF. CC BY 4.0.
+https://github.com/ashwinl4/promised-vs-produced-tracker
 ```
 
 Full terms, the attribution rules and what is *not* covered are in
@@ -477,4 +477,4 @@ actually gets drawn.
 Two things neither license grants. The rows cite news articles and company
 statements by URL; those pages belong to their publishers and are not
 redistributed here. And no license here conveys any right in the IndustriousAF
-name or in the Scoreboard's marks.
+name or in the Tracker's marks.

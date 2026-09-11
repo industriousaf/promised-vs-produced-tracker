@@ -90,7 +90,7 @@ a survival model counts as still waiting.
 `unconfirmed` therefore **cannot** appear in `promised_first_output`. A promise is not an
 event that can have happened; the only thing missing there is the promise itself, which
 is `n/a`. `announced` takes no sentinel at all — a project with no announcement month
-does not belong in the Scoreboard.
+does not belong in the Tracker.
 
 If you omit a `*_raw`, the pipeline falls back to storing the token as the raw — so always
 provide the real verbatim quote when you can; that is the whole point of this field.

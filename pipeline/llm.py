@@ -112,7 +112,7 @@ def render_source_prompt(
     `orchestrate.announced_year_coverage`. It is rendered as its own section so
     the collector can see the shape of what it has already produced. Without it
     the exclusion lists remove individual sites but never a vintage, and the
-    Scoreboard drifts toward whichever period is most heavily reported.
+    Tracker drifts toward whichever period is most heavily reported.
 
     `avoid_published` is the list of projects already published;
     `avoid_unpublished` the ones collected but not published yet (see the two
@@ -147,7 +147,7 @@ def render_source_prompt(
     if avoid_published:
         prompt += (
             "These `project` names are the current contents of the `verify_verified` "
-            "table (the authoritative, verified scoreboard). Do **not** collect any of "
+            "table (the authoritative, verified tracker). Do **not** collect any of "
             "them, nor a mere expansion / re-announcement of one:\n> "
             + " · ".join(sorted(set(avoid_published)))
         )
@@ -177,7 +177,7 @@ def render_source_prompt(
             )
         else:
             prompt += (
-                "This is the Scoreboard you are adding to, counted by announcement "
+                "This is the Tracker you are adding to, counted by announcement "
                 "year:\n\n```\n" + bars + "\n```\n\n"
                 "The eligible window runs from the phase start to today, and every year in it "
                 "is equally eligible. Heavily reported projects cluster in a few "
@@ -194,7 +194,7 @@ def render_source_prompt(
                 "\n\nThis is a preference, not a quota, and it never outranks the "
                 "inclusion rules. If a year genuinely has no qualifying project you "
                 "can source and verify, move to the next-thinnest rather than "
-                "lowering the bar or inventing one — a Scoreboard balanced by year but "
+                "lowering the bar or inventing one — a Tracker balanced by year but "
                 "padded with weak rows is worse than an unbalanced one."
             )
 
@@ -600,7 +600,7 @@ def render_verify_prompt(row, fields: list[str]) -> str:
 
     lines = [
         "You are checking a small number of cells in ONE row of a US "
-        "manufacturing-project scoreboard against the pages that row cites. You "
+        "manufacturing-project tracker against the pages that row cites. You "
         "are not collecting, re-researching, or scoring the project, and you "
         "must not check any cell that is not listed below.",
         "",
@@ -688,7 +688,7 @@ def run_verify_check(row, fields: list[str]) -> str:
 
     Markdown-ish text for a human to read, not a structured verdict, and it
     writes nothing anywhere. Deliberate: a stored machine verdict on a provenance
-    question becomes a thing people cite, and the whole design of this Scoreboard
+    question becomes a thing people cite, and the whole design of this Tracker
     is that only a person's reading promotes a row.
     """
     return _research(

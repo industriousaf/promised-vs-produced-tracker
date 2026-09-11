@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""coverage.py -- how much of a reference list does the Scoreboard actually have?
+"""coverage.py -- how much of a reference list does the Tracker actually have?
 
 Recall against a reference list is the only completeness measure available: the
 true universe of US manufacturing projects is not published by anyone, so the
@@ -52,11 +52,11 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCOREBOARD_ROOT = HERE.parent
+TRACKER_ROOT = HERE.parent
 # Needed only when run as a script (`python3 pipeline/coverage.py`): sys.path[0]
 # is then pipeline/, and `pipeline.db` below is not importable without the root.
-if str(SCOREBOARD_ROOT) not in sys.path:
-    sys.path.insert(0, str(SCOREBOARD_ROOT))
+if str(TRACKER_ROOT) not in sys.path:
+    sys.path.insert(0, str(TRACKER_ROOT))
 
 # The ONE resolver. This file used to carry its own copy, which ignored the
 # MEDALLION_DB alias and the web app's active-database picker -- so `coverage`
@@ -180,10 +180,10 @@ def selftest() -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
-        description="Recall of the Scoreboard against a reference list of projects.")
+        description="Recall of the Tracker against a reference list of projects.")
     ap.add_argument("--against",
                     help="reference CSV; needs at least `project` and `state` columns")
-    ap.add_argument("--db", default=None, help="scoreboard database (default: outputs/scoreboard.db)")
+    ap.add_argument("--db", default=None, help="tracker database (default: outputs/tracker.db)")
     ap.add_argument("--stage", choices=["screen", "verify"], default="screen",
                     help="measure what has been collected (screen) or published (verify)")
     ap.add_argument("--min-capital", type=int, default=None,
@@ -223,7 +223,7 @@ def main(argv=None) -> int:
 
     print(f"reference : {ref_path.name}  ({total} projects scored"
           + (f", ≥ ${args.min_capital/1e9:.1f}B" if args.min_capital else "") + ")")
-    print(f"scoreboard: {db.name}  [{table}]  {len(have)} rows")
+    print(f"tracker: {db.name}  [{table}]  {len(have)} rows")
     print()
     lo = 100 * len(covered) / total
     hi = 100 * (len(covered) + len(ambiguous)) / total

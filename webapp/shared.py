@@ -16,7 +16,7 @@ import json
 import os
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve
+# webapp/ -> tracker/, so `pipeline` imports resolve
 # whether this is run as a package or by path.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -151,6 +151,14 @@ body.wide .wrap { max-width: 1560px; }
         margin: 0 0 1.5rem; padding: .85rem 0; }
 .band .wrap { display: flex; align-items: center; gap: 1.25rem;
         flex-wrap: wrap; }
+/* The project's own name, beside the organisation's mark and subordinate to
+   it: the serif says this is a name rather than a label, and the hairline plus
+   the muted cream keep it from competing with the wordmark. Drops out below the
+   tablet width, where the band has only room for the mark and the nav. */
+.projname { font-family: var(--font-serif); font-size: .95rem; color: var(--cream);
+    opacity: .82; white-space: nowrap; padding-left: 1.25rem;
+    border-left: 0.5px solid rgba(244, 241, 234, .35); }
+@media (max-width: 860px) { .projname { display: none; } }
 .band nav { display: flex; gap: 1.1rem; margin-left: auto; }
 .band nav a { font-family: var(--font-mono); font-size: 11px;
         letter-spacing: .16em; text-transform: uppercase; text-decoration: none;
@@ -183,7 +191,7 @@ body.wide .wrap { max-width: 1560px; }
 .stage { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
     border: 0.5px solid var(--rule); border-radius: 0;
     background: var(--ground-card); padding: .9rem 1.1rem; }
-/* Verify is where the Scoreboard actually exists, so it gets the weight. */
+/* Verify is where the Tracker actually exists, so it gets the weight. */
 .stage-end { border-color: var(--teal); }
 .stage-name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .2em;
     text-transform: uppercase; color: var(--teal); min-width: 5.5rem; }
@@ -575,7 +583,7 @@ def _db_status() -> str:
     canonical = current.resolve() == Path(DEFAULT_DB).resolve()
 
     # Two different things used to share the name "read-only": a legacy-
-    # vocabulary file, and $SCOREBOARD_READONLY for the whole process. The bar
+    # vocabulary file, and $TRACKER_READONLY for the whole process. The bar
     # only ever reported the first, so a read-only run displayed "writable"
     # while every write refused. Either one means you cannot write.
     ro = is_read_only() or READ_ONLY
@@ -623,6 +631,12 @@ def _db_switcher() -> str:
 
 
 
+# The project's public name, defined once. It is not the organisation's name and
+# not the repository's, and all three used to be inferable only from the URL: the
+# masthead carried the IndustriousAF mark and the database filename, so no page
+# said what the thing itself was called.
+PROJECT_NAME = "Promised vs. Produced Tracker"
+
 WORDMARK = (
     '<div class="iaf-logo">'
     '<span class="iaf-logo-line">'
@@ -658,6 +672,7 @@ def _page(title: str, body: str, msg: str | None = None,
 <style>{_BAGNARD}{_CSS}</style></head><body class="{'wide' if wide else ''}">
 <header class="band"><div class="wrap">
 {WORDMARK}
+<span class="projname">{html.escape(PROJECT_NAME)}</span>
 <nav><a href="/">Dashboard</a><a href="/source">Source</a><a href="/screen">Screen</a><a href="/verify">Verify</a></nav>
 {_db_status()}
 </div></header>
@@ -857,7 +872,7 @@ def flag_only_reason(changes: dict, old_flag) -> str | None:
     """The provenance note a flag-only edit writes for itself, or None.
 
     Every write to a Verify row needs a reason in `verify_edits`; that rule is
-    what makes the published Scoreboard auditable and it is not moving. But when
+    what makes the published Tracker auditable and it is not moving. But when
     the ONLY cell that changed is `flag`, the required reason had become a tax
     on the exact case that least needs one. The flag is free text whose entire
     job is to say what is unresolved about the row — so typing "resolved the

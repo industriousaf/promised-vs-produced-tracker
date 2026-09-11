@@ -1,5 +1,5 @@
 """
-load_csv.py -- bulk-load a Screen-shape CSV into ../outputs/scoreboard.db.
+load_csv.py -- bulk-load a Screen-shape CSV into ../outputs/tracker.db.
 
 Threads every scraped project through the medallion stages using the EXISTING
 pipeline modules (no new SQL, no duplicated logic):
@@ -33,14 +33,14 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCOREBOARD_ROOT = HERE.parent
-sys.path.insert(0, str(SCOREBOARD_ROOT))            # so `pipeline` imports
+TRACKER_ROOT = HERE.parent
+sys.path.insert(0, str(TRACKER_ROOT))            # so `pipeline` imports
 
 from pipeline import db as mdb          # noqa: E402
 from pipeline import source, screen, verify  # noqa: E402
 from pipeline.schema_check import V0_COLUMNS, RAW_DATE_COLUMNS  # noqa: E402
 
-DEFAULT_DB = SCOREBOARD_ROOT / "outputs" / "scoreboard.db"
+DEFAULT_DB = TRACKER_ROOT / "outputs" / "tracker.db"
 DEFAULT_COLLECTED_VIA = "bulk-import"   # override with --via
 
 # screen_extracted / verify_verified declare these NOT NULL, so a row missing any
@@ -157,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.promote_tier:
         print("\nVerify was left untouched (human gate). To promote a checked row:")
-        print(f"  SCOREBOARD_DB={args.db} python -m pipeline.cli "
+        print(f"  TRACKER_DB={args.db} python -m pipeline.cli "
               "verify-promote --screen-id N --tier V1 --flag \"...\"")
     return 0
 

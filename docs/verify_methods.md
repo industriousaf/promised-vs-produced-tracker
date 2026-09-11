@@ -1,6 +1,6 @@
 # Screen → Verify: the human review
 
-Verify is the published, research-grade scoreboard. A Screen row is always tier **P**
+Verify is the published, research-grade tracker. A Screen row is always tier **P**
 (provisional) — an extraction nobody has vouched for yet. A Verify row is tier
 **V1** or **V2** — a human has opened the sources and confirmed they hold up.
 Making that judgment *is* the human gate; nothing reaches Verify without it.
@@ -29,7 +29,7 @@ One qualifying US manufacturing project tracked from the moment capital is promi
 to the moment output actually appears. The **promise** side is the announcement
 (capital, jobs, and a promised first-output date); the **produced** side is the
 current/actual outcome. The gap between them is the whole point — the lag/slip
-this scoreboard measures.
+this tracker measures.
 
 ### The tiers measure how deeply a row was checked
 
@@ -104,14 +104,14 @@ without it fails. The `flag` is rewritten into a resolution record on the way
 in. A `FAIL`ing row is blocked unless you pass `--force` — reserve that for when
 you've verified the row by hand and disagree with the checker.
 
-## Collaborating on the scoreboard
+## Collaborating on the Tracker
 
-The scoreboard lives in one SQLite file, `scoreboard.db`. Three ways to share the work,
+The tracker lives in one SQLite file, `tracker.db`. Three ways to share the work,
 roughly in order of effort:
 
-1. **Ping-pong the file.** We hand `scoreboard.db` back and forth and take turns.
+1. **Ping-pong the file.** We hand `tracker.db` back and forth and take turns.
    Zero setup; only one person can be verifying at a time, and merges are manual.
-2. **Shared backend (preferred).** Put `scoreboard.db` behind an organized shared
+2. **Shared backend (preferred).** Put `tracker.db` behind an organized shared
    store so we both work against it. Better for real collaboration — a little more
    to stand up, but no hand-offs.
 3. **Shared Claude account** for the project, so the AI collection/extraction

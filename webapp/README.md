@@ -6,7 +6,7 @@ with the reason recorded.
 
 If you only want to *read* the data, you do not need this. Two other routes need
 nothing installed at all — see [the three ways to see the
-Scoreboard](../README.md#see-the-scoreboard) in the main README.
+Tracker](../README.md#see-the-tracker) in the main README.
 
 **Contents**
 
@@ -17,15 +17,15 @@ Scoreboard](../README.md#see-the-scoreboard) in the main README.
 
 ## Run it
 
-The rest of the Scoreboard runs on the standard library. This is the one part
+The rest of the Tracker runs on the standard library. This is the one part
 that needs packages installed: FastAPI, uvicorn and python-multipart.
 
-From the parent directory (`scoreboard/`), not from here:
+From the parent directory (`tracker/`), not from here:
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r pipeline/requirements.txt
-python3 scoreboard.py webapp
+python3 tracker.py webapp
 ```
 
 Then open <http://localhost:8100>. Add `--reload` while editing, `--port` to
@@ -35,7 +35,7 @@ the environment later with `deactivate`; `.venv/` is gitignored.
 ### On the virtual environment
 
 It is a recommendation, not a requirement. Installing into your user site works
-too, and `scoreboard.py webapp` finds the packages either way, because it calls
+too, and `tracker.py webapp` finds the packages either way, because it calls
 uvicorn in process rather than shelling out to the `uvicorn` script. That script
 is the usual source of `command not found: uvicorn`: `pip install --user` puts it
 somewhere like `~/Library/Python/3.9/bin`, which is often not on `PATH` even

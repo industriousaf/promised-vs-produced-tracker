@@ -1,6 +1,6 @@
 # pipeline
 
-The Scoreboard itself: the six tables, the commands, and the human gate.
+The Tracker itself: the six tables, the commands, and the human gate.
 `collect/`, `tools/` and the web app all write through this. If you only read one
 directory, read this one.
 
@@ -12,11 +12,11 @@ directory, read this one.
 
 ## Run it
 
-Run it from the parent directory (`scoreboard/`):
+Run it from the parent directory (`tracker/`):
 
 ```bash
-python3 scoreboard.py status
-python3 scoreboard.py --help    # every command
+python3 tracker.py status
+python3 tracker.py --help    # every command
 ```
 
 ## What each file does
@@ -27,7 +27,7 @@ Fifteen files, six jobs. Read them by job, not by name.
 
 | File | What it does |
 |---|---|
-| `settings.py` | **every setting**: the inclusion phases (what counts as a project), which model runs each stage, and how a collection run behaves. `python3 scoreboard.py config` prints all of it with the line to edit. |
+| `settings.py` | **every setting**: the inclusion phases (what counts as a project), which model runs each stage, and how a collection run behaves. `python3 tracker.py config` prints all of it with the line to edit. |
 
 **The data**
 
@@ -58,7 +58,7 @@ Fifteen files, six jobs. Read them by job, not by name.
 
 | File | What it does |
 |---|---|
-| `quality.py` | five measures of whether the Scoreboard can carry the claim (`quality`) |
+| `quality.py` | five measures of whether the Tracker can carry the claim (`quality`) |
 | `coverage.py` | recall against a reference list of projects (`coverage`). Runs standalone too. |
 | `export_tables.py` | database to CSV (`export`). Runs standalone too, and on every write via `db.py`. |
 
@@ -66,7 +66,7 @@ Fifteen files, six jobs. Read them by job, not by name.
 
 | File | What it does |
 |---|---|
-| `cli.py` | the command line. Every step is one subcommand; `scoreboard.py` in the parent directory is its launcher. |
+| `cli.py` | the command line. Every step is one subcommand; `tracker.py` in the parent directory is its launcher. |
 
 ## More detail
 

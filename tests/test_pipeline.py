@@ -1,6 +1,6 @@
 """Regression tests for the places where a mistake corrupts data silently.
 
-Every test here is a real incident. The Scoreboard had no tests until 2026-09-05,
+Every test here is a real incident. The Tracker had no tests until 2026-09-05,
 and the defects found by hand in the days before that are the specification: a
 duplicate row that made a run report success one project short, a slip sentinel
 that marked produced projects as censored, an export that overwrote the real
@@ -384,7 +384,7 @@ class TestFirstOutputBackfill(Base):
     def test_a_published_row_is_frozen(self):
         """verify_verified holds a COPY of the cells, not a live reference. A
         Screen write under a published row fixes the staging table and leaves
-        the published Scoreboard reading 'unconfirmed'. Two of the twenty-two
+        the published Tracker reading 'unconfirmed'. Two of the twenty-two
         were published before the backfill was ever run."""
         rid = self.undated()
         screen.run_check(self.conn, rid)
@@ -400,7 +400,7 @@ class TestFirstOutputBackfill(Base):
     def test_published_rows_leave_the_queue_and_are_reported(self):
         """The loop must not pay for a search it cannot record -- but the row
         still has to be surfaced, because 'unconfirmed' in verify_verified is
-        on the published Scoreboard."""
+        on the published Tracker."""
         published = self.undated(project="Published Fab")
         open_row = self.undated(project="Open Fab")
         screen.run_check(self.conn, published)
@@ -535,7 +535,7 @@ class TestScreenPromptContract(unittest.TestCase):
 
     These are not tests of prose. Each string below is load-bearing: if the
     renderer stops including the operating prompt, or someone rewrites it
-    without the section, the failure is silent and shows up as a Scoreboard with a
+    without the section, the failure is silent and shows up as a Tracker with a
     fifth of its rows undated -- which is exactly the state the N=100 run left
     behind before this was folded in.
     """
@@ -762,7 +762,7 @@ class TestVerbatimQuotesAtVerify(Base):
 class TestCriteria(Base):
     """The inclusion rules are one setting, and rows remember which one made them.
 
-    The Scoreboard is built by sweeping at a high threshold and lowering it in a
+    The Tracker is built by sweeping at a high threshold and lowering it in a
     later phase. Without a stamp on each row, the second sweep is
     indistinguishable from the first and "no $300M plants in 2019" cannot be told
     apart from "we were not looking for $300M plants in 2019".
@@ -959,7 +959,7 @@ class TestImportTargets(unittest.TestCase):
     """Every `from pipeline.x import name` in the repo names something that exists.
 
     Eleven of these imports sit inside function bodies, so nothing runs them at
-    import time: the suite passed while `scoreboard.py collect` -- the entry
+    import time: the suite passed while `tracker.py collect` -- the entry
     point -- raised ImportError on a name the settings merge had removed from
     db.py. This reads the source instead of waiting for the call. Targets are
     limited to `pipeline` so the check never imports the web app.
@@ -996,7 +996,7 @@ class TestImportTargets(unittest.TestCase):
 
 
 class TestCollectEntryPoint(unittest.TestCase):
-    """`scoreboard.py collect --dry-run` runs end to end.
+    """`tracker.py collect --dry-run` runs end to end.
 
     The CLI hands off to collect/all.sh, which calls back into the CLI for the
     model, effort and run settings. Two regressions in one week broke that
@@ -1008,10 +1008,10 @@ class TestCollectEntryPoint(unittest.TestCase):
         import subprocess
         root = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:
-            env = dict(os.environ, SCOREBOARD_DB=str(Path(tmp) / "empty.db"), LOG="0", PREFLIGHT="0")
+            env = dict(os.environ, TRACKER_DB=str(Path(tmp) / "empty.db"), LOG="0", PREFLIGHT="0")
             env.pop("MEDALLION_DB", None)
             r = subprocess.run(
-                [sys.executable, "scoreboard.py", "collect", "--n", "1", "--only", "source", "--dry-run"],
+                [sys.executable, "tracker.py", "collect", "--n", "1", "--only", "source", "--dry-run"],
                 cwd=root, env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertRegex(r.stdout, r"model=claude-\S+ effort=\S+ max_iters=\d+ max_stall=\d+")
@@ -1069,7 +1069,7 @@ class TestCheckVerdicts(Base):
         become wrong and this test should be the thing that says so."""
         import subprocess
         out = subprocess.run(
-            [sys.executable, "scoreboard.py", "--help"],
+            [sys.executable, "tracker.py", "--help"],
             cwd=str(Path(__file__).resolve().parent.parent),
             capture_output=True, text=True, timeout=120).stdout
         self.assertNotIn("screen-flag", out)
@@ -1218,7 +1218,7 @@ class TestAttestation(Base):
             "SELECT count(*) FROM screen_attested").fetchone()[0])
 
     def test_the_export_carries_it(self):
-        """scoreboard.db is committed and git cannot diff a binary, so the
+        """tracker.db is committed and git cannot diff a binary, so the
         audit trail only reaches a reader through the CSVs."""
         from pipeline.export_tables import ALL_TABLES
         self.assertEqual("screen_attested", ALL_TABLES["screen_attested"])
@@ -1236,7 +1236,7 @@ class TestVerifierList(unittest.TestCase):
     def test_config_names_who_may_verify(self):
         import subprocess
         out = subprocess.run(
-            [sys.executable, "scoreboard.py", "config"],
+            [sys.executable, "tracker.py", "config"],
             cwd=str(Path(__file__).resolve().parent.parent),
             capture_output=True, text=True).stdout
         self.assertIn("WHO MAY VERIFY", out)

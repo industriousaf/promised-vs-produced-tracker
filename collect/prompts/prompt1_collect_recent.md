@@ -3,10 +3,10 @@
 You are running as a single Claude Code call. You have been shown
 `docs/cli.md`, the pipeline's command reference. Do **only** what this prompt says.
 
-**Where to run:** you are **already in** the `scoreboard/` directory. Run
+**Where to run:** you are **already in** the repository root. Run
 `python3 -m pipeline.cli ...` as-is, and write every path relative to where you
-already are — `scratch/lead.json`, never `scoreboard/scratch/lead.json`. Prefixing
-the directory name creates a nested copy of it, which is a real bug this prompt has
+already are — `scratch/lead.json`, never the repository's own directory name in
+front of it. Prefixing the directory name creates a nested copy of it, which is a real bug this prompt has
 caused before.
 
 **You must use web fetch / scraping** for everything — do not rely on in-model

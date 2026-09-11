@@ -2,7 +2,7 @@
 
 *Package: [`../pipeline/`](../pipeline/)*
 
-Every pipeline step is one command. `python3 scoreboard.py --help` lists all 24
+Every pipeline step is one command. `python3 tracker.py --help` lists all 24
 and carries worked examples for each; this file is the flat list, plus the three
 things `--help` cannot hold: what needs installing, how the modules fit together,
 and a walkthrough on a copy of the database.
@@ -12,10 +12,10 @@ and a walkthrough on a copy of the database.
 > as the command reference. Keep the command list complete: a process that cannot
 > find a flag here will guess at one.
 
-Run everything from `aici/scoreboard`. Two invocations, identical in effect:
+Run everything from the repository root. Two invocations, identical in effect:
 
 ```bash
-python3 scoreboard.py <command>     # the documented entry point
+python3 tracker.py <command>     # the documented entry point
 python3 -m pipeline.cli <command>   # the long form, and what the prompts use
 ```
 
@@ -29,68 +29,68 @@ python3 -m pipeline.cli <command>   # the long form, and what the prompts use
 | The direct-API steps (`source-collect`, `screen-extract`, `tools/gather.py`) | `pip install anthropic` | yes, `ANTHROPIC_API_KEY` |
 | The collection loops (`collect`) | the `claude` CLI, logged in | no |
 
-`config.env` in this directory is optional: put `SCOREBOARD_DB` or an API key
+`config.env` in this directory is optional: put `TRACKER_DB` or an API key
 there and `tools/gather.py` reads it, though a real shell variable always wins.
-It is gitignored. The database defaults to `outputs/scoreboard.db`.
+It is gitignored. The database defaults to `outputs/tracker.db`.
 
 ## Every command
 
 ```bash
 # Orientation
-python3 scoreboard.py                       # counts, and where to go next
-python3 scoreboard.py status                # row counts per stage
-python3 scoreboard.py initdb                # create the six tables
-python3 scoreboard.py config                # every setting in effect, with the line to edit
-python3 scoreboard.py criteria              # what counts as a project (the inclusion rules)
-python3 scoreboard.py models                # which model each stage runs, and why
-python3 scoreboard.py quality               # five measures of whether the Scoreboard can carry the claim
-python3 scoreboard.py --help                # all of the below, with examples
+python3 tracker.py                       # counts, and where to go next
+python3 tracker.py status                # row counts per stage
+python3 tracker.py initdb                # create the six tables
+python3 tracker.py config                # every setting in effect, with the line to edit
+python3 tracker.py criteria              # what counts as a project (the inclusion rules)
+python3 tracker.py models                # which model each stage runs, and why
+python3 tracker.py quality               # five measures of whether the Tracker can carry the claim
+python3 tracker.py --help                # all of the below, with examples
 
 # Collect  (needs the claude CLI; spends money)
-python3 scoreboard.py collect --n 5 --dry-run
-python3 scoreboard.py collect --n 10 [--only source|screen] [--continue-on-fail]
+python3 tracker.py collect --n 5 --dry-run
+python3 tracker.py collect --n 10 [--only source|screen] [--continue-on-fail]
 
 # Source
-python3 scoreboard.py source-add --promise URL --status URL [--summary "..."]
-python3 scoreboard.py source-add --json lead.json [--via LABEL]   # or --json -
-python3 scoreboard.py source-prompt                               # no key
-python3 scoreboard.py source-collect                              # needs a key
-python3 scoreboard.py source-list
+python3 tracker.py source-add --promise URL --status URL [--summary "..."]
+python3 tracker.py source-add --json lead.json [--via LABEL]   # or --json -
+python3 tracker.py source-prompt                               # no key
+python3 tracker.py source-collect                              # needs a key
+python3 tracker.py source-list
 
 # Screen
-python3 scoreboard.py screen-prompt --source-id N                 # no key
-python3 scoreboard.py screen-add --json row.json --source-id N
-python3 scoreboard.py screen-extract --source-id N                # needs a key
-python3 scoreboard.py screen-check --id N          # or --all
-python3 scoreboard.py screen-list [--by-capital]
-python3 scoreboard.py screen-show --id N
-python3 scoreboard.py screen-date --id N --date "2021-12" --source URL [--raw "..."] [--note "..."]
-python3 scoreboard.py screen-date --id N --unresolved "what was searched, and what was found"
-python3 scoreboard.py screen-remove --id N --yes   # human only; no undo
+python3 tracker.py screen-prompt --source-id N                 # no key
+python3 tracker.py screen-add --json row.json --source-id N
+python3 tracker.py screen-extract --source-id N                # needs a key
+python3 tracker.py screen-check --id N          # or --all
+python3 tracker.py screen-list [--by-capital]
+python3 tracker.py screen-show --id N
+python3 tracker.py screen-date --id N --date "2021-12" --source URL [--raw "..."] [--note "..."]
+python3 tracker.py screen-date --id N --unresolved "what was searched, and what was found"
+python3 tracker.py screen-remove --id N --yes   # human only; no undo
 
 # Verify  (the human gate)
-python3 scoreboard.py review [--id N]              # guided, one row at a time
-python3 scoreboard.py verify-promote --screen-id N --tier V1 [--flag "..."] [--set col=val] [--force]
-python3 scoreboard.py verify-edit --id N --set col=val --desc "why"
-python3 scoreboard.py verify-show --id N           # row + edit history
-python3 scoreboard.py verify-list
+python3 tracker.py review [--id N]              # guided, one row at a time
+python3 tracker.py verify-promote --screen-id N --tier V1 [--flag "..."] [--set col=val] [--force]
+python3 tracker.py verify-edit --id N --set col=val --desc "why"
+python3 tracker.py verify-show --id N           # row + edit history
+python3 tracker.py verify-list
 
 # Read, export, measure
-python3 scoreboard.py filter --capital 1000000000 --jobs 2000 --op OR --stage verify
-python3 scoreboard.py filter --capital 5000000000 --jobs 5000 --op AND --stage screen
-python3 scoreboard.py export [--out-dir DIR]       # five CSVs
-python3 scoreboard.py coverage --against ref.csv [--stage verify] [--min-capital N]
-python3 scoreboard.py coverage --selftest          # needs no database
-python3 scoreboard.py recompute [--dry-run]        # re-derive lag/slip and the *_dt cells
-python3 scoreboard.py count TABLE                  # one integer, for scripts
+python3 tracker.py filter --capital 1000000000 --jobs 2000 --op OR --stage verify
+python3 tracker.py filter --capital 5000000000 --jobs 5000 --op AND --stage screen
+python3 tracker.py export [--out-dir DIR]       # five CSVs
+python3 tracker.py coverage --against ref.csv [--stage verify] [--min-capital N]
+python3 tracker.py coverage --selftest          # needs no database
+python3 tracker.py recompute [--dry-run]        # re-derive lag/slip and the *_dt cells
+python3 tracker.py count TABLE                  # one integer, for scripts
 
 # The sector vocabulary  (closed; extending it means editing SECTORS in
 # pipeline/settings.py — a human decision, never done from a collection call)
-python3 scoreboard.py sectors-list
+python3 tracker.py sectors-list
 
 # The browser interface  (the review screen: sources rendered in the page,
 # the row's claims highlighted in them, and an optional agentic check)
-python3 scoreboard.py webapp [--port 8100] [--reload]
+python3 tracker.py webapp [--port 8100] [--reload]
 
 # Batch collection over the direct API  (needs a key)
 python3 tools/gather.py --n-source 10 --n-screen 3 [--dry-run]
@@ -153,18 +153,18 @@ work, and so does reading the prompt and doing the searching yourself.
 **Source — find one new project:**
 
 ```bash
-python3 scoreboard.py source-prompt          # prints it; already excludes what you have
+python3 tracker.py source-prompt          # prints it; already excludes what you have
 # run it in an assistant that can search the web; it ends with one JSON object
-python3 scoreboard.py source-add --json -    # paste the JSON, then Ctrl-D
+python3 tracker.py source-add --json -    # paste the JSON, then Ctrl-D
 ```
 
 **Screen — extract the row for a lead:**
 
 ```bash
-python3 scoreboard.py screen-prompt --source-id 7   # the prompt, with the links filled in
+python3 tracker.py screen-prompt --source-id 7   # the prompt, with the links filled in
 # run it, then:
-python3 scoreboard.py screen-add --json row.json --source-id 7
-python3 scoreboard.py screen-check --id 11
+python3 tracker.py screen-add --json row.json --source-id 7
+python3 tracker.py screen-check --id 11
 ```
 
 In the web app the same flow is a button: Source → "Show Source prompt to run"
@@ -179,30 +179,30 @@ id → "Show Screen prompt to run" → paste the row JSON.
 ## A walkthrough on a copy of the database
 
 Everything below reads and writes a **copy**, so the committed database is
-untouched. From `aici/scoreboard`:
+untouched. From the repository root:
 
 ```bash
-cp outputs/scoreboard.db /tmp/try.db
+cp outputs/tracker.db /tmp/try.db
 
 # 1. What is in it
-python3 scoreboard.py --db /tmp/try.db status
-python3 scoreboard.py --db /tmp/try.db screen-list
+python3 tracker.py --db /tmp/try.db status
+python3 tracker.py --db /tmp/try.db screen-list
 #   -> each row shows check=CLEAN / PASS / FAIL
 
 # 2. Act as the human gate: publish a row that passed its check
-python3 scoreboard.py --db /tmp/try.db verify-promote --screen-id 42 --tier V1 \
+python3 tracker.py --db /tmp/try.db verify-promote --screen-id 42 --tier V1 \
     --flag "Resolved: two independent sources agree on the announced date."
 #   -> promoted screen #42 -> verify_verified #34 (tier V1)
 
 # 3. Correct it; the change is logged with its reason
-python3 scoreboard.py --db /tmp/try.db verify-edit --id 34 \
+python3 tracker.py --db /tmp/try.db verify-edit --id 34 \
     --set current_status="AT VOLUME (corrected)" \
     --desc "Tightened status wording after re-reading the release."
-python3 scoreboard.py --db /tmp/try.db verify-show --id 34
+python3 tracker.py --db /tmp/try.db verify-show --id 34
 #   -> the row PLUS an "edit history" line from verify_edits
 
 # 4. Try to publish the same project twice; the gate refuses
-python3 scoreboard.py --db /tmp/try.db verify-promote --screen-id 42 --tier V1
+python3 tracker.py --db /tmp/try.db verify-promote --screen-id 42 --tier V1
 #   -> promotion blocked: project already in verify_verified
 
 rm /tmp/try.db
@@ -215,18 +215,18 @@ The same four steps are available guided, which prints each row's figures and
 both source links and asks about them one at a time:
 
 ```bash
-python3 scoreboard.py --db /tmp/try.db review
+python3 tracker.py --db /tmp/try.db review
 ```
 
 Starting from an **empty** database works the same way, except there is nothing
 to promote yet, and the CLI tells you what to run to collect some rows first:
 
 ```bash
-python3 scoreboard.py --db /tmp/empty.db initdb
-python3 scoreboard.py --db /tmp/empty.db verify-list
+python3 tracker.py --db /tmp/empty.db initdb
+python3 tracker.py --db /tmp/empty.db verify-list
 ```
 
-Then start the web app (`python3 scoreboard.py webapp`) and click through the
+Then start the web app (`python3 tracker.py webapp`) and click through the
 same steps, ending on a Verify detail page to try the edit form.
 
 ---

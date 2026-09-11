@@ -15,12 +15,12 @@ them touches Verify, which is a human gate.
 
 ## Run it
 
-Run from the parent directory (`scoreboard/`). Needs the `claude` CLI logged in
+Run from the repository root. Needs the `claude` CLI logged in
 once (`claude`, then `/login`); the loop checks that before it starts.
 
 ```bash
-python3 scoreboard.py collect --n 5 --dry-run   # show the plan
-python3 scoreboard.py collect --n 10            # do it
+python3 tracker.py collect --n 5 --dry-run   # show the plan
+python3 tracker.py collect --n 10            # do it
 ```
 
 The scripts still run directly, and that is the form to use when you want a knob
@@ -35,7 +35,7 @@ N=10 bash collect/all.sh            # identical to the second
 
 | Path | What it does |
 |---|---|
-| `all.sh` | runs Source then Screen back to back. The usual entry point; `scoreboard.py collect` calls it. |
+| `all.sh` | runs Source then Screen back to back. The usual entry point; `tracker.py collect` calls it. |
 | `source.sh` | stage A on its own: web discovery into Source |
 | `screen.sh` | stage B on its own: Source into Screen |
 | `dates.sh` | the backfill: find a dated first-output source for rows that produced but carry none |

@@ -16,9 +16,9 @@ from pathlib import Path
 # --------------------------------------------------------------------------- #
 # config.env                                                                   #
 # --------------------------------------------------------------------------- #
-# One gitignored file, in the scoreboard directory beside scoreboard.py, holding
+# One gitignored file, in the repository root beside tracker.py, holding
 # the settings that are per-machine rather than per-project -- ANTHROPIC_API_KEY
-# above all, and SCOREBOARD_DB / MODEL / EFFORT if you want them pinned.
+# above all, and TRACKER_DB / MODEL / EFFORT if you want them pinned.
 #
 # It is loaded HERE, on `import pipeline`, rather than by each entry point,
 # because there are four of them (the CLI, the web app, tools/gather.py and the
@@ -29,7 +29,7 @@ from pathlib import Path
 # path that imports the pipeline reads it, which is every path there is.
 #
 # `setdefault`, never assignment: a real exported shell variable always wins, so
-# `ANTHROPIC_API_KEY=... python3 scoreboard.py ...` and a per-run `MODEL=` still
+# `ANTHROPIC_API_KEY=... python3 tracker.py ...` and a per-run `MODEL=` still
 # override the file. Missing file, unreadable file, junk lines: all no-ops. This
 # runs on import and must never be a reason the pipeline fails to start.
 CONFIG_ENV = Path(__file__).resolve().parent.parent / "config.env"

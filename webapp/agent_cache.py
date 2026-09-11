@@ -15,7 +15,7 @@ Reload as often as you like; the work carries on and the pane finds it again.
 
 **The answer cache** keeps replies in `outputs/agent_cache/`, one JSON file per
 answer, so asking the same question twice costs one API call. Gitignored: it is
-not part of the data product, and nothing in the Scoreboard may depend on it --
+not part of the data product, and nothing in the Tracker may depend on it --
 delete the whole directory and the only consequence is that the next check pays
 full price. It is emphatically NOT a verdict store. `verify_verified` records
 what a person concluded; this records what a model said while they were deciding,

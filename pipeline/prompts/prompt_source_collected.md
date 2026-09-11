@@ -40,7 +40,7 @@ entire job — you are assembling a lead, nothing more.
 ## Only collect NEW projects — not ones already in the verify table
 
 Your goal is to **grow** coverage, so target a project that is **not already published in
-the verify table** (`verify_verified` — the verified scoreboard that is the
+the verify table** (`verify_verified` — the verified tracker that is the
 pipeline's final product). The authoritative "already covered, don't collect these" set is
 **the list of `project` names currently in `verify_verified`**. That live list is supplied to
 you at runtime in a section titled *"The verify table already holds these"* below (the

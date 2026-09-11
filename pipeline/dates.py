@@ -1,7 +1,7 @@
 """
 dates.py -- deterministic date standardization for the medallion pipeline.
 
-The whole point (scoreboard/old/SPEC.md): *standardize the schema enough so that
+The whole point (tracker/old/SPEC.md): *standardize the schema enough so that
 with a different model, we'd get the same result.* Everything numeric downstream
 -- the `*_dt` DATETIME interpretations and the `lag_years` / `slip_years` floats
 -- is computed **here**, deterministically, so two different extractors that agree

@@ -1,4 +1,4 @@
-The Promised vs. Produced Scoreboard — data license
+The Promised vs. Produced Tracker — data license
 ===================================================
 
 SPDX-License-Identifier: CC-BY-4.0
@@ -8,17 +8,17 @@ Copyright (c) 2026 IndustriousAF
 
 Everything in this directory is the data product:
 
-    scoreboard.db              the Scoreboard, SQLite
+    tracker.db              the Tracker, SQLite
     csv_tables/*.csv           flat exports of every table, including the
                                audit trail
 
 It is licensed under the Creative Commons Attribution 4.0 International
 License. Use it for anything, commercial work included. The one condition is
 attribution: when you publish a figure or a number drawn from these rows, name
-the Scoreboard. This satisfies it:
+the Tracker. This satisfies it:
 
-    The Promised vs. Produced Scoreboard, IndustriousAF. CC BY 4.0.
-    https://github.com/ashwinl4/promised-vs-produced-scoreboard
+    The Promised vs. Produced Tracker, IndustriousAF. CC BY 4.0.
+    https://github.com/ashwinl4/promised-vs-produced-tracker
 
     Deed         https://creativecommons.org/licenses/by/4.0/
     Legal code   https://creativecommons.org/licenses/by/4.0/legalcode

@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - FastAPI not installed
 
 
 # `ignore_cleanup_errors` arrived in Python 3.10, and this project supports 3.9 --
-# scoreboard.py says so and refuses to run below it. It is only a backstop here
+# tracker.py says so and refuses to run below it. It is only a backstop here
 # (tearDown drains the jobs, which is the actual fix), so on 3.9 we go without.
 # Without this the whole TestAgentCache class errored in setUp on the interpreter
 # the project actually declares.
@@ -48,7 +48,7 @@ class TestFlagOnlyReason(unittest.TestCase):
     """A flag-only edit is its own reason; anything else still needs one.
 
     Every write to a published row goes to verify_edits with a reason, and that
-    is what makes the Scoreboard auditable. But the reason box was being filled
+    is what makes the Tracker auditable. But the reason box was being filled
     with "resolved the flag" on every pass through the queue -- a second copy of
     what the flag cell already said. The exemption is exactly one cell wide, and
     these tests are what keeps it there.
@@ -1206,7 +1206,7 @@ class TestAttestRoute(unittest.TestCase):
         self.assertIn("delete looked[k]", body)
 
     def test_a_read_only_process_records_nothing(self):
-        """$SCOREBOARD_READONLY opens the file read-only, and the write would
+        """$TRACKER_READONLY opens the file read-only, and the write would
         otherwise raise SystemExit from inside a request handler -- a refusal
         that reads as a crash. The route checks first and answers in words."""
         from webapp import screen as webscreen
@@ -1217,7 +1217,7 @@ class TestAttestRoute(unittest.TestCase):
         finally:
             webscreen.READ_ONLY = False
         self.assertEqual(400, r.status_code)
-        self.assertIn("SCOREBOARD_READONLY", r.json()["error"])
+        self.assertIn("TRACKER_READONLY", r.json()["error"])
         self.assertEqual([], self._stored())
 
     def test_the_checklist_and_the_writer_share_one_list_of_fields(self):
@@ -1228,3 +1228,34 @@ class TestAttestRoute(unittest.TestCase):
         from pipeline import screen as pscreen
         from webapp import screen as webscreen
         self.assertIs(webscreen.CHECKLIST_CELLS, pscreen.ATTESTABLE_FIELDS)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestProjectName(unittest.TestCase):
+    """Every page says what the project is called.
+
+    The masthead carried the organisation's wordmark and the database filename
+    and nothing else, so the only place the project's own name appeared was the
+    URL -- and after the rename the filename said `tracker.db` while no page
+    said Tracker. A reader could not learn the name from the interface.
+    """
+
+    def setUp(self):
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.client = TestClient(app)
+
+    def test_the_masthead_carries_it_on_every_page(self):
+        from webapp.shared import PROJECT_NAME
+        for path in ("/", "/source", "/screen", "/verify"):
+            with self.subTest(path=path):
+                self.assertIn(PROJECT_NAME, self.client.get(path).text)
+
+    def test_it_is_defined_once(self):
+        """A name spelled out at four call sites is a name that will drift."""
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent / "webapp"
+        hits = [f.name for f in sorted(root.glob("*.py"))
+                if re.search(r'"Promised vs\. Produced', f.read_text())]
+        self.assertEqual(["shared.py"], hits)

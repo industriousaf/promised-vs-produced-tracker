@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Request  # noqa: E402

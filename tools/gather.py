@@ -18,12 +18,12 @@ verification gate and is done from the CLI/web when a person signs off.
 Needs an ANTHROPIC_API_KEY (this is the API path). No key? Use the Claude Code
 prompts instead (`pipeline.cli source-prompt` / `screen-prompt`).
 
-The key (and SCOREBOARD_DB / PIPELINE_MODEL / PIPELINE_EFFORT) can come from a real
-shell env var, OR from `config.env` in the scoreboard directory -- see
+The key (and TRACKER_DB / PIPELINE_MODEL / PIPELINE_EFFORT) can come from a real
+shell env var, OR from `config.env` in the repository root -- see
 `_load_config_env` below. Nothing here uploads or logs that value; it only ever
 lands in `os.environ` for the anthropic SDK to read.
 
-Run it from the scoreboard directory:
+Run it from the repository root:
 
     python3 tools/gather.py --n-source 10                 # 10 leads, Source only
     python3 tools/gather.py --n-source 10 --n-screen 3    # + extract the first 3
@@ -39,13 +39,13 @@ import sys
 import time
 from pathlib import Path
 
-# tools/ -> scoreboard/, so `pipeline` imports resolve.
-_SCOREBOARD_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_SCOREBOARD_ROOT))
+# tools/ -> tracker/, so `pipeline` imports resolve.
+_TRACKER_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_TRACKER_ROOT))
 
 import pipeline  # noqa: E402  (must follow the sys.path line above)
 
-# config.env sits in the scoreboard directory, beside scoreboard.py, because that
+# config.env sits in the repository root, beside tracker.py, because that
 # is where every command is run from. It is gitignored, and `import pipeline`
 # above has already loaded it -- this file used to own that loader, back when it
 # was the only thing that needed a key. These two names are kept because
@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="skip the deterministic screen_check on new Screen rows")
     p.add_argument("--model", help="override PIPELINE_MODEL (e.g. claude-opus-4-8)")
     p.add_argument("--effort", help="override PIPELINE_EFFORT (e.g. high, medium)")
-    p.add_argument("--db", help="path to the SQLite db (overrides SCOREBOARD_DB)")
+    p.add_argument("--db", help="path to the SQLite db (overrides TRACKER_DB)")
     p.add_argument("--sleep", type=float, default=0.0,
                    help="seconds to pause between API calls (rate-limit friendly)")
     p.add_argument("--stop-on-error", action="store_true",
@@ -98,7 +98,7 @@ def _apply_env(args) -> None:
     (PIPELINE_MODEL / PIPELINE_EFFORT) pick these up.
     """
     if args.db:
-        os.environ["SCOREBOARD_DB"] = args.db
+        os.environ["TRACKER_DB"] = args.db
     if args.model:
         os.environ["PIPELINE_MODEL"] = args.model
     if args.effort:

@@ -25,7 +25,7 @@ set -euo pipefail
 
 trap 'echo; echo "interrupted -- stopping."; exit 130' INT TERM
 
-cd "$(dirname "$0")/.."                            # collect/ -> scoreboard/
+cd "$(dirname "$0")/.."                            # collect/ -> repository root
 PY="${PY:-$(command -v python3 || command -v python)}"
 
 # This is a Screen-stage job on Screen rows, so it runs the Screen model rather
@@ -171,7 +171,7 @@ with connect() as conn:
         print(f"  {len(pub)} PUBLISHED row(s) are still undated. This loop cannot")
         print("  touch them -- Verify is a human gate. Each needs one command:")
         for r, vid in pub:
-            print(f"    scoreboard.py verify-edit --id {vid} \\")
+            print(f"    tracker.py verify-edit --id {vid} \\")
             print(f"        --set actual_first_output=YYYY-MM --set actual_date_source=URL \\")
             print(f"        --desc \"first output dated from <source>\"   # {r['project'][:44]}")
 PYEOF

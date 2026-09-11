@@ -15,7 +15,7 @@ import json
 import os
 import sys
 
-# webapp/ -> scoreboard/, so `pipeline` imports resolve.
+# webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Request  # noqa: E402
@@ -161,17 +161,17 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
                             f"failing check is fixed: {links}.")
         lede = (f"<p><b>{n_ready} project(s) are waiting for you.</b> Open one, check "
                 "every field against the two sources, then verify it. Nothing "
-                "reaches the published Scoreboard until a person does this."
+                "reaches the published Tracker until a person does this."
                 + blocked_note + "</p>")
     else:
         lede = ("<p>Nothing is waiting: every project has been through the human "
-                "gate. <a href=\"/verify\">See the Scoreboard</a>.</p>")
+                "gate. <a href=\"/verify\">See the Tracker</a>.</p>")
 
     body = f"""
 <h2>Review queue</h2>
 <div class="card">{lede}
 <p><small>Or work the same queue in a terminal, largest capital first:
-<code>python3 scoreboard.py review</code></small></p></div>
+<code>python3 tracker.py review</code></small></p></div>
 
 <h2>Projects ({len(rows)} of {len(all_rows)})</h2>
 {toggle}
@@ -995,7 +995,7 @@ async def screen_attest(screen_id: int, request: Request):
         return JSONResponse({"ok": False, "error": msg}, status_code=code)
 
     if READ_ONLY:
-        return bad("$SCOREBOARD_READONLY is set, so nothing can be written.")
+        return bad("$TRACKER_READONLY is set, so nothing can be written.")
     who = current_verifier(request)
     if not who:
         return bad("Choose who you are verifying as before confirming a field.")

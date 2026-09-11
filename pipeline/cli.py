@@ -4,11 +4,11 @@ cli.py -- the command-line interface to the medallion pipeline.
 This is the initialisation point of the pipeline from a terminal. Every step is
 here, each (where the stage allows it) offering a manual OR computational path.
 
-Run it from the scoreboard directory. `scoreboard.py` is the documented entry
+Run it from the repository root. `tracker.py` is the documented entry
 point and is a thin launcher for this file:
 
-    python3 scoreboard.py --help
-    python3 scoreboard.py status
+    python3 tracker.py --help
+    python3 tracker.py status
 
 The long form is equivalent, and is what the collection loops call internally:
 
@@ -132,7 +132,7 @@ def _print_your_move(conn) -> None:
     if ready:
         top = ready[0]
         print(f"  {len(ready)} row(s) are waiting for you to check them against their")
-        print("  sources. Nothing reaches the published Scoreboard until you do.")
+        print("  sources. Nothing reaches the published Tracker until you do.")
         print()
         print(f"      {ENTRY} {cyan('review')}")
         print()
@@ -195,7 +195,7 @@ def _landing(conn, prog: str) -> None:
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     cyan = (lambda t: f"{_ANSI['cyan']}{t}{_ANSI['off']}") if colour else (lambda t: t)
 
-    print(bold("Promised vs. Produced Scoreboard"))
+    print(bold("Promised vs. Produced Tracker"))
     print(f"{counts['source_collected']} collected, "
           f"{counts['screen_extracted']} screened, "
           f"{counts['verify_verified']} published, "
@@ -229,21 +229,21 @@ def _warn_if_exports_stale() -> None:
 
     Writes through connect() refresh the CSVs on their own. This catches what
     that cannot: a database edited with raw sqlite3, restored from an older
-    copy, or written while SCOREBOARD_NO_AUTOEXPORT was set. Two stat calls, no
+    copy, or written while TRACKER_NO_AUTOEXPORT was set. Two stat calls, no
     reads, so it costs nothing on every command.
     """
     try:
         if db_path().resolve() != DEFAULT_DB.resolve() or not DEFAULT_DB.exists():
             return
-        csvs = list((DEFAULT_DB.parent / "csv_tables").glob("scoreboard_*.csv"))
+        csvs = list((DEFAULT_DB.parent / "csv_tables").glob("tracker_*.csv"))
         if not csvs:
             return
         newest = max(p.stat().st_mtime for p in csvs)
         # A couple of seconds of slack: the export runs just after the write, so
         # equal-second timestamps are the normal case, not a discrepancy.
         if DEFAULT_DB.stat().st_mtime > newest + 2:
-            print("note: outputs/scoreboard.db is newer than its CSV exports.\n"
-                  "      run `python3 scoreboard.py export` before committing.",
+            print("note: outputs/tracker.db is newer than its CSV exports.\n"
+                  "      run `python3 tracker.py export` before committing.",
                   file=sys.stderr)
     except OSError:
         pass
@@ -252,8 +252,8 @@ def _warn_if_exports_stale() -> None:
 # --- Collection ------------------------------------------------------------ #
 
 def cmd_collect(conn, args):
-    from pipeline.db import SCOREBOARD_ROOT
-    script = SCOREBOARD_ROOT / "collect" / "all.sh"
+    from pipeline.db import TRACKER_ROOT
+    script = TRACKER_ROOT / "collect" / "all.sh"
     if not script.exists():
         raise SystemExit(f"collection script not found: {script}")
 
@@ -277,7 +277,7 @@ def cmd_collect(conn, args):
     # exec rather than subprocess: the script installs its own INT/TERM trap,
     # and replacing the process leaves Ctrl-C behaving exactly as documented
     # instead of racing a Python KeyboardInterrupt against it.
-    os.chdir(SCOREBOARD_ROOT)
+    os.chdir(TRACKER_ROOT)
     os.execvpe("bash", ["bash", str(script)], env)
 
 
@@ -291,7 +291,7 @@ def cmd_collect(conn, args):
 def cmd_export(conn, args):
     from pipeline.export_tables import export_all, export_dir, ALL_TABLES
     # export_all opens the database read-only itself, and honours the same
-    # SCOREBOARD_DB that --db has already set -- for the destination as well as
+    # TRACKER_DB that --db has already set -- for the destination as well as
     # the source. The CSVs land in csv_tables/ beside whichever database was
     # read, so pointing at a scratch copy can no longer overwrite the real one.
     counts = export_all(out_dir=args.out_dir)
@@ -299,7 +299,7 @@ def cmd_export(conn, args):
     # directory, which is exactly the fact you needed to notice a wrong one.
     print(f"wrote to {export_dir(args.out_dir)}/")
     for stage, n in counts.items():
-        print(f"  scoreboard_{stage}.csv  <- {ALL_TABLES[stage]}  ({n} rows)")
+        print(f"  tracker_{stage}.csv  <- {ALL_TABLES[stage]}  ({n} rows)")
 
 
 def cmd_coverage(conn, args):
@@ -669,7 +669,7 @@ def cmd_screen_date(conn, args):
 
 
 def cmd_quality(conn, args):
-    """Five measures of whether this Scoreboard can carry the claim.
+    """Five measures of whether this Tracker can carry the claim.
 
     Deliberately five numbers and not one. A blended score invites an argument
     about the weights, and a referee will ask what is in it; five bars with the
@@ -683,7 +683,7 @@ def cmd_quality(conn, args):
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     cyan = (lambda t: f"{_ANSI['cyan']}{t}{_ANSI['off']}") if colour else (lambda t: t)
 
-    print(bold(f"Scoreboard quality — {m['total']} Screen rows"))
+    print(bold(f"Tracker quality — {m['total']} Screen rows"))
     print("=" * 66)
     for b in m["bars"]:
         print(f"  {b['label']:<20}{b['n']:>3}/{b['total']:<4}{b['pct']:>4.0f}%  "
@@ -751,7 +751,7 @@ def cmd_criteria(conn, args):
     print(f"  {'WHERE':8} {', '.join(c.countries)}"
           f"  ({len(c.subdivisions())} valid subdivision codes)")
     print(f"  {'SECTOR':8} {len(c.sectors)} in the closed vocabulary "
-          f"(scoreboard.py sectors-list)")
+          f"(tracker.py sectors-list)")
     if c.note:
         print()
         import textwrap
@@ -1010,9 +1010,9 @@ def cmd_verify_list(conn, args):
             print(f"There are {counts['screen_extracted']} row(s) waiting at Screen. Verifying is a")
             print("human step: read a row against its two sources, then publish it.")
             print()
-            print("  python3 scoreboard.py screen-list            # find one that PASSed")
-            print("  python3 scoreboard.py screen-show --id N     # read it and its sources")
-            print("  python3 scoreboard.py verify-promote --screen-id N --tier V1")
+            print("  python3 tracker.py screen-list            # find one that PASSed")
+            print("  python3 tracker.py screen-show --id N     # read it and its sources")
+            print("  python3 tracker.py verify-promote --screen-id N --tier V1")
         elif counts["source_collected"]:
             print(f"There are {counts['source_collected']} lead(s) at Source but none extracted yet.")
             print("Extract them into Screen rows first:")
@@ -1081,7 +1081,7 @@ def cmd_filter(conn, args):
 def _prog_name() -> str:
     """What the user actually typed.
 
-    The usage line must never name a program nobody invoked. `scoreboard.py` is
+    The usage line must never name a program nobody invoked. `tracker.py` is
     the documented entry point; `python3 -m ...cli` is the equivalent long form
     and should say so rather than claiming to be `cli.py`.
     """
@@ -1095,7 +1095,7 @@ def _prog_name() -> str:
 # typed: `python3 -m pipeline.cli` is 45 characters and
 # pushes every example line past the width of a terminal. The usage line above
 # already says what you invoked.
-ENTRY = "scoreboard.py"
+ENTRY = "tracker.py"
 
 # Marks a heading for the colouriser. Paired, and stripped when colour is off,
 # so the plain text is unchanged. \x01 cannot appear in argparse output.
@@ -1264,7 +1264,7 @@ def _epilog(prog: str) -> str:
 
   {_H}read the data (nothing here writes){_H}
     {ENTRY} status                        row counts per stage
-    {ENTRY} verify-list                   the published Scoreboard
+    {ENTRY} verify-list                   the published Tracker
     {ENTRY} verify-show --id 6            one row and its edits
     {ENTRY} screen-list --by-capital      the review queue
     {ENTRY} screen-show --id 42           a row and its two sources
@@ -1325,7 +1325,7 @@ def _epilog(prog: str) -> str:
     {ENTRY} collect --only screen --n 5   one stage
 
   {_H}try things on a copy{_H}
-    cp outputs/scoreboard.db /tmp/try.db
+    cp outputs/tracker.db /tmp/try.db
     {ENTRY} --db /tmp/try.db review    practise on the copy
 
   {_H}get the data out, and measure it{_H}
@@ -1339,7 +1339,7 @@ def _epilog(prog: str) -> str:
     tools/README.md                                      what each one does
 
 {_H}the database{_H}
-  outputs/scoreboard.db unless overridden by --db PATH or $SCOREBOARD_DB.
+  outputs/tracker.db unless overridden by --db PATH or $TRACKER_DB.
 
   --db is a global flag and goes before the command:
       {ENTRY} --db other.db status    correct
@@ -1402,14 +1402,14 @@ def _command_examples() -> dict:
   {ENTRY} export --out-dir /tmp/csv    somewhere else
   {ENTRY} --db /tmp/other.db export    from another database
 
-  One CSV per table. Three hold the Scoreboard: scoreboard_source.csv,
-  scoreboard_screen.csv, scoreboard_verify.csv. Two hold the audit trail:
-  scoreboard_screen_check.csv, scoreboard_verify_edits.csv.
+  One CSV per table. Three hold the Tracker: tracker_source.csv,
+  tracker_screen.csv, tracker_verify.csv. Two hold the audit trail:
+  tracker_screen_check.csv, tracker_verify_edits.csv.
 
   Every column of each table, in table order, sorted by id, with NULLs as
   empty cells.
 
-  The audit trail is exported because scoreboard.db is committed and git
+  The audit trail is exported because tracker.db is committed and git
   cannot diff a binary. Without it a commit could add fifty check runs, or
   a correction to a published figure, and show only that the database
   changed.
@@ -1424,7 +1424,7 @@ def _command_examples() -> dict:
   {ENTRY} coverage --selftest          needs no database
 
 {_H}what it measures{_H}
-  How much of a known list of projects the Scoreboard has. Nobody publishes
+  How much of a known list of projects the Tracker has. Nobody publishes
   the true universe of US manufacturing projects, so the denominator has to
   come from a list you can enumerate. The reference CSV needs `project` and
   `state`; add `promised_capital_usd` to use --min-capital.
@@ -1614,7 +1614,7 @@ def _command_examples() -> dict:
   {ENTRY} filter --stage screen --capital 10000000000
 
   These flags query rows already in the database. What qualifies a project
-  in the first place is set in pipeline/settings.py (scoreboard.py criteria).
+  in the first place is set in pipeline/settings.py (tracker.py criteria).
 
   --op AND (the default) requires both thresholds; OR requires either.
   --stage screen queries rows before publication.
@@ -1671,18 +1671,18 @@ def build_parser() -> argparse.ArgumentParser:
     prog = _prog_name()
     p = _Parser(
         prog=prog,
-        description="Command line for the Promised vs. Produced Scoreboard.",
+        description="Command line for the Promised vs. Produced Tracker.",
         epilog=_epilog(prog),
         formatter_class=_HelpFormatter,
     )
     p.add_argument("--db", metavar="PATH",
-                   help="SQLite database to use (overrides $SCOREBOARD_DB). "
+                   help="SQLite database to use (overrides $TRACKER_DB). "
                         "Must come before the command.")
     # metavar keeps the 20-name brace list out of the usage line and the
     # positional header; the commands are still listed once, below.
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
-    sub.add_parser("initdb", help="create an empty Scoreboard database") \
+    sub.add_parser("initdb", help="create an empty Tracker database") \
         .set_defaults(fn=cmd_initdb)
     sub.add_parser("status", help="row counts per stage").set_defaults(fn=cmd_status)
 
@@ -1764,7 +1764,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_screen_date)
 
     s = sub.add_parser("quality",
-                       help="five measures of whether the Scoreboard can carry the claim")
+                       help="five measures of whether the Tracker can carry the claim")
     s.add_argument("--rows", action="store_true",
                    help="list the row ids each measure is missing")
     s.set_defaults(fn=cmd_quality)
@@ -1909,7 +1909,7 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.db:
-        os.environ["SCOREBOARD_DB"] = args.db
+        os.environ["TRACKER_DB"] = args.db
     conn = connect()
     # Every command except a bare initdb assumes tables exist; be forgiving.
     init_db(conn)

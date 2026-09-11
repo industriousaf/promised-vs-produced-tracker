@@ -1,4 +1,0 @@
-id,datetime,screen_extracted_id,field,state,value_at_time,source_url,tab_index,match_count,attested_by
-1,2026-09-11T16:33:33Z,5,announced,confirmed,2018-04,https://www.opportunitylouisiana.gov/news/formosa-selects-st-james-parish-for-9-4-billion-louisiana-project,0,1,ashwin@industriousaf.org
-2,2026-09-11T16:33:41Z,5,promised_capital_usd,confirmed,9400000000,https://www.opportunitylouisiana.gov/news/formosa-selects-st-james-parish-for-9-4-billion-louisiana-project,0,3,ashwin@industriousaf.org
-3,2026-09-11T16:33:48Z,5,promised_jobs,confirmed,1200,https://www.opportunitylouisiana.gov/news/formosa-selects-st-james-parish-for-9-4-billion-louisiana-project,0,2,ashwin@industriousaf.org

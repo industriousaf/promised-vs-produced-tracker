@@ -1,4 +1,4 @@
-                 THE PROMISED VS. PRODUCED SCOREBOARD
+                 THE PROMISED VS. PRODUCED TRACKER
                         DATA LICENSE
 
 SPDX-License-Identifier: CC-BY-4.0
@@ -9,9 +9,9 @@ Copyright (c) 2026 IndustriousAF
 WHAT THIS COVERS
 ----------------
 
-The Scoreboard itself: the SQLite database and the flat exports beside it.
+The Tracker itself: the SQLite database and the flat exports beside it.
 
-    outputs/scoreboard.db
+    outputs/tracker.db
     outputs/csv_tables/*.csv
 
 These are licensed to you under the Creative Commons Attribution 4.0
@@ -40,7 +40,7 @@ redistributed here. This repository stores facts, links, and summaries written
 for this project. No article text is copied into the database.
 
 Trademarks and names. This license grants no rights in the IndustriousAF name,
-in "The Promised vs. Produced Scoreboard", or in any other mark, logo or
+in "The Promised vs. Produced Tracker", or in any other mark, logo or
 brand element of IndustriousAF. Creative Commons licenses never convey
 trademark rights; this paragraph says so out loud so that no reuse can be
 presented as licensed, endorsed, or approved by IndustriousAF.
@@ -51,13 +51,13 @@ HOW TO ATTRIBUTE
 
 CC BY 4.0 requires attribution. This satisfies it:
 
-    The Promised vs. Produced Scoreboard, IndustriousAF.
-    CC BY 4.0. https://github.com/ashwinl4/promised-vs-produced-scoreboard
+    The Promised vs. Produced Tracker, IndustriousAF.
+    CC BY 4.0. https://github.com/ashwinl4/promised-vs-produced-tracker
 
 If you are citing the data in a paper, use CITATION.cff in the repository root
 instead. It carries the authors, the version and the DOI.
 
-If you publish a figure or a number drawn from these rows, name the Scoreboard
+If you publish a figure or a number drawn from these rows, name the Tracker
 in the caption or the sentence. That is the whole ask, and it is the reason
 this license was chosen over a public domain dedication.
 

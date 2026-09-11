@@ -1,7 +1,7 @@
 # tools
 
 Standalone scripts that nobody imports. Each operates on an existing
-`scoreboard.db` and is run directly rather than through the CLI -- deliberately,
+`tracker.db` and is run directly rather than through the CLI -- deliberately,
 for a different reason each:
 
 - `load_csv.py` is a rare one-off, and its `--promote-tier` can write to Verify
@@ -13,7 +13,7 @@ for a different reason each:
   worse than one command and one script. If the API path ever gets regular use,
   the shape to reach for is `collect --api`, not a second word for the same idea.
 
-Run them from the parent directory (`scoreboard/`).
+Run them from the parent directory (`tracker/`).
 
 `export` and `coverage` lived here too, until it was noticed that `pipeline/db.py`
 imports the exporter on every write -- core code depending on a "tool". Both are
@@ -55,7 +55,7 @@ python3 tools/gather.py --n-source 10 --n-screen 3    # 10 leads, extract the fi
 ```
 
 Needs `ANTHROPIC_API_KEY`, either exported or in a `config.env` beside
-`scoreboard.py` — see [Where the API key goes](../README.md#where-the-api-key-goes).
+`tracker.py` — see [Where the API key goes](../README.md#where-the-api-key-goes).
 It stops at Screen, like everything else that is not a person.
 
 The `collect` command needs no API key and is the usual way to collect.

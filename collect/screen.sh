@@ -21,6 +21,6 @@ export PROMPT_FILE="${PROMPT_FILE:-collect/prompts/prompt2_extract_screen.md}"
 export COUNT_TABLE="${COUNT_TABLE:-screen_extracted}"
 
 # Resolve to an absolute path so the inner script's own `cd $(dirname $0)/..`
-# still lands on scoreboard/ no matter where this was invoked from.
+# still lands on the repository root no matter where this was invoked from.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 exec bash "$HERE/source.sh" "$@"

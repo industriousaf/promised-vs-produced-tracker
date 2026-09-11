@@ -1,11 +1,11 @@
-"""settings.py -- everything configurable about the Scoreboard, in one file.
+"""settings.py -- everything configurable about the Tracker, in one file.
 
 EDIT THIS FILE to change what the pipeline collects, which model does it, or how
 a collection run behaves. It is the only place any of these values is defined.
 Ask what is actually in effect, with the line to edit for each, rather than
 reading it off:
 
-    python3 scoreboard.py config
+    python3 tracker.py config
 
 Four sections, and the division is worth keeping in mind because the sections
 mean different things:
@@ -51,7 +51,7 @@ from pathlib import Path
 # it has to mean something to a person reading a CSV column with no
 # documentation open. A short opaque handle would be the same mistake as an
 # undefined term in the README, except stored in the data, where it cannot be
-# reworded later. Two phases exist because the Scoreboard is built by sweeping
+# reworded later. Two phases exist because the Tracker is built by sweeping
 # at a high threshold first and lowering it; the stamp is what keeps a later,
 # looser sweep distinguishable from this one.
 
@@ -69,7 +69,7 @@ US_SUBDIVISIONS = {
 }
 
 # Add a country by adding its subdivisions here and naming it in a phase's
-# `countries`. The Scoreboard is US-only today; the plan covers allied countries,
+# `countries`. The Tracker is US-only today; the plan covers allied countries,
 # and the `country` column exists on every row from the start so that adding one
 # is a config change rather than a migration.
 SUBDIVISIONS: dict[str, set] = {
@@ -153,7 +153,7 @@ PHASES: dict[str, Criteria] = {
         op="OR",
         announced_from="2017-01",
         countries=("US",),
-        note="The high threshold. The Scoreboard is made complete here first, "
+        note="The high threshold. The Tracker is made complete here first, "
              "because it is built from the top down -- wherever review stops, the "
              "claim above that point is intact.",
     ),
@@ -176,7 +176,8 @@ PHASES: dict[str, Criteria] = {
 # two are one decision. Changing the floor under rows collected at another one
 # leaves a repository whose data fails its own checker -- 94 of the previous 212
 # rows did exactly that during the hour the two were out of step. The rows
-# collected at 100M-or-200-jobs are in the scoreboard-v1.2 tag:
+# collected at 100M-or-200-jobs are in the scoreboard-v1.2 tag -- tags name
+# commits that already happened, so they keep the name the project had then:
 #
 #     git show scoreboard-v1.2:outputs/scoreboard.db > /tmp/sb-100M.db
 ACTIVE = "1B-or-2000-jobs"
@@ -326,7 +327,7 @@ LEADS_PER_CALL = 5
 # Stop after this many CONSECUTIVE calls that add nothing. Any single find resets
 # the counter to zero.
 #
-# This is the Scoreboard's current answer to "is this threshold exhausted", and
+# This is the Tracker's current answer to "is this threshold exhausted", and
 # it is a weak one. On the run that first reached it, the first empty call was
 # call 40 and the rule did not fire until call 50 -- four times the counter
 # reached 1 and a stray find reset it, at a cost of 16M tokens for nine leads.

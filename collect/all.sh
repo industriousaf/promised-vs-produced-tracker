@@ -8,7 +8,7 @@
 # extract N rows" -- two commands and a wait in between. This runs the pair
 # back-to-back and prints one before/after summary.
 #
-# RUN IT (from anywhere; it cd's to scoreboard/ itself. bash on macOS/Linux/WSL):
+# RUN IT (from anywhere; it cd's to the repository root itself. bash on macOS/Linux/WSL):
 #   bash collect/all.sh            # N=10 to each stage
 #   N=3 bash collect/all.sh        # 3 leads, then 3 extractions
 #   N=5 DRY_RUN=1 bash collect/all.sh   # show the plan, call nothing
@@ -32,7 +32,7 @@
 #     EFFORT       low | medium | high                       (see below)
 #
 #   MODEL and EFFORT default from pipeline/settings.py -- the one place the
-#   names live. `python3 scoreboard.py models` says what is in effect and
+#   names live. `python3 tracker.py models` says what is in effect and
 #   what decided it. MODEL= on the command line changes every stage for one
 #   run; SOURCE_MODEL= / SCREEN_MODEL= change a single stage and win over it.
 #     MAX_ITERS    cost cap on loop turns per stage          (default 3x ADD)
@@ -62,21 +62,21 @@ set -euo pipefail
 trap 'echo; echo "interrupted -- stopping."; exit 130' INT TERM
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCOREBOARD_ROOT="$(cd "$HERE/.." && pwd)"
+TRACKER_ROOT="$(cd "$HERE/.." && pwd)"
 SOURCE_LOOP="$HERE/source.sh"
 SCREEN_LOOP="$HERE/screen.sh"
 for f in "$SOURCE_LOOP" "$SCREEN_LOOP"; do
   [ -f "$f" ] || { echo "ERROR: missing $f"; exit 1; }
 done
 
-cd "$SCOREBOARD_ROOT"
+cd "$TRACKER_ROOT"
 PY="${PY:-$(command -v python3 || command -v python)}"
 
 # --- Run transcript --------------------------------------------------------- #
 # Every run tees its own output to logs/. The transcript is the only record of
 # what a run actually did: which model and effort, how many turns, which
 # iterations failed, why it stopped. The database says what was collected but
-# not how, and for a Scoreboard that will be cited, how is part of the claim.
+# not how, and for a Tracker that will be cited, how is part of the claim.
 #
 # LOG=0 turns it off. LOG=<path> picks the file.
 #

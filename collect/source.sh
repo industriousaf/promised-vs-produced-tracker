@@ -8,7 +8,7 @@
 #     1. reads the current count from `pipeline.cli status`,
 #     2. stops once (current - starting) >= ADD, i.e. ADD rows were added this run,
 #     3. launches ONE `claude -p` process that actually
-#        does the job -- web-searches, collects, and writes to scoreboard.db using
+#        does the job -- web-searches, collects, and writes to tracker.db using
 #        the real pipeline CLI. It is a brand-new process every time, so no
 #        context bleeds between runs (see prompts/README.md, "no chat history").
 #   This script is JUST the loop; the `claude` CLI does the work each turn.
@@ -18,7 +18,7 @@
 #   first -- which re-reads the DB (published + already collected) -- so each run
 #   automatically steers around everything collected so far.
 #
-# RUN IT (from anywhere; it cd's to scoreboard/ itself. bash on macOS/Linux/WSL):
+# RUN IT (from anywhere; it cd's to the repository root itself. bash on macOS/Linux/WSL):
 #   bash collect/source.sh                 # add ADD (default 10) source leads
 #   ADD=3 bash collect/source.sh           # just add 3 this run
 #   LEADS_PER_CALL=10 bash collect/source.sh   # ceiling per call (default 5)
@@ -42,8 +42,8 @@ ADD="${ADD:-10}"                                  # how many NEW rows to add to 
 # NOTE: the print-mode `--effort` flag only accepts low|medium|high -- there is
 # no "extra high" from the CLI. `high` is the ceiling.
 
-# --- Locate scoreboard/ and the tools --------------------------------- #
-cd "$(dirname "$0")/.."                            # collect/ -> scoreboard/
+# --- Locate the repository root and the tools --------------------------------- #
+cd "$(dirname "$0")/.."                            # collect/ -> repository root
 PY="${PY:-$(command -v python3 || command -v python)}"
 
 # Which stage this is. all.sh sets it; a stage run on its own names itself from
@@ -145,7 +145,7 @@ fi
 # Every run tees its own output to logs/. The transcript is the only record of
 # what a run actually did: which model and effort, how many turns, which
 # iterations failed, why it stopped. The database says what was collected but
-# not how, and for a Scoreboard that will be cited, how is part of the claim.
+# not how, and for a Tracker that will be cited, how is part of the claim.
 #
 # LOG=0 turns it off. LOG=<path> picks the file.
 #

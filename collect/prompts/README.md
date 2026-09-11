@@ -1,6 +1,6 @@
 # Operating prompts for the collection loops
 
-This folder holds the prompts that grow the Scoreboard's data. The loop scripts
+This folder holds the prompts that grow the Tracker's data. The loop scripts
 one directory up start a fresh `claude -p` process per
 iteration and hand it exactly one of these files.
 
@@ -37,14 +37,14 @@ they ever disagree, the scripts are correct.
 | | |
 |---|---|
 | Reference context | `docs/cli.md`, attached to the process as an `@`-mention |
-| Model | set in `pipeline/settings.py`; `MODEL=` overrides every stage for one run, `SOURCE_MODEL=` / `SCREEN_MODEL=` one stage. `python3 scoreboard.py models` says what is in effect. |
+| Model | set in `pipeline/settings.py`; `MODEL=` overrides every stage for one run, `SOURCE_MODEL=` / `SCREEN_MODEL=` one stage. `python3 tracker.py models` says what is in effect. |
 | Effort | `high` (`EFFORT` overrides). The CLI has no "extra high"; `high` is the ceiling. |
 | Chat history | none. Every iteration starts fresh, remembering nothing. |
 | Scope | run only what the given prompt file says |
 
 ## Constraints when writing or running these prompts
 
-- Pipeline commands run from the `scoreboard/` directory
+- Pipeline commands run from the repository root
   (`python3 -m pipeline.cli ...`), per
   [`docs/cli.md`](../../docs/cli.md).
 - Reference `prompt_source_collected.md` and `prompt_screen_extracted.md` through

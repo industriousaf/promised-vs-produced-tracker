@@ -25,7 +25,7 @@ from pipeline import source, screen, verify, llm
 def published_project_names(conn: sqlite3.Connection) -> list[str]:
     """Names of the projects already published, from the verify table.
 
-    These are the finished, human-checked rows -- the Scoreboard's actual
+    These are the finished, human-checked rows -- the Tracker's actual
     product -- so this is the authoritative "we already have this one, do not
     collect it again" list. It deliberately reads only the verify table:
     projects that are merely collected and not yet published are the other
@@ -121,7 +121,7 @@ def announced_year_coverage(conn: sqlite3.Connection,
     """{announcement year: rows collected}, across the eligible window.
 
     Every Source lead that has reached Screen has a parsed `announced_dt`, so
-    this counts what the Scoreboard actually covers rather than what it meant to.
+    this counts what the Tracker actually covers rather than what it meant to.
 
     It exists because the first N=20 batch came back 70% announced in 2021-2022
     and empty in three years of the window. Nobody chose that: the prompt says
@@ -131,7 +131,7 @@ def announced_year_coverage(conn: sqlite3.Connection,
 
     Note what this does and does not claim. Some of that concentration is real;
     there genuinely were more announcements in 2021-2022. The problem is that
-    the Scoreboard cannot tell you which part is the world and which is the search,
+    the Tracker cannot tell you which part is the world and which is the search,
     and a reader will ask. Showing the collector its own coverage makes the
     year distribution a decision rather than a residue.
     """

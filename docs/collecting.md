@@ -6,12 +6,12 @@ This is the ongoing collection: shell loops that find new projects and extract
 them into rows, one per iteration. It is the counterpart to the one-off bulk
 import that seeded an earlier dataset, which is archived outside this directory
 under `reference/bulk-import-experiment/`. The short version is in the
-[scoreboard README](../README.md#add-data); this is the full set of controls.
+[Tracker README](../README.md#add-data); this is the full set of controls.
 Bookkeeping is below, and the full methodology is in
 [`prompts/README.md`](../collect/prompts/README.md) and each `promptN_*.md`
 beside it.
 
-**Before any run:** `cd` into the `scoreboard/` directory and
+**Before any run:** `cd` into the repository root and
 make sure the `claude` CLI is logged in there (`claude` → `/login`, one-time). Each
 command below starts `claude -p` processes via the loop scripts.
 
@@ -42,7 +42,7 @@ Collecting leads then extracting them is the normal session, so it has a single
 runner, reachable as a command:
 
 ```bash
-python3 scoreboard.py collect --n 10
+python3 tracker.py collect --n 10
 ```
 
 → adds 10 to `source_collected` (PROMPT 1), then 10 to `screen_extracted`
@@ -53,9 +53,9 @@ way the shell has always set it, by prefixing the variable to `bash collect/all.
 
 | want | command |
 |---|---|
-| see the plan without calling Claude | `python3 scoreboard.py collect --n 5 --dry-run` |
-| only one stage | `python3 scoreboard.py collect --only screen --n 5` |
-| keep going after a failed iteration | `python3 scoreboard.py collect --n 10 --continue-on-fail` |
+| see the plan without calling Claude | `python3 tracker.py collect --n 5 --dry-run` |
+| only one stage | `python3 tracker.py collect --only screen --n 5` |
+| keep going after a failed iteration | `python3 tracker.py collect --n 10 --continue-on-fail` |
 | different sizes per stage | `SOURCE_ADD=10 SCREEN_ADD=4 bash collect/all.sh` |
 | cheaper discovery, careful extraction | `SOURCE_EFFORT=medium SCREEN_EFFORT=high N=8 bash collect/all.sh` |
 | stream one stage live | `SCREEN_VERBOSE=1 N=3 bash collect/all.sh` |

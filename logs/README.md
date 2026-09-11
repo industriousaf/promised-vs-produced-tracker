@@ -8,7 +8,7 @@ to a file here, named for the UTC time it started:
 The database records what was collected. The transcript records **how**: which
 model and effort, how many turns it took, which iterations failed, and which of
 the three exits stopped it — target reached, stalled, or out of turns. For a
-Scoreboard that will be cited, that is part of the claim, and none of it is
+Tracker that will be cited, that is part of the claim, and none of it is
 recoverable from the rows afterwards.
 
 ## What is committed
