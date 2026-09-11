@@ -434,7 +434,7 @@ _CHECKLIST_JS = """
   // Per project, per tab, gone when the tab closes. Nothing here is a record;
   // it exists so tabbing away does not lose your place.
   var KEY = 'pvp-ck-' + ROW_ID;
-  var state = {}, looked = {}, walking = false;
+  var state = {}, looked = {}, walking = false, armed = false;
   try { state = JSON.parse(sessionStorage.getItem(KEY) || '{}'); } catch (e) {}
   try { looked = JSON.parse(sessionStorage.getItem(KEY + '-seen') || '{}'); } catch (e) {}
 
@@ -497,6 +497,30 @@ _CHECKLIST_JS = """
       walk.textContent = done ? 'continue \u2192' : 'start checking \u2192';
     }
     if (go2) { go2.hidden = !all || !document.getElementById('verifyrow'); }
+
+    // The verify button is NEVER disabled by the checklist. The checklist is
+    // sessionStorage: clearing it, or opening the project in another browser,
+    // must not be able to stop a person publishing. The command line has no
+    // such gate either, so disabling here would guard one of two doors while
+    // implying a stronger claim than the evidence supports -- a published
+    // project would read as "all six confirmed" when what happened is "six
+    // buttons were pressed in a browser that stored nothing".
+    //
+    // What it does instead is stop looking like the obvious next thing until
+    // the checking is done, and ask once if you go early.
+    var vb = document.getElementById('verifybtn');
+    var vn = document.getElementById('verifynote');
+    if (vb) {
+      vb.classList.toggle('primary', all);
+      armed = armed && !all;
+      if (vn) {
+        var open2 = unsettled().map(function (s) { return s.dataset.cell; });
+        vn.textContent = all ? ''
+          : armed ? ('press again to verify with ' + open2.length + ' unchecked')
+          : (open2.length + ' field(s) not checked yet');
+        vn.classList.toggle('armed', armed);
+      }
+    }
     var wrap = document.querySelector('.cktally-wrap');
     if (wrap) { wrap.classList.toggle('ready', all); }
     if (all) { strips.forEach(function (s) { s.classList.remove('is-now'); }); }
@@ -534,6 +558,19 @@ _CHECKLIST_JS = """
       openField(unsettled()[0]);
     };
   }
+
+  // Going early asks once, in the page, naming what is unchecked. A second
+  // press goes through. No dialog: this is a decision about the reviewer's own
+  // notes, not a destructive action needing browser chrome.
+  if (vb0()) {
+    vb0().form.addEventListener('submit', function (e) {
+      if (unsettled().length === 0 || armed) { return; }
+      e.preventDefault();
+      armed = true; paint();
+      vb0().focus();
+    });
+  }
+  function vb0() { return document.getElementById('verifybtn'); }
 
   if (go2) {
     go2.onclick = function () {
@@ -716,7 +753,8 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
       writes its own reason, so leave this empty for that.</label>
     <input type="text" name="edit_description"
            placeholder="e.g. corrected announced date to match the filing">
-    <p id="verifyrow"><button class="primary" type="submit">Verify this project \u2192</button></p>"""
+    <p id="verifyrow"><button id="verifybtn" type="submit">Verify this project \u2192</button>
+    <span id="verifynote" class="verifynote"></span></p>"""
     else:
         promote_controls = (
             '<p class="msg">Re-check and reach '

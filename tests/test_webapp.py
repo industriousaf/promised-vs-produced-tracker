@@ -900,3 +900,72 @@ class TestProjectNotRow(unittest.TestCase):
         rather than drifting."""
         from pipeline.schema_check import V0_COLUMNS
         self.assertIn("project", V0_COLUMNS)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestVerifyButtonIsNeverGated(unittest.TestCase):
+    """The verify button is never disabled by the checklist.
+
+    The checklist is sessionStorage. Gating publication on it would mean that
+    clearing a session, or opening the project in another browser, stops a
+    person publishing. The command line has no such gate either, so disabling
+    here would guard one of two doors.
+
+    The deeper reason is what it would imply. A published project would read as
+    "all six confirmed" when what happened is "six buttons were pressed in a
+    browser that stored nothing". The artifact's whole claim is that a person
+    read the sources, and that claim has to stay exactly as strong as the
+    evidence for it.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "promise_source": "https://example.com/p",
+               "status_source": "https://example.com/s", "verification_tier": "P"}
+        lead = psource.insert_lead(conn, promise_source="https://example.com/a",
+                                   status_source="https://example.com/s", summary="x")
+        self.rid = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+        pscreen.run_check(conn, self.rid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _inspect(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get(f"/screen/{self.rid}/inspect").text
+
+    def test_the_button_ships_without_disabled(self):
+        """Server-rendered, so a reader with no JavaScript can still publish."""
+        b = self._inspect()
+        i = b.index('id="verifybtn"')
+        self.assertNotIn("disabled", b[i:i + 160])
+
+    def test_promotion_still_works_with_nothing_checked(self):
+        """The gate is the check verdict and a person's judgement, not the
+        scratchpad. This is the path the CLI takes too."""
+        from pipeline import db as pdb, verify
+        conn = pdb.connect(self.path)
+        vid = verify.promote(conn, self.rid, verification_tier="V1")
+        conn.commit()
+        n = conn.execute("SELECT COUNT(*) FROM verify_verified").fetchone()[0]
+        conn.close()
+        self.assertTrue(vid)
+        self.assertEqual(n, 1)
+
+    def test_the_page_says_how_many_are_unchecked(self):
+        """Not a gate, but not silent either: a button equally live at zero and
+        at six would say the checklist is decoration."""
+        self.assertIn('id="verifynote"', self._inspect())

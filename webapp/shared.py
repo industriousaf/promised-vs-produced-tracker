@@ -376,6 +376,13 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .cktally.all { color: var(--success); }
 .cktally-left { font-family: var(--font-sans); font-size: .78rem;
     color: var(--type-3); }
+/* The verify button before the checking is done. Not disabled: the checklist
+   is browser-only state and must never be able to stop a person publishing.
+   It just stops looking like the obvious next thing. */
+.verifynote { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--type-3); margin-left: .6rem; }
+.verifynote.armed { color: var(--warning); }
+
 /* The guided walk: one button that opens the next unchecked field. */
 .ckwalk { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
     text-transform: uppercase; padding: .25rem .7rem; border-radius: 0;
