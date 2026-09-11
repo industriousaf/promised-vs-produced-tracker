@@ -220,7 +220,7 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
     # something other than what the cell holds -- so the source belongs on screen
     # in both places rather than in another tab in one of them.
     body = f"""
-<h2>Verify #{r['id']} — {esc(r['project'])}</h2>
+<h2 class="rowtitle">Verify #{r['id']} \u00b7 {esc(r['project'])}</h2>
 <p><small>created {esc(r['created_at'])} · last-modified {esc(r['datetime'])} ·
 from screen_extracted #{esc(r['screen_extracted_id'])}</small></p>
 

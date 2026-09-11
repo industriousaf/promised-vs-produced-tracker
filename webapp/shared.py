@@ -9,7 +9,9 @@ main.
 
 from __future__ import annotations
 
+import base64
 import html
+from pathlib import Path
 import json
 import os
 import sys
@@ -43,73 +45,247 @@ def _conn():
 # HTML helpers                                                                 #
 # --------------------------------------------------------------------------- #
 
+# The wordmark face, inlined rather than served. Bagnard is 7.2 KB, this
+# interface mounts no static routes, and a data URI keeps the whole page
+# self-contained and working with no network. Read at import, not per request.
+#
+# Copyright (c) 2015 Sebastien Sanfilippo, SIL Open Font License v1.1. The
+# licence travels with the font in webapp/assets/OFL.txt and the OFL requires
+# it to stay there. See webapp/assets/README.md.
+def _bagnard_face() -> str:
+    path = Path(__file__).resolve().parent / "assets" / "Bagnard.woff2"
+    try:
+        b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    except OSError:
+        # A clone missing the font still runs; the wordmark falls back to the
+        # serif stack rather than the page failing to render.
+        return ""
+    return ("@font-face{font-family:'Bagnard';"
+            f"src:url(data:font/woff2;base64,{b64}) format('woff2');"
+            "font-weight:400;font-style:normal;font-display:swap}")
+
+
+_BAGNARD = _bagnard_face()
+
+# Google Fonts carries the three IAF faces. Every rule below names a real
+# fallback stack, so an offline run degrades to Georgia / system-ui / the
+# platform mono rather than breaking: this tool is used on a laptop that is
+# not always online, and the pipeline itself has no network dependency.
+_FONTS = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
+    'family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&'
+    'family=IBM+Plex+Sans:wght@400;500&'
+    'family=IBM+Plex+Mono:wght@400;500;600&display=swap">'
+)
+
 _CSS = """
-:root { color-scheme: light dark; }
+/* IndustriousAF design system, restrained. Tokens from design-system.html
+   Section 03, type roles from Section 04, geometry from Section 14.
+   Two anchors are deliberately present rather than decorative:
+   teal leads every surface (the nav band), and the mono spec-label register
+   carries real metadata (row ids, timestamps, criteria, URLs, verdicts).
+   The Bagnard wordmark is NOT here: it is a self-hosted woff2 this repo does
+   not ship, so the nav uses the mono lockup the brand book's own masthead
+   uses. That is a documented secondary treatment, not the primary mark. */
+:root {
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans:  'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono:  'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
+
+  --teal:        #1F4E52;
+  --teal-dark:   #163C40;
+  --terracotta:  #D06B45;
+
+  --ground:      #DCE4D5;   /* paper-green: the V6.1 primary ground */
+  --ground-card: #E4EADD;
+  --ground-deep: #CAD3C0;
+  --surface-dark:#252322;
+  --cream:       #F4F1EA;
+
+  --type-1: #2E2B2A;
+  --type-2: #4F4B47;
+  --type-3: #6E6962;
+  --rule:      #B8C0B0;
+  --rule-soft: #CFD5C5;
+
+  --teal-plate:  #1F4E52;   /* the wordmark plate is always teal, any surface */
+  --success: #2A6B3A;   /* CLEAN */
+  --warning: #8B7437;   /* PASS  */
+  --danger:  #8B3A24;   /* FAIL  */
+}
+
+/* Light only, deliberately. The paper-green ground with teal leading IS the
+   IndustriousAF surface; there is no documented dark counterpart, and a dark
+   charcoal page makes the accent the only colour in view, which Section 14
+   names as the machine tell. To run dark anyway, re-add a
+   @media (prefers-color-scheme: dark) block overriding --ground, --ground-card,
+   --ground-deep, --type-1/2/3 and --rule; leave --teal-plate alone, because
+   Section 01 fixes the wordmark plate to teal on every surface. */
+
 * { box-sizing: border-box; }
-body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 0 1.5rem 4rem;
-       max-width: 1000px; margin-inline: auto; }
-h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem;
-     border-bottom: 1px solid #8884; padding-bottom: .3rem; }
-nav a { margin-right: 1rem; text-decoration: none; font-weight: 600; }
+
+/* The ground goes on html, not just body: body is a 1000px measure, so a
+   different colour up here paints two vertical bars down the margins. The
+   terracotta overscroll the design system documents is a full-bleed site
+   surface; on a centred reading column it reads as decoration, and Section 03
+   is explicit that terracotta's rarity is what makes it work. The accent
+   appears once per page, in the wordmark's AF. */
+html { background: var(--ground); }
+
+body { font-family: var(--font-serif); font-size: 16px; line-height: 1.55;
+       color: var(--type-1); background: var(--ground);
+       margin: 0; padding: 0 0 4rem; }
+
+/* The reading measure. It used to live on body, which meant the teal band was
+   also capped at 1000px and floated with two gutters beside it on a wide
+   screen instead of running edge to edge. Body is now full width and .wrap
+   carries the measure, which is also what the design system's own container
+   does (Section 06). */
+.wrap { max-width: 1000px; margin-inline: auto; padding: 0 1.5rem; }
+body.wide .wrap { max-width: 1560px; }
+
+/* ---- the teal band: anchor 1, teal above the fold on every page --------- */
+.band { background: var(--teal-plate); color: var(--cream);
+        margin: 0 0 1.5rem; padding: .85rem 0; }
+.band .wrap { display: flex; align-items: center; gap: 1.25rem;
+        flex-wrap: wrap; }
+.band nav { display: flex; gap: 1.1rem; margin-left: auto; }
+.band nav a { font-family: var(--font-mono); font-size: 11px;
+        letter-spacing: .16em; text-transform: uppercase; text-decoration: none;
+        color: #B0ACA5; transition: color .15s; }
+.band nav a:hover { color: var(--cream); }
+
+/* ---- the wordmark: design system Section 01, SM tier ------------------- */
+/* Two lines at one cap-height. Line 1 reads the brand; line 2 reveals the
+   second reading, INDUSTRIO-USA-F. The double rule is two rings with a
+   field-coloured gap between them, which is why it is a layered box-shadow
+   and not a border. Section 14 permits the wordmark's structural rings and
+   bans elevation shadows; the SM tier carries rings only. */
+.iaf-logo { display: inline-block; background: var(--teal-plate);
+    padding: 8px 12px 6px; position: relative;
+    box-shadow: 0 0 0 1px var(--teal-plate), 0 0 0 2px var(--cream),
+                0 0 0 3px var(--teal-plate), 0 0 0 4px var(--cream); }
+.iaf-logo-line { font-family: 'Bagnard', Georgia, 'Times New Roman', serif;
+    font-weight: 400; font-size: 17px; line-height: .95; letter-spacing: 0;
+    display: block; text-align: center; white-space: nowrap; }
+.iaf-logo-line + .iaf-logo-line { margin-top: 2px; }
+.iaf-logo .cream  { color: var(--cream); }
+.iaf-logo .accent { color: var(--terracotta); }
+/* The plate is always teal, whatever the surface around it (Section 01), so
+   it does not follow the dark-mode token. */
+.masthead { margin: .2rem 0 1.6rem; }
+
+h1 { font-family: var(--font-serif); font-size: 28px; line-height: 1.2;
+     font-weight: 400; letter-spacing: -.01em; margin: 0 0 .15rem; }
+/* The stage chain as a mono spec label rather than part of the headline.
+   Section 14 bans the eyebrow-over-headline-over-buttons hero stack; this
+   sits BELOW the headline and states the pipeline, which is metadata. */
+.subtitle { font-family: var(--font-mono); font-size: 11px;
+     letter-spacing: .18em; text-transform: uppercase; color: var(--type-3);
+     margin: 0 0 1.1rem; }
+h2 { font-family: var(--font-mono); font-size: 12px; letter-spacing: .2em;
+     text-transform: uppercase; color: var(--teal); font-weight: 500;
+     margin-top: 2.2rem; padding-top: .9rem;
+     border-top: 0.5px solid var(--rule-soft); }
+a { color: inherit; }
+
+/* h2 does two jobs in this app. Section labels ("Review queue", "Rows (173
+   of 173)") are mono eyebrows; a row title names a specific project and stays
+   serif, because setting a plant's name in uppercase mono turns the subject of
+   the page into a field label. */
+h2.rowtitle { font-family: var(--font-serif); font-size: 22px; line-height: 1.25;
+     font-weight: 400; letter-spacing: -.01em; text-transform: none;
+     color: var(--type-1); border-top: none; padding-top: 0; margin-top: 1.6rem; }
+h2.rowtitle small { font-family: var(--font-sans); font-size: .7em;
+     color: var(--type-3); }
+
+/* ---- the mono spec-label register: anchor 3 ---------------------------- */
 .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem;
          text-align: center; margin: 1rem 0; }
-.stages div { border: 1px solid #8886; border-radius: 8px; padding: .6rem; }
-.stages .n { font-size: 1.6rem; font-weight: 700; }
-/* The tiles are links now, so each one is a door rather than a readout. They
-   must not look like body links: default anchor styling underlined every label
-   and repainted the counts visited-purple, which reads as decoration on the
-   numbers rather than as a control. Inherit the text colour, drop the
-   underline, and let the border do the affordance on hover. */
+.stages div { border: 0.5px solid var(--rule); border-radius: 0; padding: .6rem;
+         background: var(--ground-card); }
+.stages .n { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 500;
+         font-variant-numeric: tabular-nums; color: var(--type-1); }
 .stages a { color: inherit; text-decoration: none; display: block; }
-.stages a div { transition: border-color .12s ease, background .12s ease; }
-.stages a:hover div { border-color: #888c; background: #8881; }
-.card { border: 1px solid #8885; border-radius: 8px; padding: .8rem 1rem;
-        margin: .6rem 0; }
-.card small { color: #8889; }
-/* Quality panel: label, bar, count. Grid rather than a table so the bars line
-   up at one width and the numbers stay right-aligned against them. */
+.stages a div { transition: border-color .15s, background .15s; }
+.stages a:hover div { border-color: var(--teal); background: var(--ground-deep); }
+
+.card { border: 0.5px solid var(--rule); border-radius: 0; padding: .8rem 1rem;
+        margin: .6rem 0; background: var(--ground-card); }
+.card small { color: var(--type-3); }
+
 .qrow { display: grid; grid-template-columns: 15rem 1fr 5rem; gap: .75rem;
         align-items: center; margin: .5rem 0; }
-.qtrack { background: #8882; border-radius: 4px; height: 1.1rem; overflow: hidden; }
-.qfill { height: 100%; border-radius: 4px; }
-.qnum { text-align: right; font-variant-numeric: tabular-nums; }
+.qtrack { background: var(--ground-deep); border-radius: 0; height: 1.1rem;
+        overflow: hidden; }
+.qfill { height: 100%; border-radius: 0; }
+.qnum { text-align: right; font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums; font-size: .85rem; }
 @media (max-width: 640px) { .qrow { grid-template-columns: 1fr; } }
+
 form.inline { display: inline; }
-label { display: block; margin: .4rem 0 .1rem; font-size: .85rem; color: #8889; }
+label { display: block; margin: .4rem 0 .1rem; font-family: var(--font-mono);
+        font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--type-3); }
 input[type=text], textarea, select { width: 100%; padding: .35rem .5rem;
-    border: 1px solid #8887; border-radius: 6px; background: transparent;
-    color: inherit; font: inherit; }
-textarea { font-family: ui-monospace, monospace; font-size: .82rem; }
-button { padding: .35rem .8rem; border: 1px solid #8887; border-radius: 6px;
-    background: #6663; color: inherit; cursor: pointer; font: inherit; }
-button.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
-.msg { background: #2b6cb022; border: 1px solid #2b6cb066; padding: .6rem 1rem;
-       border-radius: 6px; margin: 1rem 0; }
+    border: 0.5px solid var(--rule); border-radius: 0; background: var(--ground-card);
+    color: inherit; font-family: var(--font-sans); font-size: .9rem; }
+textarea { font-family: var(--font-mono); font-size: .82rem; }
+button { padding: .35rem .9rem; border: 0.5px solid var(--rule); border-radius: 0;
+    background: var(--ground-card); color: inherit; cursor: pointer;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; transition: background .15s, border-color .15s; }
+button:hover { border-color: var(--teal); }
+button.primary { background: var(--teal); color: var(--cream); border-color: var(--teal); }
+button.primary:hover { background: var(--teal-dark); border-color: var(--teal-dark); }
+
+.msg { background: var(--ground-card); border: 0.5px solid var(--teal);
+       padding: .6rem 1rem; border-radius: 0; margin: 1rem 0;
+       font-family: var(--font-sans); font-size: .9rem; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .8rem; }
-.verdict-FAIL { color: #c0392b; font-weight: 700; }
-.verdict-PASS { color: #b7791f; font-weight: 700; }
-.verdict-CLEAN { color: #2f855a; font-weight: 700; }
-table { border-collapse: collapse; width: 100%; font-size: .85rem; }
-td, th { border: 1px solid #8884; padding: .25rem .4rem; text-align: left; }
-code { background: #8882; padding: 0 .2rem; border-radius: 3px; }
-.pill { display: inline-block; font-size: .72rem; padding: .05rem .45rem;
-        border-radius: 999px; border: 1px solid #8886; vertical-align: middle; }
-.pill.todo { background: #b7791f22; border-color: #b7791f66; }
-.pill.done { background: #2f855a22; border-color: #2f855a66; }
+
+.verdict-FAIL  { color: var(--danger);  font-family: var(--font-mono);
+                 font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+.verdict-PASS  { color: var(--warning); font-family: var(--font-mono);
+                 font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+.verdict-CLEAN { color: var(--success); font-family: var(--font-mono);
+                 font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+
+table { border-collapse: collapse; width: 100%; font-family: var(--font-sans);
+        font-size: .85rem; }
+td, th { border: 0.5px solid var(--rule); padding: .3rem .45rem; text-align: left; }
+th { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+     text-transform: uppercase; color: var(--type-3); font-weight: 500;
+     background: var(--ground-card); }
+code { font-family: var(--font-mono); background: var(--ground-deep);
+       padding: 0 .25rem; border-radius: 2px; font-size: .9em; }
+
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 10px;
+        letter-spacing: .12em; text-transform: uppercase; padding: .1rem .45rem;
+        border-radius: 0; border: 0.5px solid var(--rule); vertical-align: middle; }
+.pill.todo { color: var(--warning); border-color: var(--warning); }
+.pill.done { color: var(--success); border-color: var(--success); }
+
 .toggle { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0; }
-.toggle a { text-decoration: none; color: inherit; font-size: .85rem;
-    padding: .25rem .7rem; border: 1px solid #8887; border-radius: 6px; }
-.toggle a.on { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.toggle a { text-decoration: none; color: inherit; font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    padding: .25rem .7rem; border: 0.5px solid var(--rule); border-radius: 0; }
+.toggle a.on { background: var(--teal); color: var(--cream); border-color: var(--teal); }
+
 .dbbar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-    margin: .75rem 0 1rem; padding: .5rem .7rem; border: 1px solid #8886;
-    border-radius: 8px; font-size: .85rem; }
-.dbbar label { font-weight: 600; }
-.dbbar select { font-size: .85rem; padding: .2rem; max-width: 26rem; }
-.dbbar small { color: #8889; font-family: ui-monospace, monospace; }
-.dbbar .ro { background: #b45309; color: #fff; border-radius: 4px;
-    padding: .1rem .45rem; font-weight: 600; }
-.dbbar .rw { background: #15803d; color: #fff; border-radius: 4px;
-    padding: .1rem .45rem; font-weight: 600; }
+    margin: 0 0 1.25rem; padding: .45rem .7rem; border: 0.5px solid var(--rule);
+    border-radius: 0; background: var(--ground-card);
+    font-family: var(--font-mono); font-size: 11px; }
+.dbbar label { margin: 0; font-size: 10px; }
+.dbbar select { font-family: var(--font-mono); font-size: 11px; padding: .2rem;
+    max-width: 26rem; width: auto; }
+.dbbar small { color: var(--type-3); font-family: var(--font-mono); }
+.dbbar .ro { background: var(--danger); color: var(--cream); border-radius: 0;
+    padding: .1rem .45rem; letter-spacing: .1em; }
+.dbbar .rw { background: var(--success); color: var(--cream); border-radius: 0;
+    padding: .1rem .45rem; letter-spacing: .1em; }
 
 /* ---- the review screen ------------------------------------------------- */
 /* Two columns: the cited page on the left, the row's cells on the right. The
@@ -122,35 +298,46 @@ code { background: #8882; padding: 0 .2rem; border-radius: 3px; }
 @media (max-width: 1100px) { .review { grid-template-columns: 1fr; } }
 .review .doccol { position: sticky; top: .5rem; }
 .tabs { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .35rem; }
-.tabs a { text-decoration: none; color: inherit; font-size: .8rem;
-    padding: .25rem .6rem; border: 1px solid #8887; border-radius: 6px 6px 0 0;
+.tabs a { text-decoration: none; color: inherit; font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    padding: .3rem .6rem; border: 0.5px solid var(--rule); border-radius: 0;
     border-bottom-color: transparent; }
-.tabs a.on { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.tabs a.on { background: var(--teal); color: var(--cream); border-color: var(--teal); }
 .tabs a small { opacity: .7; }
-.pane { width: 100%; border: 1px solid #8887; border-radius: 0 8px 8px 8px;
-    background: Canvas; display: block; }
+.pane { width: 100%; border: 0.5px solid var(--rule); border-radius: 0;
+    background: var(--cream); display: block; }
 .pane.tall { height: 74vh; min-height: 440px; }
 .pane.short { height: 26rem; }
-.panehint { font-size: .78rem; color: #8889; margin: .3rem 0 0; }
+.panehint { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
+    color: var(--type-3); margin: .3rem 0 0; }
 
 /* The deterministic-check panel: rule, this row's value, verdict. A table
    rather than a list because the middle column is the point -- "announced is a
    real YYYY-MM anchor" says nothing until it is sitting next to 2022-01. */
 table.rules td { vertical-align: top; font-size: .82rem; }
-table.rules td.val { font-family: ui-monospace, monospace; word-break: break-all; }
-table.rules td.ok { color: #2f855a; font-weight: 600; white-space: nowrap; }
-table.rules td.err { color: #c0392b; font-weight: 600; white-space: nowrap; }
-table.rules td.warn { color: #b7791f; font-weight: 600; white-space: nowrap; }
+table.rules td.val { font-family: var(--font-mono); word-break: break-all; }
+table.rules td.ok   { color: var(--success); font-family: var(--font-mono);
+                      font-size: 11px; letter-spacing: .08em; white-space: nowrap; }
+table.rules td.err  { color: var(--danger);  font-family: var(--font-mono);
+                      font-size: 11px; letter-spacing: .08em; white-space: nowrap; }
+table.rules td.warn { color: var(--warning); font-family: var(--font-mono);
+                      font-size: 11px; letter-spacing: .08em; white-space: nowrap; }
 details.explain { margin: .5rem 0 0; }
-details.explain summary { cursor: pointer; font-size: .85rem; color: #8889; }
+details.explain summary { cursor: pointer; font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: .1em; color: var(--type-3); }
 details.explain[open] summary { margin-bottom: .5rem; }
 
 /* The agentic-check picker: cells across, one line, before the pane. */
 .cells { display: flex; flex-wrap: wrap; gap: .1rem .9rem; margin: .4rem 0 .6rem; }
 .cells label { display: inline-flex; align-items: baseline; gap: .3rem;
-    margin: 0; font-size: .85rem; color: inherit; }
+    margin: 0; font-family: var(--font-sans); font-size: .85rem;
+    letter-spacing: 0; text-transform: none; color: inherit; }
 .cells input { width: auto; }
 .cells code { font-size: .95em; }
+
+/* Section 14: state change only, 200ms or less, and nothing at all for a
+   reader who has asked for less motion. */
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 """
 
 
@@ -167,7 +354,7 @@ def _db_bar() -> str:
     current = db_path()
     options = []
     for d in discover_databases():
-        label = f"{d['rel']}  —  {VOCABULARY.get(d['flavour'], d['flavour'])}, {d['rows']} rows"
+        label = f"{d['rel']}  \u00b7  {VOCABULARY.get(d['flavour'], d['flavour'])}, {d['rows']} rows"
         sel = " selected" if d["active"] else ""
         options.append(f'<option value="{html.escape(str(d["path"]))}"{sel}>{html.escape(label)}</option>')
     badge = ('<span class="ro">read-only</span>' if is_read_only()
@@ -179,21 +366,50 @@ def _db_bar() -> str:
 <small>{html.escape(str(current))}</small></form>"""
 
 
+
+WORDMARK = (
+    '<div class="iaf-logo">'
+    '<span class="iaf-logo-line">'
+    '<span class="cream">INDUSTRIOUS</span><span class="accent">AF</span></span>'
+    '<span class="iaf-logo-line">'
+    '<span class="cream">INDUSTRIO</span><span class="accent">USA</span>'
+    '<span class="cream">F</span></span>'
+    '</div>'
+)
+
 def _page(title: str, body: str, msg: str | None = None,
           wide: bool = False) -> HTMLResponse:
-    """The page skeleton. `wide` lifts the 1000px reading measure for the review
-    screen, which puts a cited article beside the row it is evidence for and
-    needs the room; every other page keeps the narrow column."""
+    """The page skeleton.
+
+    Body is full width and `.wrap` carries the reading measure. That ordering
+    matters: while the measure lived on body, the teal band was capped with it
+    and floated in the middle of a wide screen with two gutters beside it
+    instead of running edge to edge.
+
+    `wide` lifts the measure for the review screen, which puts a cited article
+    beside the row it is evidence for and needs the room; every other page
+    keeps the narrow column.
+    """
     banner = f'<div class="msg">{html.escape(msg)}</div>' if msg else ""
-    widen = "<style>body { max-width: 1560px; }</style>" if wide else ""
+    # Brand book Section 02: "Page name * IndustriousAF", middle dot U+00B7,
+    # never the bullet. Written as an escape so the separator cannot be
+    # mangled by an editor that rewrites punctuation.
+    full_title = f"{title} \u00b7 IndustriousAF"
     doc = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title><style>{_CSS}</style>{widen}</head><body>
-<h1>Promised vs. Produced — Source → Verify Pipeline</h1>
-<nav><a href="/">Dashboard</a><a href="/source">Source</a>
-<a href="/screen">Screen</a><a href="/verify">Verify</a></nav>
+<title>{html.escape(full_title)}</title>
+{_FONTS}
+<style>{_BAGNARD}{_CSS}</style></head><body class="{'wide' if wide else ''}">
+<header class="band"><div class="wrap">
+{WORDMARK}
+<nav><a href="/">Dashboard</a><a href="/source">Source</a><a href="/screen">Screen</a><a href="/verify">Verify</a></nav>
+</div></header>
+<div class="wrap">
+<h1>Promised vs. Produced</h1>
+<p class="subtitle">Source \u2192 Screen \u2192 Verify</p>
 {_db_bar()}
-{banner}{body}</body></html>"""
+{banner}{body}
+</div></body></html>"""
     return HTMLResponse(doc)
 
 

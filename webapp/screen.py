@@ -100,7 +100,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         return f"""<div class="card"><b>#{r['id']}</b> {esc(r['project'])}
           <small>({esc(r['sector'])}, {esc(r['state'])})</small>
           {_lineage_pill(r['id'], promoted, "Verify", "not promoted yet")}
-          — check: {_verdict_span(verdict)}
+          check: {_verdict_span(verdict)}
           {check_btn}
           <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">Inspect &amp; promote →</button></a>
           <br><small>{esc(r['current_status'])}</small>
@@ -417,7 +417,7 @@ def _check_panel(r, chk) -> str:
 
     blind = "".join(f"<li>{b}</li>" for b in CHECK_BLIND_SPOTS)
     return f"""<details class="explain">
-<summary>What the deterministic check tested on this row — and what it cannot test</summary>
+<summary>What the deterministic check tested on this row, and what it cannot test</summary>
 <p><small>It reads the <b>shape</b> of the row. Every rule below is
 <code>pipeline/schema.py</code> applied to the cells as they stand, and each
 verdict is the checker's own, read back from the stored report — not re-decided
@@ -506,7 +506,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
         )
 
     check_note = (
-        f"<small> — last run: {chk['n_errors']} error(s), "
+        f"<small>last run: {chk['n_errors']} error(s), "
         f"{chk['n_warnings']} warning(s)</small>"
         if chk else "<small> — not checked yet</small>"
     )
@@ -517,7 +517,7 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
     # scrolls the other off the screen.
     body = f"""
 <p><a href="/screen">← back to Screen</a></p>
-<h2>Screen #{r['id']} — {esc(r['project'])}
+<h2 class="rowtitle">Screen #{r['id']} \u00b7 {esc(r['project'])}
   <small>({esc(r['sector'])}, {esc(r['state'])})</small></h2>
 <p><small>from source_collected #{esc(r['source_collected_id'])} ·
   extracted {esc(r['datetime'])} · check: {_verdict_span(verdict)}</small></p>
