@@ -98,7 +98,9 @@ two halves of one project, not two readings of one claim — so reading what the
 is one source, however many links you clicked. Neither screen helps you find a
 corroborating source, so neither offers the choice: they used to ask, and the
 honest answer was always V1. `V2` is a deliberate act. Go find the second source,
-then promote that row with `verify-promote --tier V2` by hand. The `flag` is rewritten into a resolution record on the way
+then publish that project with `verify-promote --screen-id N --tier V2` by
+hand, where N is the Screen id. `--screen-id` is required, so the command
+without it fails. The `flag` is rewritten into a resolution record on the way
 in. A `FAIL`ing row is blocked unless you pass `--force` — reserve that for when
 you've verified the row by hand and disagree with the checker.
 

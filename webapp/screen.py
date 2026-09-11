@@ -745,9 +745,8 @@ def screen_inspect(screen_id: int, msg: Optional[str] = None):
         # `verify-promote --tier V2` once a second source has actually been found.
         promote_controls = """
     <input type="hidden" name="tier" value="V1">
-    <p class="msg">Publishes as <b>tier V1</b> — one source checked. For V2, find a
-    second independent source, then run
-    <code>verify-promote --screen-id N --tier V2</code>.</p>
+    <p class="tiernote">Publishes as <b>V1</b>, one source read.
+    <span>V2 needs a second independent source and the command line.</span></p>
     <label>Reason — required if you changed a field (recorded in
       <code>verify_edits</code>). A change to <code>flag</code> and nothing else
       writes its own reason, so leave this empty for that.</label>

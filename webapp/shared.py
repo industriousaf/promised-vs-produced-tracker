@@ -376,6 +376,16 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .cktally.all { color: var(--success); }
 .cktally-left { font-family: var(--font-sans); font-size: .78rem;
     color: var(--type-3); }
+/* What the button asserts, in one line. This was a bordered .msg card
+   carrying V2 instructions and a command with a literal N in it that was not
+   runnable, directly above the button, for something you cannot do on this
+   screen. The tier itself stays: it is stamped into the published project and
+   it is a claim about how hard the row was checked, so the person pressing the
+   button should see what they are asserting. */
+.tiernote { font-family: var(--font-sans); font-size: .82rem; color: var(--type-2);
+    margin: .2rem 0 .9rem; }
+.tiernote span { color: var(--type-3); }
+
 /* The verify button before the checking is done. Not disabled: the checklist
    is browser-only state and must never be able to stop a person publishing.
    It just stops looking like the obvious next thing. */
