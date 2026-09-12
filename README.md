@@ -459,7 +459,7 @@ satisfies it:
 
 ```
 The Promised vs. Produced Tracker, IndustriousAF. CC BY 4.0.
-https://github.com/ashwinl4/promised-vs-produced-tracker
+https://github.com/industriousaf/promised-vs-produced-tracker
 ```
 
 Full terms, the attribution rules and what is *not* covered are in
