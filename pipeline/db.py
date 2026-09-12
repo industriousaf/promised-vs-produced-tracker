@@ -61,6 +61,44 @@ def db_path() -> Path:
     return Path(override) if override else DEFAULT_DB
 
 
+# The variables db_path() reads, in the order it reads them. Named once so the
+# lookup above and the error below cannot disagree about which one won.
+DB_PATH_VARS = ("TRACKER_DB", "SCOREBOARD_DB", "MEDALLION_DB")
+
+# `--db PATH` is implemented by exporting $TRACKER_DB, deliberately, so the
+# collection loops' child processes inherit the choice. That makes the flag and
+# a real export indistinguishable by the time anything reads them, and telling
+# somebody who typed --db to "unset TRACKER_DB" is advice about a variable they
+# never set. The CLI says which it was.
+_FROM_DB_FLAG = False
+
+
+def note_db_from_flag() -> None:
+    """Record that `--db` set $TRACKER_DB, rather than the user's shell."""
+    global _FROM_DB_FLAG
+    _FROM_DB_FLAG = True
+
+
+def db_path_source() -> str:
+    """What chose db_path(), phrased to drop into a sentence.
+
+    Only ever used to explain a failure. A stale export is invisible until
+    something breaks, and then sqlite reports "unable to open database file",
+    which reads like a corrupt file rather than a variable set months ago
+    pointing somewhere that no longer exists. That is not hypothetical: it is
+    how this function came to exist, after the directory was renamed and a
+    leftover $SCOREBOARD_DB kept aiming at the old path.
+    """
+    if _ACTIVE is not None:
+        return "the database picker"
+    for var in DB_PATH_VARS:
+        if os.getenv(var):
+            if var == "TRACKER_DB" and _FROM_DB_FLAG:
+                return "the --db option"
+            return f"${var}"
+    return "the default location"
+
+
 # --------------------------------------------------------------------------- #
 # Which database are we pointed at?                                            #
 # --------------------------------------------------------------------------- #
@@ -291,6 +329,26 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     rest of the code can query `source_collected` / `verify_verified` without
     knowing (and without the original file ever being modified)."""
     target = Path(path) if path is not None else db_path()
+
+    # A missing FILE is fine -- sqlite creates it, which is how initdb works on
+    # a fresh path. A missing DIRECTORY is not, and that is the whole failure:
+    # sqlite says "unable to open database file" either way, so the one case
+    # that is actually broken arrives wearing the same words as the one that is
+    # not. Say which directory, and say what aimed at it.
+    if not target.parent.is_dir():
+        chose = db_path_source() if path is None else "the caller"
+        if chose.startswith("$"):
+            fix = f"    unset {chose[1:]}\nand run it again."
+        elif chose == "the --db option":
+            fix = "Point --db at a directory that exists."
+        else:
+            fix = f"    mkdir -p {target.parent}\nand run it again."
+        raise SystemExit(
+            f"No directory at {target.parent}, so the database cannot be "
+            f"opened or created there.\n"
+            f"That path came from {chose}.\n{fix}"
+        )
+
     if READ_ONLY:
         # $TRACKER_READONLY=1 -- every command in this process can read and
         # none can write. It exists because checking something is not supposed

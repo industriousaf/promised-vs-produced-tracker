@@ -40,7 +40,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E402
 from pipeline.db import (  # noqa: E402
-    DEFAULT_DB, TABLES, connect, db_path, init_db, table_counts,
+    DEFAULT_DB, TABLES, connect, db_path, init_db, note_db_from_flag,
+    table_counts,
 )
 from pipeline import quality, settings  # noqa: E402
 from pipeline.dates import enrich as enrich_dates, lag_label  # noqa: E402
@@ -1909,7 +1910,11 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.db:
+        # Exported, not passed, so the collection loops' child processes inherit
+        # it. note_db_from_flag keeps a failure message from blaming a variable
+        # the user never set.
         os.environ["TRACKER_DB"] = args.db
+        note_db_from_flag()
     conn = connect()
     # Every command except a bare initdb assumes tables exist; be forgiving.
     init_db(conn)

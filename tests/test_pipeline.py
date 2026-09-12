@@ -1252,3 +1252,82 @@ class TestVerifierList(unittest.TestCase):
         nothing would be a confusing refusal; matching a second time under a
         different string would be worse."""
         self.assertTrue(settings.may_verify("  " + settings.VERIFIERS[0] + "  "))
+
+
+# --------------------------------------------------------------------------- #
+class TestMissingDatabaseDirectory(unittest.TestCase):
+    """A stale $..._DB export says so, instead of looking like a corrupt file.
+
+    The incident: the working directory was renamed, a $SCOREBOARD_DB left over
+    from before it kept pointing at the old absolute path, and every command
+    died on `sqlite3.OperationalError: unable to open database file`. That reads
+    like the database is damaged. It was fine; a variable set weeks earlier was
+    aiming at a directory that no longer existed.
+
+    A missing FILE is not the failure -- sqlite creates it, which is how initdb
+    works on a fresh path. A missing DIRECTORY is, and sqlite reports both with
+    the same six words.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb
+        self.dir = tempfile.TemporaryDirectory()
+        self._was = pdb._FROM_DB_FLAG
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        for v in pdb.DB_PATH_VARS:
+            os.environ.pop(v, None)
+        pdb._FROM_DB_FLAG = self._was
+        self.dir.cleanup()
+
+    def _gone(self) -> str:
+        return str(Path(self.dir.name) / "no-such-dir" / "t.db")
+
+    def test_it_names_the_directory_the_variable_and_the_fix(self):
+        from pipeline import db as pdb
+        os.environ["SCOREBOARD_DB"] = self._gone()
+        with self.assertRaises(SystemExit) as e:
+            pdb.connect()
+        msg = str(e.exception)
+        self.assertIn("no-such-dir", msg)
+        self.assertIn("$SCOREBOARD_DB", msg)
+        self.assertIn("unset SCOREBOARD_DB", msg)
+
+    def test_the_db_flag_is_not_blamed_on_a_variable_nobody_set(self):
+        """--db is implemented by exporting $TRACKER_DB so child processes
+        inherit it, which makes the flag and a real export look identical by the
+        time anything reads them. Telling someone who typed --db to unset a
+        variable sends them looking for something that is not there."""
+        from pipeline import db as pdb
+        os.environ["TRACKER_DB"] = self._gone()
+        pdb.note_db_from_flag()
+        with self.assertRaises(SystemExit) as e:
+            pdb.connect()
+        msg = str(e.exception)
+        self.assertIn("--db", msg)
+        self.assertNotIn("unset", msg)
+
+    def test_a_missing_file_in_a_real_directory_is_still_created(self):
+        """The guard must not break initdb, whose whole job is a path with no
+        database at it yet."""
+        from pipeline import db as pdb
+        fresh = Path(self.dir.name) / "fresh.db"
+        conn = pdb.connect(fresh)
+        pdb.init_db(conn)
+        conn.close()
+        self.assertTrue(fresh.exists())
+
+    def test_the_variables_are_read_in_the_documented_order(self):
+        """Two renames means three generations of this variable. Which one wins
+        decides what the error tells you to unset."""
+        from pipeline import db as pdb
+        self.assertEqual(("TRACKER_DB", "SCOREBOARD_DB", "MEDALLION_DB"),
+                         pdb.DB_PATH_VARS)
+        os.environ["MEDALLION_DB"] = "/a/m.db"
+        self.assertEqual("$MEDALLION_DB", pdb.db_path_source())
+        os.environ["SCOREBOARD_DB"] = "/a/s.db"
+        self.assertEqual("$SCOREBOARD_DB", pdb.db_path_source())
+        os.environ["TRACKER_DB"] = "/a/t.db"
+        self.assertEqual("$TRACKER_DB", pdb.db_path_source())
+        self.assertEqual(Path("/a/t.db"), pdb.db_path())
