@@ -1,1 +1,8 @@
 id,datetime,verify_verified_id,edit_description
+1,2026-09-13T19:45:56Z,1,promised first output comes from the status source as it was before
+2,2026-09-13T20:35:54Z,4,"""These investments are expected to bring Qcells' total solar panel production capacity in Georgia to 8.4 gigawatts by 2024"" in the promised link. implies production by 2024."
+3,2026-09-13T20:41:52Z,5,"""the initial 10 years of operation, beginning in 2025"" in the promised link."
+4,2026-09-13T20:55:50Z,8,"the ""2027"" value for promise is real and traceable — but it belongs to the status_source"
+5,2026-09-13T21:15:50Z,16,ramping up from 3.5 GW annual capacity to 14 GW (stated in produced source)
+6,2026-09-13T21:20:46Z,17,promise date not stated in promise article. actual first output found in this source: https://www.cnbc.com/2025/11/12/toyota-battery-plant-north-carolina.html
+7,2026-09-13T21:56:46Z,27,https://w.media/micron-begins-vertical-construction-at-clay-fab-ahead-of-schedule/ : one factory expected production mid-2027 but whole thing slated for 2030s (so made the promised date n/a)
