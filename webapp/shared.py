@@ -381,6 +381,12 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
    the only thing being asked for is another look. */
 .ck.is-stale .ck-state { color: var(--terracotta); }
 
+/* A confirmation recorded against a page the cell cannot be proved from --
+   the produced side of the row for a promised value, or the other way about.
+   Warning and not terracotta, because unlike a stale tick something here is
+   actually wrong: the value was read somewhere that does not settle it. */
+.ck.is-offside .ck-state { color: var(--warning); }
+
 /* Who is attesting. Never folded away and never a text box -- a record naming
    the wrong person is worse than no record, and the one defence available on a
    page with no sign-in is that the name stays in front of you while you tick. */

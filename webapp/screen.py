@@ -435,6 +435,7 @@ _CHECKLIST_JS = """
   // opened in the pane during this visit -- because everything that IS a record
   // lives in screen_attested and arrives in ATTESTED.
   var KEY = 'pvp-ck-' + ROW_ID;
+  var offside = {};
   var state = {}, looked = {}, stale = {}, walking = false, armed = false;
 
   // What is settled comes from the database, not this browser. That is the
@@ -447,6 +448,10 @@ _CHECKLIST_JS = """
   Object.keys(ATTESTED || {}).forEach(function (f) {
     var a = ATTESTED[f];
     if (a.stale) { stale[f] = 1; return; }
+    // Settled against a page this cell cannot be proved from -- the produced
+    // side of the row for a promised value, or the other way about. The tick is
+    // not shown: the reviewer read the value somewhere that does not settle it.
+    if (a.offside) { offside[f] = 1; return; }
     state[f] = (a.state === 'confirmed') ? 'ok' : 'no';
     looked[f] = 1;
   });
@@ -463,6 +468,9 @@ _CHECKLIST_JS = """
   // same visit. The value moved after someone vouched for it, so whatever was
   // on screen before the edit is not what is being asked about now.
   Object.keys(stale).forEach(function (k) { delete looked[k]; });
+  // Same for an off-side one, and for the same reason: what was on screen was
+  // the wrong document, so the field has to be opened again on the right one.
+  Object.keys(offside).forEach(function (k) { delete looked[k]; });
 
   function save() {
     try { sessionStorage.setItem(KEY + '-seen', JSON.stringify(looked)); } catch (e) {}
@@ -490,7 +498,7 @@ _CHECKLIST_JS = """
         });
       })
       .then(function (d) {
-        if (d && d.ok) { delete stale[cell]; note(''); paint(); return; }
+        if (d && d.ok) { delete stale[cell]; delete offside[cell]; note(''); paint(); return; }
         undo((d && d.error) || 'That confirmation was not recorded.');
       })
       .catch(function () {
@@ -535,8 +543,11 @@ _CHECKLIST_JS = """
       lbl.textContent = v === 'ok' ? 'confirmed'
                       : v === 'no' ? 'not in this source'
                       : stale[cell] ? 'changed since it was confirmed \u2014 look again'
+                      : offside[cell] ? 'confirmed against the wrong source — read '
+                                        + ((ATTESTED[cell] || {}).wanted || 'its own source')
                       : looked[cell] ? 'opened, not settled' : '';
       s.classList.toggle('is-stale', !v && !!stale[cell]);
+      s.classList.toggle('is-offside', !v && !!offside[cell]);
       // "Not in this source" is the one moment the model check earns its
       // place: the pane is a string matcher, so a value phrased differently
       // looks identical to one that is genuinely absent. Reading the page to
@@ -834,8 +845,24 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
             return _page("Screen inspect", "<p>No project with that id.</p>", "Not found")
         chk = screen.latest_check(conn, screen_id)
         attested = screen.attestation_state(conn, screen_id)
+        # The tab each confirmation was settled against. attestation_state
+        # reports the URL and not the tab, and the tab is the dependable half:
+        # the stored URL is the pane's *final* url, so a promise page read
+        # through the Wayback Machine does not match the cited link at all.
+        settled_tabs = {f: a["tab_index"]
+                        for f, a in screen.attestations(conn, screen_id).items()}
     finally:
         conn.close()
+
+    # A confirmation settled against a page the cell may not be proved from is
+    # not a confirmation. Showing it as a plain green tick is how
+    # `promised_first_output` came to read as confirmed on the strength of a
+    # status page that happens to mention the year -- the promise side of the
+    # row is the only place that cell can be settled. See evidence.SOURCES_FOR.
+    for f, a in attested.items():
+        a["offside"] = (a["state"] == "confirmed"
+                        and evidence.settled_off_side(r, settled_tabs.get(f), f))
+        a["wanted"] = evidence.wanted_sources(f)
 
     # ?verifier= picks who is attesting and is remembered in a cookie, the same
     # shape as the list toggles. An address that is not on the list is ignored
@@ -1007,6 +1034,17 @@ async def screen_attest(screen_id: int, request: Request):
 
     conn = _conn()
     try:
+        # Confirming says "this page carries this value", so it has to be a page
+        # the cell may be proved from: the promise side of the row for a promised
+        # value, the produced side for a produced one. Until now the pane's own
+        # partitioning was the only thing keeping those apart, and it is not a
+        # guard -- it holds during a walk and not after a restart, when the shown
+        # map is empty and the browser still remembers opening the field.
+        src = screen.get_extracted(conn, screen_id)
+        if state == "confirmed" and evidence.settled_off_side(src, shown.get("tab"), field):
+            return bad(f"{field} can only be confirmed against its own source. "
+                       f"Open “find in source” and read the "
+                       f"{evidence.wanted_sources(field)} tab — nothing was recorded.")
         screen.attest(conn, screen_id, field, state, who,
                       source_url=shown.get("url"), tab_index=shown.get("tab"),
                       match_count=shown.get("count"))

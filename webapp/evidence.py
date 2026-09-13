@@ -114,6 +114,19 @@ SHORT_SOURCE_LABEL = {
     "actual_date_source": "Produced date",
 }
 
+# The inverse of HIGHLIGHT_FOR: which cited columns a given cell may rest on.
+# HIGHLIGHT_FOR says a page is only evidence for the cells it was cited for;
+# read the other way round it says where a cell's proof has to come from. A
+# promised date is provable from the promise side of the row and nowhere else,
+# a produced date from the produced side. That asymmetry is why the row carries
+# four source columns instead of one, and it is the rule a reviewer reading the
+# status page breaks when they tick `promised_first_output` because the year
+# happens to appear there too.
+SOURCES_FOR: dict[str, tuple[str, ...]] = {
+    cell: tuple(src for src in SOURCE_FIELDS if cell in HIGHLIGHT_FOR.get(src, ()))
+    for cell in FIELD_LABELS
+}
+
 _URL_TOKEN_RE = re.compile(r"https?://[^\s,;|\"'<>]+", re.IGNORECASE)
 
 
@@ -321,6 +334,39 @@ def field_tabs(row) -> dict:
         for f in t.get("highlight", ()):
             out.setdefault(f, n)
     return out
+
+
+def settled_off_side(row, tab, field: str) -> bool:
+    """Whether a confirmation recorded against tab index `tab` rests on the
+    wrong side of the row for `field`.
+
+    The pane only ever highlights a tab's own cells, so an uninterrupted walk of
+    the checklist cannot reach a wrong answer. What can is a walk that was
+    interrupted: the reviewer opens the produced page for another cell, reads
+    the promised year there -- it is often in both documents -- and comes back
+    and ticks. The tick is then about a page that cannot settle that cell.
+
+    An unknown tab is NOT off-side. That is the older record written when the
+    pane had never rendered the field, and the row already reports it by
+    carrying no page and no count; it is a thinner claim, not a wrong one, and
+    conflating the two would retitle every one of them as an error.
+    """
+    if tab is None or not field:
+        return False
+    try:
+        tab = int(tab)
+    except (TypeError, ValueError):
+        return False
+    tabs = tabs_for(row)
+    if not 0 <= tab < len(tabs):
+        return False
+    return field not in tabs[tab].get("highlight", ())
+
+
+def wanted_sources(field: str) -> str:
+    """The tabs a cell has to be settled against, named as the pane names them."""
+    names = [SHORT_SOURCE_LABEL.get(s, s) for s in SOURCES_FOR.get(field, ())]
+    return " or ".join(names) or "a cited source"
 
 
 def needles_for(row, fields: list[str]) -> list[tuple[str, str, str]]:
