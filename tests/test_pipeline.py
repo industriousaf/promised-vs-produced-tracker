@@ -257,6 +257,28 @@ class TestQualityAndQueue(Base):
         self.assertEqual([r["id"] for r in q["blocked"]], [bad])
         self.assertIn(ok, [r["id"] for r in q["ready"]])
 
+    def test_ready_is_largest_capital_first_with_no_figure_last(self):
+        """The order the Tracker's completeness claim rests on. The dashboard
+        says "largest capital first, so wherever you stop, the Tracker above
+        that point is complete", and every surface that offers a next project
+        asks this for it -- so if this order is wrong, all of them are.
+
+        Inserted smallest first, so id order and capital order disagree: the
+        first thirty projects were verified in id order once already."""
+        small = screen.insert_extracted(
+            self.conn, a_row(project="Small", promised_capital_usd=1_200_000_000),
+            source_collected_id=self.lead())
+        big = screen.insert_extracted(
+            self.conn, a_row(project="Big", promised_capital_usd=20_000_000_000),
+            source_collected_id=self.lead())
+        blank = screen.insert_extracted(
+            self.conn, a_row(project="Blank", promised_capital_usd=None, promised_jobs=5000),
+            source_collected_id=self.lead())
+        for rid in (small, big, blank):
+            screen.run_check(self.conn, rid)
+        ready = [r["id"] for r in screen.review_queue(self.conn)["ready"]]
+        self.assertEqual([big, small, blank], ready)
+
     def test_flag_split_separates_access_from_substance(self):
         self.assertEqual(quality.classify_flag("status_source returned HTTP 403"),
                          "provenance")
@@ -1331,3 +1353,15 @@ class TestMissingDatabaseDirectory(unittest.TestCase):
         os.environ["TRACKER_DB"] = "/a/t.db"
         self.assertEqual("$TRACKER_DB", pdb.db_path_source())
         self.assertEqual(Path("/a/t.db"), pdb.db_path())
+
+    def test_an_export_that_comes_back_points_at_the_startup_file(self):
+        """`unset` fixes one terminal. The second time this message was hit the
+        variable was back, because a shell startup file exports it, so the
+        message has to say where to look or it sends people round the same loop."""
+        from pipeline import db as pdb
+        os.environ["SCOREBOARD_DB"] = self._gone()
+        with self.assertRaises(SystemExit) as e:
+            pdb.connect()
+        msg = str(e.exception)
+        self.assertIn("new terminal", msg)
+        self.assertIn("grep -n SCOREBOARD_DB", msg)

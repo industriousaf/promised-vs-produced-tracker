@@ -14,6 +14,7 @@ import html
 import json
 import os
 import sys
+from urllib.parse import quote as urlquote
 
 # webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,7 +57,14 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
                 verdict: Optional[str] = None):
     conn = _conn()
     try:
-        all_rows = screen.list_extracted(conn)
+        # Largest capital first, the order review_queue uses, because the
+        # dashboard sends people here under the words "largest capital first".
+        # This list used to come back by id -- collection order, which means
+        # nothing to a reviewer -- and the first thirty projects were verified
+        # as ids 1 to 30 while three projects over $10B waited below them. The
+        # order is the claim: wherever review stops, the Tracker above that
+        # point is complete, and that only holds if the walk is top-down.
+        all_rows = screen.list_extracted(conn, by_capital=True)
         promoted = _downstream_map(conn, "verify_verified", "screen_extracted_id")
         queue = screen.review_queue(conn)
 
@@ -69,6 +77,13 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         # Every row's verdict, before the verdict filter narrows the list, so
         # the legend below can state the whole distribution.
         all_checks = {r["id"]: screen.latest_check(conn, r["id"]) for r in staged}
+        # Blocked projects to the bottom, stable, so capital order survives on
+        # either side. A failing check cannot be verified, and on capital order
+        # alone a large blocked project could head the list -- making the first
+        # card something other than the "first up" the dashboard names, and the
+        # first click a dead end.
+        staged.sort(key=lambda r: all_checks[r["id"]] is not None
+                    and all_checks[r["id"]]["result_status"] == "FAIL")
     finally:
         conn.close()
 
@@ -837,7 +852,7 @@ below, are the tools for it.</small></p>
 
 @router.get("/screen/{screen_id}/inspect", response_class=HTMLResponse)
 def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
-                   verifier: Optional[str] = None):
+                   verifier: Optional[str] = None, verified: Optional[int] = None):
     conn = _conn()
     try:
         r = screen.get_extracted(conn, screen_id)
@@ -869,6 +884,17 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
     # rather than stored, so a stale bookmark cannot put a name into the record.
     picked = (verifier or "").strip()
     who = picked if settings.may_verify(picked) else current_verifier(request)
+
+    # ?verified= is set by the redirect after a verification, which lands on the
+    # next project in the queue rather than the record just published. The
+    # record stays one click away, because the moment after publishing is when
+    # a mistake is cheapest to catch.
+    just_published = ""
+    if verified:
+        just_published = (
+            f'<p><small>Published. <a href="/verify/{int(verified)}">Open the '
+            f'record you just verified</a>, or carry on: this is the next project '
+            f'by capital.</small></p>')
 
     verdict = chk["result_status"] if chk else None
     promotable = verdict in ("PASS", "CLEAN")
@@ -966,6 +992,7 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
 
   <div class="formcol">
     <div class="card">
+      {just_published}
       <p>Confirm every field against the pane, then verify. Any field you change
       is applied to the project's new Verify row and logged in <code>verify_edits</code>.
       <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
@@ -1097,11 +1124,21 @@ async def screen_inspect_promote(screen_id: int, request: Request):
         gid = verify.promote(conn, screen_id, verification_tier=tier)
         if changes:
             verify.edit(conn, gid, changes, edit_description=desc)
-            msg = (f"Promoted Screen #{screen_id} to Verify #{gid} (tier {tier}); "
-                   f"recorded {len(changes)} change(s) in verify_edits.")
+        msg = f"Verified {src['project']} at tier {tier}."
+        if changes:
+            msg += f" Recorded {len(changes)} change(s) in verify_edits."
+
+        # Land on the next project in the queue, not on the record just made.
+        # There used to be no next step: after each verification the way back to
+        # work was the Screen list, so the walk followed that list's order, and
+        # it was id order. review_queue is the one definition of "next" -- the
+        # dashboard, `status` and `review` all ask it -- so this cannot drift.
+        nxt = screen.review_queue(conn)["ready"]
+        if nxt:
+            dest = f"/screen/{nxt[0]['id']}/inspect?verified={gid}"
         else:
-            msg = f"Promoted Screen #{screen_id} to Verify #{gid} (tier {tier})."
-        dest = f"/verify/{gid}"
+            msg += " That was the last project waiting."
+            dest = f"/verify/{gid}"
     except verify.PromotionBlocked as e:
         msg = f"Promotion blocked: {e}"
         dest = f"/screen/{screen_id}/inspect"
@@ -1110,5 +1147,9 @@ async def screen_inspect_promote(screen_id: int, request: Request):
         dest = f"/screen/{screen_id}/inspect"
     finally:
         conn.close()
-    return RedirectResponse(f"{dest}?msg={html.escape(msg)}", status_code=303)
+    # dest may already carry a query string, and msg now names a project, which
+    # can hold characters a URL cannot carry raw. So: encode it, and join with
+    # "&" when there is already a "?".
+    sep = "&" if "?" in dest else "?"
+    return RedirectResponse(f"{dest}{sep}msg={urlquote(msg)}", status_code=303)
 

@@ -338,7 +338,15 @@ def connect(path: str | Path | None = None) -> sqlite3.Connection:
     if not target.parent.is_dir():
         chose = db_path_source() if path is None else "the caller"
         if chose.startswith("$"):
-            fix = f"    unset {chose[1:]}\nand run it again."
+            var = chose[1:]
+            # `unset` clears it for one terminal. Exported from a shell startup
+            # file, it is back in the next one -- which is what happened the
+            # second time anyone hit this message -- so say where to look.
+            fix = (f"    unset {var}\nand run it again. If it comes back in a new "
+                   f"terminal, your shell sets it at startup. Find the line with\n"
+                   f"    grep -n {var} ~/.zshrc ~/.zprofile ~/.zshenv "
+                   f"~/.bash_profile ~/.bashrc 2>/dev/null\n"
+                   f"and delete it.")
         elif chose == "the --db option":
             fix = "Point --db at a directory that exists."
         else:

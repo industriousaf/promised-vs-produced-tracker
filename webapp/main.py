@@ -203,7 +203,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
         top = q["ready"][0]
         ready_bit = f"""
 <p>Largest capital first, so wherever you stop, the Tracker above that point
-is complete. First up: <b>{esc(top['project'])}</b>.</p>
+is complete. First up: <a href="/screen/{top['id']}/inspect"><b>{esc(top['project'])}</b></a>.</p>
 <p><small>Or work the same queue in a terminal:
 <code>python3 tracker.py review</code></small></p>"""
 

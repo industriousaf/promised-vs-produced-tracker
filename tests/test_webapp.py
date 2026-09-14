@@ -1259,3 +1259,102 @@ class TestProjectName(unittest.TestCase):
         hits = [f.name for f in sorted(root.glob("*.py"))
                 if re.search(r'"Promised vs\. Produced', f.read_text())]
         self.assertEqual(["shared.py"], hits)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestTheQueueIsWalkedTopDown(unittest.TestCase):
+    """The interface walks the queue in the order the dashboard promises.
+
+    The dashboard said "largest capital first, so wherever you stop, the
+    Tracker above that point is complete". Its button opened a list sorted by
+    id, and after each verification there was no next project, so the way back
+    to work was always that list. The first thirty projects were verified as
+    ids 1 to 30 exactly, while three projects over $10B waited below them. The
+    reviewer did precisely what the interface showed; the interface was wrong.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        base = {"sector": "Semiconductors", "state": "TX", "announced": "2022-01",
+                "promised_jobs": 1500, "promised_first_output": "2024",
+                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                "promise_source": "https://example.com/p",
+                "status_source": "https://example.com/s", "verification_tier": "P"}
+        made = {}
+        # Inserted smallest first, so id order and capital order disagree. The
+        # blocked one is the largest, so a capital sort that forgot to sink it
+        # would put a dead end at the top of the list.
+        for name, cap, extra in (("Small", 1_200_000_000, {}),
+                                 ("Big", 20_000_000_000, {}),
+                                 ("Blocked", 30_000_000_000,
+                                  {"promised_date_source": "not-a-url"})):
+            lead = psource.insert_lead(conn, promise_source=f"https://example.com/{name}",
+                                       status_source="https://example.com/s", summary="x")
+            made[name] = pscreen.insert_extracted(
+                conn, dict(base, project=name, promised_capital_usd=cap, **extra),
+                source_collected_id=lead)
+            pscreen.run_check(conn, made[name])
+        conn.commit(); conn.close()
+        self.small, self.big, self.blocked = made["Small"], made["Big"], made["Blocked"]
+        pdb.set_active_db(self.path)
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _cards(self, path="/screen?show=pending"):
+        # Only the per-project buttons. The lede above the list also links the
+        # blocked projects, and reading those would test the wrong thing.
+        return [int(i) for i in re.findall(
+            r'href="/screen/(\d+)/inspect"><button type="button" class="primary">Inspect',
+            self.client.get(path).text)]
+
+    def test_the_list_is_largest_capital_first_with_blocked_last(self):
+        self.assertEqual([self.big, self.small, self.blocked], self._cards())
+
+    def test_first_up_on_the_dashboard_opens_that_project(self):
+        self.assertIn(f'First up: <a href="/screen/{self.big}/inspect">',
+                      self.client.get("/").text)
+
+    def test_verifying_opens_the_next_project_by_capital(self):
+        r = self.client.post(f"/screen/{self.big}/promote", data={"tier": "V1"},
+                             follow_redirects=False)
+        self.assertEqual(303, r.status_code)
+        self.assertTrue(
+            r.headers["location"].startswith(f"/screen/{self.small}/inspect?verified="),
+            r.headers["location"])
+
+    def test_the_next_page_links_back_to_the_record_just_published(self):
+        """The old landing page was the published record, the one place to see
+        what just went out. Moving on must not cost that."""
+        body = self.client.post(f"/screen/{self.big}/promote", data={"tier": "V1"}).text
+        self.assertIn("Open the record you just verified", body)
+        self.assertIn("next project by capital", body)
+
+    def test_the_last_one_lands_on_its_record(self):
+        from urllib.parse import unquote
+        self.client.post(f"/screen/{self.big}/promote", data={"tier": "V1"})
+        r = self.client.post(f"/screen/{self.small}/promote", data={"tier": "V1"},
+                             follow_redirects=False)
+        loc = unquote(r.headers["location"])
+        self.assertTrue(loc.startswith("/verify/"), loc)
+        self.assertIn("last project waiting", loc)
+
+    def test_a_project_name_with_an_ampersand_survives_the_redirect(self):
+        """The message now names the project, and names like "Johnson & Johnson"
+        would split a query string that was not encoded."""
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        conn.execute("UPDATE screen_extracted SET project = 'Big & Bold' WHERE id = ?",
+                     (self.big,))
+        conn.commit(); conn.close()
+        body = self.client.post(f"/screen/{self.big}/promote", data={"tier": "V1"}).text
+        self.assertIn("Verified Big &amp; Bold at tier V1.", body)
