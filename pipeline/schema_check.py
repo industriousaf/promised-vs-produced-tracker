@@ -55,6 +55,14 @@ NULL_STRINGS = pvp_schema.NULL_STRINGS
 # asks, rather than growing its own idea of what a source link looks like.
 check_url = pvp_schema.check_url
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
+# The promised-date sentinel set. Re-exported so the attestation rule tells an
+# absence from a value in the checker's own vocabulary, not a copy of it.
+PROMISED_SENTINELS = pvp_schema.PROMISED_SENTINELS
+# The rest of the date vocabulary, for the correction guard in verify.py and the
+# pickers on the web forms, which must offer exactly what the checker accepts.
+SENTINELS_FOR = pvp_schema.SENTINELS_FOR
+DATE_SENTINELS = pvp_schema.DATE_SENTINELS
+SENTINEL_MEANING = pvp_schema.SENTINEL_MEANING
 
 # Sector vocabulary, from the ONE source of truth: pipeline/settings.py, which
 # schema.py reads. `all_sectors()` is the active phase's vocabulary. There is no

@@ -32,6 +32,8 @@ from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
+    SENTINEL_MEANING,
+    SENTINELS_FOR,
     all_sectors,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
@@ -387,6 +389,16 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
    actually wrong: the value was read somewhere that does not settle it. */
 .ck.is-offside .ck-state { color: var(--warning); }
 
+/* Confirmed a field that holds no value. Warning, like an off-side tick,
+   because something in the record is actually wrong rather than merely old. */
+.ck.is-absence .ck-state { color: var(--warning); }
+
+/* The date picker and its text box. A hidden box stays in the form and still
+   submits. The display rule is explicit in case an input style sets display,
+   which would beat the browser's own [hidden]. */
+select.datekind { margin: .15rem 0 .3rem; }
+select.datekind + input[hidden] { display: none !important; }
+
 /* Who is attesting. Never folded away and never a text box -- a record naming
    the wrong person is worse than no record, and the one defence available on a
    page with no sign-in is that the name stays in front of you while you tick. */
@@ -693,6 +705,57 @@ def _page(title: str, body: str, msg: str | None = None,
 
 def esc(v) -> str:
     return html.escape("" if v is None else str(v))
+
+
+# The picker beside a date field's text box. It offers only that field's own
+# sentinels, from the checker's SENTINELS_FOR, with the meaning written beside
+# each word, because `pending` and `unconfirmed` are opposites and the words do
+# not say which is which. The select has no name, so it is never submitted: it
+# only writes the canonical word into the text box, or clears it for a date.
+# Without DATEKIND_JS the box still takes a typed value, and the correction
+# guard in verify.py still refuses one the field cannot hold.
+def date_kind_select(col: str, value) -> str:
+    words = [w for w in SENTINEL_MEANING if w in SENTINELS_FOR.get(col, ())]
+    if not words:
+        return ""
+    cur = ("" if value is None else str(value)).strip().lower()
+    options = [f'<option value=""{"" if cur in words else " selected"}>a date</option>']
+    options += [f'<option value="{esc(w)}"{" selected" if cur == w else ""}>'
+                f'{esc(w)}: {esc(SENTINEL_MEANING[w])}</option>' for w in words]
+    return (f'<select class="datekind" data-for="{esc(col)}" '
+            f'aria-label="what {esc(col)} holds">{"".join(options)}</select>')
+
+
+DATEKIND_JS = """
+(function () {
+  // Pairs each date picker with the text box that is actually submitted. See
+  // date_kind_select in webapp/shared.py.
+  var pickers = document.querySelectorAll('select.datekind');
+  Array.prototype.forEach.call(pickers, function (sel) {
+    var col = sel.getAttribute('data-for');
+    var box = sel.parentElement.querySelector('[name="' + col + '"]');
+    if (!box) { return; }
+    var words = Array.prototype.map.call(sel.options, function (o) { return o.value; })
+                                 .filter(function (w) { return w; });
+    function sync(chosen) {
+      var word = sel.value;
+      if (word) {
+        if (chosen) { box.value = word; }
+        box.hidden = true;
+      } else {
+        if (chosen && words.indexOf(box.value.trim().toLowerCase()) >= 0) { box.value = ''; }
+        box.hidden = false;
+        if (chosen) { box.focus(); }
+      }
+      // The checklist listens on the box: a changed value takes a tick off, and
+      // an n/a greys out "confirmed". Tell it the value moved.
+      if (chosen) { box.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+    sel.addEventListener('change', function () { sync(true); });
+    sync(false);
+  });
+})();
+"""
 
 
 def _cell(row, col):

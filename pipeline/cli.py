@@ -995,7 +995,12 @@ def cmd_verify_promote(conn, args):
 
 def cmd_verify_edit(conn, args):
     changes = _parse_set(args.set)
-    notices = verify.edit(conn, args.id, changes, edit_description=args.desc)
+    try:
+        notices = verify.edit(conn, args.id, changes, edit_description=args.desc)
+    except ValueError as exc:
+        # A refused correction is an answer, not a crash: say what was wrong and
+        # that nothing was written.
+        raise SystemExit(f"not saved: {exc}")
     print(f"edited verify_verified #{args.id}; logged in verify_edits")
     for n in notices:
         print(f"  note: {n}")

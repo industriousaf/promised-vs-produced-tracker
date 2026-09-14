@@ -156,6 +156,17 @@ SENTINELS_FOR = {
     "actual_first_output": ACTUAL_SENTINELS,
 }
 
+# What each sentinel asserts, in the order a picker offers them. The web forms
+# show these beside the words, because two of them are opposites and the words
+# alone do not say which is which: `pending` has not produced, `unconfirmed` has
+# and nobody dated it.
+SENTINEL_MEANING = {
+    "n/a": "no source stated a promised date",
+    "pending": "not producing yet",
+    "unconfirmed": "producing, but no source dates it",
+    "never": "cancelled",
+}
+
 # A missing value that arrived as text. These are what a serializer writes when
 # it is handed nothing -- Python's str(None) is "None", JavaScript's is "null"
 # or "undefined" -- and they are not data, they are the absence of data wearing

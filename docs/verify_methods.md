@@ -92,6 +92,14 @@ quoting the old text and the new, because the flag *is* a statement of what is
 unresolved and a second box saying "resolved the flag" recorded nothing. Change
 any other cell — with or without the flag — and the reason is required.
 
+A correction is also held to the checker before it is saved, at all three places
+that make one: the verify button on the inspect page, the Verify edit page and
+`tracker.py verify-edit`. One that would leave the published record failing the
+checker is refused and nothing is written. A sentinel typed with capitals is
+stored in its one spelling. On the inspect page the check runs before anything
+is published, so a refused correction never leaves a project live with the value
+it was replacing.
+
 **The guided queue always writes V1.** `review` and the web app's inspect page
 both show you the promised side and the produced side — two documents covering
 two halves of one project, not two readings of one claim — so reading what they put in front of you

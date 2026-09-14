@@ -13,6 +13,7 @@ import html
 import json
 import os
 import sys
+from urllib.parse import quote as urlquote
 
 # webapp/ -> tracker/, so `pipeline` imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,7 +40,7 @@ from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
     _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
-    flag_only_reason,
+    flag_only_reason, date_kind_select, DATEKIND_JS,
 )
 
 router = APIRouter()
@@ -202,7 +203,7 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
             return (f"""<div><label>sector</label>
         <select name="sector">{options}</select></div>""")
         return (f"""<div><label>{esc(c)}</label>
-        <input type="text" name="{esc(c)}" value="{esc(r[c])}"></div>""")
+        {date_kind_select(c, r[c])}<input type="text" name="{esc(c)}" value="{esc(r[c])}"></div>""")
 
     fields = "".join(_field(c) for c in V0_COLUMNS)
     dt_display = "".join(
@@ -270,6 +271,7 @@ for a figure somebody has challenged, not routine work.</p>
 
 <h2>Edit history</h2>
 <table><tr><th>when</th><th>edit_description</th></tr>{history}</table>
+<script>{DATEKIND_JS}</script>
 """
     return _page(f"Verify #{verify_id}", body, msg, wide=True)
 
@@ -306,8 +308,12 @@ async def verify_edit(verify_id: int, request: Request):
             msg = f"Saved {len(changes)} change(s) to Verify #{verify_id}."
             if notices:
                 msg += " " + " ".join(notices)
+    except verify.CorrectionRefused as e:
+        msg = f"Not saved. {e}"
     except Exception as e:
         msg = f"Error: {e}"
     finally:
         conn.close()
-    return RedirectResponse(f"/verify/{verify_id}?msg={html.escape(msg)}", status_code=303)
+    # Encoded, not html-escaped: the checker quotes the value it refused, and
+    # html.escape turns a quote into "&#x27;", whose "#" ends the query string.
+    return RedirectResponse(f"/verify/{verify_id}?msg={urlquote(msg)}", status_code=303)

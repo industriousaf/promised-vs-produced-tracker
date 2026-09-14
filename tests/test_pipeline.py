@@ -1245,6 +1245,63 @@ class TestAttestation(Base):
         from pipeline.export_tables import ALL_TABLES
         self.assertEqual("screen_attested", ALL_TABLES["screen_attested"])
 
+    # ---- the sentinel rule: the buttons record what the page shows -------- #
+
+    def test_an_absence_cannot_be_confirmed(self):
+        """`n/a` and an empty field record that no source stated the value, so
+        "confirmed" would say a page shows a value the field says does not
+        exist. Nine were confirmed while no rule said otherwise."""
+        for value in ("n/a", " N/A ", ""):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    screen.attest(self.conn, self.sid, "promised_first_output",
+                                  "confirmed", self.WHO, value=value)
+        self.assertEqual(0, self.conn.execute(
+            "SELECT count(*) FROM screen_attested").fetchone()[0])
+
+    def test_not_in_source_is_how_an_absence_is_verified(self):
+        screen.attest(self.conn, self.sid, "promised_first_output", "not_in_source",
+                      self.WHO, value="n/a")
+        got = screen.attestation_state(self.conn, self.sid)["promised_first_output"]
+        self.assertEqual("not_in_source", got["state"])
+        self.assertFalse(got["confirmed_absence"])
+
+    def test_the_event_sentinels_are_confirmed_like_any_value(self):
+        """pending, never and unconfirmed each describe something a page shows."""
+        for value in ("pending", "never", "unconfirmed"):
+            with self.subTest(value=value):
+                screen.attest(self.conn, self.sid, "actual_first_output", "confirmed",
+                              self.WHO, value=value)
+
+    def test_a_correction_is_what_gets_confirmed(self):
+        """The defect this rule exposed. Confirming recorded the stored Screen
+        value, so a reviewer who corrected a field and confirmed it left a record
+        vouching for the value they had just replaced."""
+        screen.attest(self.conn, self.sid, "promised_jobs", "confirmed", self.WHO,
+                      value="1750")
+        self.assertEqual("1750", self.conn.execute(
+            "SELECT value_at_time FROM screen_attested").fetchone()["value_at_time"])
+
+    def test_a_confirmed_absence_from_before_the_rule_is_flagged(self):
+        """Append-only, so old rows are shown for re-settling, not rewritten.
+        attest() refuses these now, so write one the old way."""
+        from pipeline.db import now_iso
+        self.conn.execute(
+            "INSERT INTO screen_attested (datetime, screen_extracted_id, field, state, "
+            "value_at_time, attested_by) VALUES (?, ?, 'promised_first_output', "
+            "'confirmed', 'n/a', ?)", (now_iso(), self.sid, self.WHO))
+        self.conn.commit()
+        self.assertTrue(screen.attestation_state(
+            self.conn, self.sid)["promised_first_output"]["confirmed_absence"])
+
+    def test_absence_is_exactly_empty_or_the_promised_sentinel(self):
+        """Built from the checker's own sentinel set, so the two cannot drift."""
+        from pipeline import schema_check as sc
+        self.assertEqual(frozenset({""} | set(sc.PROMISED_SENTINELS)),
+                         screen.ABSENCE_VALUES)
+        self.assertTrue(screen.is_absence(None))
+        self.assertFalse(screen.is_absence("pending"))
+
 
 # --------------------------------------------------------------------------- #
 class TestVerifierList(unittest.TestCase):
@@ -1365,3 +1422,90 @@ class TestMissingDatabaseDirectory(unittest.TestCase):
         msg = str(e.exception)
         self.assertIn("new terminal", msg)
         self.assertIn("grep -n SCOREBOARD_DB", msg)
+
+
+# --------------------------------------------------------------------------- #
+class TestCorrectionsMeetTheChecker(Base):
+    """A correction is checked before it is saved, at every door.
+
+    verify.edit used to skip the checker. On a published project a misspelt
+    `penidng`, an `n/a` in the actual-output field and a `pending` in the
+    promised field were each stored as typed, and each left a published record
+    the checker fails. The inspect page, the Verify edit page and
+    `tracker.py verify-edit` all publish corrections through it.
+    """
+
+    def published(self, **over) -> int:
+        rid = screen.insert_extracted(self.conn, a_row(**over), source_collected_id=self.lead())
+        screen.run_check(self.conn, rid)
+        return verify.promote(self.conn, rid, verification_tier="V1",
+                              flag="Resolved: checked.")
+
+    def _edits(self, vid) -> int:
+        return self.conn.execute("SELECT count(*) FROM verify_edits WHERE verify_verified_id = ?",
+                                 (vid,)).fetchone()[0]
+
+    def test_a_misspelt_sentinel_is_refused_and_nothing_is_saved(self):
+        vid = self.published()
+        with self.assertRaises(verify.CorrectionRefused):
+            verify.edit(self.conn, vid, {"actual_first_output": "penidng"},
+                        edit_description="typo")
+        self.assertEqual("pending", verify.get_verified(self.conn, vid)["actual_first_output"])
+        self.assertEqual(0, self._edits(vid))
+
+    def test_a_sentinel_in_the_wrong_field_is_refused(self):
+        vid = self.published()
+        for col, word in (("actual_first_output", "n/a"), ("promised_first_output", "pending")):
+            with self.subTest(col=col):
+                with self.assertRaises(verify.CorrectionRefused):
+                    verify.edit(self.conn, vid, {col: word}, edit_description="wrong field")
+
+    def test_a_capitalised_sentinel_is_stored_in_one_spelling(self):
+        """It passes the checker either way, which is why it needed doing: the
+        published CSV would otherwise carry "N/A" beside "n/a"."""
+        vid = self.published()
+        verify.edit(self.conn, vid, {"promised_first_output": "N/A"},
+                    edit_description="no promise stated")
+        self.assertEqual("n/a", verify.get_verified(self.conn, vid)["promised_first_output"])
+
+    def test_a_valid_correction_still_lands(self):
+        vid = self.published()
+        verify.edit(self.conn, vid, {"promised_first_output": "2025-Q4"},
+                    edit_description="per the release")
+        self.assertEqual("2025-Q4", verify.get_verified(self.conn, vid)["promised_first_output"])
+
+    def test_an_error_the_record_already_had_does_not_block_an_unrelated_fix(self):
+        """A record published with force=True that already fails can still be
+        corrected. Only errors the correction introduces are refused."""
+        rid = screen.insert_extracted(
+            self.conn, a_row(project="Forced", promised_date_source="not-a-url"),
+            source_collected_id=self.lead())
+        screen.run_check(self.conn, rid)
+        vid = verify.promote(self.conn, rid, verification_tier="V1",
+                             flag="Resolved: forced.", force=True)
+        verify.edit(self.conn, vid, {"current_status": "PRODUCING"},
+                    edit_description="status moved")
+        self.assertEqual("PRODUCING", verify.get_verified(self.conn, vid)["current_status"])
+
+    def test_a_correction_can_be_checked_before_anything_is_published(self):
+        """The inspect page publishes first and corrects second, so it asks this
+        before promoting. Otherwise a refusal leaves the old value live."""
+        rid = screen.insert_extracted(self.conn, a_row(project="Unpublished"),
+                                      source_collected_id=self.lead())
+        with self.assertRaises(verify.CorrectionRefused):
+            verify.prepare_changes(screen.get_extracted(self.conn, rid),
+                                   {"actual_first_output": "penidng"})
+        self.assertEqual(0, self.conn.execute(
+            "SELECT count(*) FROM verify_verified").fetchone()[0])
+
+    def test_the_command_line_says_so_instead_of_crashing(self):
+        import subprocess
+        vid = self.published()
+        self.conn.commit()
+        r = subprocess.run(
+            [sys.executable, "tracker.py", "--db", str(self.path), "verify-edit",
+             "--id", str(vid), "--set", "actual_first_output=penidng", "--desc", "typo"],
+            cwd=str(Path(__file__).resolve().parent.parent), capture_output=True, text=True)
+        self.assertNotEqual(0, r.returncode)
+        self.assertIn("not saved", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)

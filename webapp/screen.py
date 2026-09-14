@@ -42,7 +42,7 @@ from webapp.shared import (  # noqa: E402
     _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_legend,
     _verdict_span, esc,
-    flag_only_reason,
+    flag_only_reason, date_kind_select, DATEKIND_JS,
 )
 
 router = APIRouter()
@@ -359,7 +359,7 @@ FIELD_HINTS = {
         "the <b>original</b> promise, as first announced — slip is measured "
         "against it. Do <b>not</b> update it when the date moves; that belongs "
         "in current_status. A year alone is fine (2025, 2025-Q4, "
-        "“2025 (second half)”)."
+        "“2025 (second half)”). <code>n/a</code> if no source states one."
     ),
     "actual_first_output": (
         "only when it has <b>actually produced</b>. Not yet producing → "
@@ -451,6 +451,7 @@ _CHECKLIST_JS = """
   // lives in screen_attested and arrives in ATTESTED.
   var KEY = 'pvp-ck-' + ROW_ID;
   var offside = {};
+  var absenceTick = {}, settledValue = {};
   var state = {}, looked = {}, stale = {}, walking = false, armed = false;
 
   // What is settled comes from the database, not this browser. That is the
@@ -467,7 +468,11 @@ _CHECKLIST_JS = """
     // side of the row for a promised value, or the other way about. The tick is
     // not shown: the reviewer read the value somewhere that does not settle it.
     if (a.offside) { offside[f] = 1; return; }
+    // Confirmed a field that records nothing was stated, before the rule said
+    // not to. The tick is not shown; "not in this source" settles it.
+    if (a.confirmed_absence) { absenceTick[f] = 1; return; }
     state[f] = (a.state === 'confirmed') ? 'ok' : 'no';
+    settledValue[f] = a.value;
     looked[f] = 1;
   });
 
@@ -503,6 +508,10 @@ _CHECKLIST_JS = """
     var body = new FormData();
     body.append('field', cell);
     body.append('state', value === 'ok' ? 'confirmed' : 'not_in_source');
+    // What is vouched for is what is in the field now, including a correction
+    // just typed. See attest() in pipeline/screen.py for why.
+    var inp = fieldInput(cell), sent = inp ? inp.value.trim() : null;
+    if (sent !== null) { body.append('value', sent); }
     function undo(msg) { state[cell] = previous; paint(); note(msg); }
     fetch('/screen/' + ROW_ID + '/attest', { method: 'POST', body: body })
       .then(function (r) {
@@ -513,7 +522,7 @@ _CHECKLIST_JS = """
         });
       })
       .then(function (d) {
-        if (d && d.ok) { delete stale[cell]; delete offside[cell]; note(''); paint(); return; }
+        if (d && d.ok) { delete stale[cell]; delete offside[cell]; delete absenceTick[cell]; settledValue[cell] = sent; note(''); paint(); return; }
         undo((d && d.error) || 'That confirmation was not recorded.');
       })
       .catch(function () {
@@ -539,6 +548,19 @@ _CHECKLIST_JS = """
     if (input) { input.focus({ preventScroll: true }); }
   }
 
+  // The input a strip settles, and whether what is in it records that nothing
+  // was stated. ABSENT comes from the server, so the page and the writer agree
+  // on which values those are. parentElement, not closest('div'): the strip is
+  // itself a div, and closest() starts at the element it is called on.
+  function fieldInput(cell) {
+    var s = strips.filter(function (x) { return x.dataset.cell === cell; })[0];
+    return (s && s.parentElement) ? s.parentElement.querySelector('[name="' + cell + '"]') : null;
+  }
+  function isAbsent(cell) {
+    var inp = fieldInput(cell);
+    return !!inp && ABSENT.indexOf(inp.value.trim().toLowerCase()) >= 0;
+  }
+
   function paint() {
     var done = 0;
     strips.forEach(function (s) {
@@ -553,16 +575,20 @@ _CHECKLIST_JS = """
       // proof of reading, and not what makes the stored record defensible --
       // match_count is. But it stops a project being ticked clean without the
       // document ever moving.
-      ok.disabled = !VERIFIER || ((v !== 'ok') && !looked[cell]);
+      // A field that records nothing was stated has nothing to confirm, and
+      // "not in this source" is what settles it. See ABSENCE_VALUES.
+      var absent = isAbsent(cell);
+      ok.disabled = !VERIFIER || absent || ((v !== 'ok') && !looked[cell]);
       no.disabled = !VERIFIER;
       lbl.textContent = v === 'ok' ? 'confirmed'
                       : v === 'no' ? 'not in this source'
                       : stale[cell] ? 'changed since it was confirmed \u2014 look again'
                       : offside[cell] ? 'confirmed against the wrong source — read '
                                         + ((ATTESTED[cell] || {}).wanted || 'its own source')
-                      : looked[cell] ? 'opened, not settled' : '';
+                      : absenceTick[cell] ? 'confirmed, but it holds no value: settle it as not in this source' : (absent && looked[cell]) ? 'holds no value, so there is nothing to confirm' : looked[cell] ? 'opened, not settled' : '';
       s.classList.toggle('is-stale', !v && !!stale[cell]);
       s.classList.toggle('is-offside', !v && !!offside[cell]);
+      s.classList.toggle('is-absence', !v && !!absenceTick[cell]);
       // "Not in this source" is the one moment the model check earns its
       // place: the pane is a string matcher, so a value phrased differently
       // looks identical to one that is genuinely absent. Reading the page to
@@ -638,6 +664,20 @@ _CHECKLIST_JS = """
 
   strips.forEach(function (s) {
     var cell = s.dataset.cell;
+    // Editing a field after settling it means the settle is about a value the
+    // project will no longer publish -- how seven of the first eight corrections
+    // went out unconfirmed. So the tick comes off and the field needs another
+    // look. Repaint on every keystroke either way, so "confirmed" greys out the
+    // moment a field is cleared to nothing.
+    var inp = s.parentElement && s.parentElement.querySelector('[name="' + cell + '"]');
+    if (inp) {
+      inp.addEventListener('input', function () {
+        if (state[cell] && inp.value.trim() !== (settledValue[cell] || '')) {
+          state[cell] = ''; stale[cell] = 1; delete looked[cell]; save();
+        }
+        paint();
+      });
+    }
     var go = s.querySelector('a.ck-go');
     if (go) {
       go.addEventListener('click', function () {
@@ -916,7 +956,7 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
             return (f"""<div><label>sector</label>
         <select name="sector">{options}</select></div>""")
         return (f"""<div><label>{esc(c)}{hint_html}</label>
-        <input type="text" name="{esc(c)}" value="{esc(r[c])}">{_check_strip(c, r['id'], ftabs)}</div>""")
+        {date_kind_select(c, r[c])}<input type="text" name="{esc(c)}" value="{esc(r[c])}">{_check_strip(c, r['id'], ftabs)}</div>""")
 
     ftabs = evidence.field_tabs(r)
     fields = "".join(_field(c) for c in INSPECT_COLUMNS)
@@ -1019,8 +1059,10 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
 
 <script>var ROW_ID = {r['id']};
 var ATTESTED = {json.dumps(attested)};
-var VERIFIER = {json.dumps(who)};</script>
+var VERIFIER = {json.dumps(who)};
+var ABSENT = {json.dumps(sorted(screen.ABSENCE_VALUES))};</script>
 <script>{_CHECKLIST_JS}</script>
+<script>{DATEKIND_JS}</script>
 
 <details class="byhand" id="agentbox">
 <summary>Ask a model to read the cited pages</summary>
@@ -1072,9 +1114,11 @@ async def screen_attest(screen_id: int, request: Request):
             return bad(f"{field} can only be confirmed against its own source. "
                        f"Open “find in source” and read the "
                        f"{evidence.wanted_sources(field)} tab — nothing was recorded.")
+        # The value comes from the page because it is the reviewer's claim, not
+        # evidence: a correction they typed is what they are vouching for.
         screen.attest(conn, screen_id, field, state, who,
                       source_url=shown.get("url"), tab_index=shown.get("tab"),
-                      match_count=shown.get("count"))
+                      match_count=shown.get("count"), value=form.get("value"))
         settled = screen.attestation_state(conn, screen_id).get(field, {})
     except ValueError as exc:
         return bad(str(exc))
@@ -1119,6 +1163,12 @@ async def screen_inspect_promote(screen_id: int, request: Request):
                 status_code=303,
             )
 
+        # Check the corrections BEFORE publishing. Promotion writes a faithful
+        # copy and the corrections are applied after it, so a refusal at that
+        # point would leave the project live with the value being replaced.
+        if changes:
+            verify.prepare_changes(src, changes)
+
         # Promote a faithful copy first (the human gate), then apply the human's
         # edits through the ordinary verify.edit path so each one lands in verify_edits.
         gid = verify.promote(conn, screen_id, verification_tier=tier)
@@ -1139,6 +1189,9 @@ async def screen_inspect_promote(screen_id: int, request: Request):
         else:
             msg += " That was the last project waiting."
             dest = f"/verify/{gid}"
+    except verify.CorrectionRefused as e:
+        msg = f"Not verified, and nothing was published. {e}"
+        dest = f"/screen/{screen_id}/inspect"
     except verify.PromotionBlocked as e:
         msg = f"Promotion blocked: {e}"
         dest = f"/screen/{screen_id}/inspect"

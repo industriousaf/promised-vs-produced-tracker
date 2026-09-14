@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from pipeline import settings as criteria
 from pipeline.db import now_iso
 from pipeline.dates import enrich as enrich_dates, DATE_TRIPLES
 from pipeline.schema_check import (
@@ -25,6 +26,9 @@ from pipeline.schema_check import (
     INT_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
+    DATE_SENTINELS,
+    SENTINELS_FOR,
+    check_row,
 )
 from pipeline.screen import _coerce, row_to_v0_dict, latest_check, get_extracted
 
@@ -54,6 +58,68 @@ EDITABLE_COLUMNS = [c for c in list(V0_COLUMNS) + list(RAW_DATE_COLUMNS)
 
 # token -> its verbatim partner, for the consistency notice in edit().
 _RAW_PARTNER = {token: raw for raw, token, _dt in DATE_TRIPLES}
+
+
+class CorrectionRefused(ValueError):
+    """A correction that would add a checker error to a published project."""
+
+
+def prepare_changes(base_row, changes: dict) -> dict:
+    """Coerce, normalise and check a set of corrections against `base_row`.
+
+    Returns the cleaned changes, including any recomputed derived dates, or
+    raises. Every door that publishes a correction ends here: the verify button on
+    the inspect page, the Verify edit page and `tracker.py verify-edit`. They used
+    to skip the checker entirely. A misspelt `penidng`, an `n/a` in the
+    actual-output field and a `pending` in the promised field were each stored as
+    typed, and each left a published record that fails it.
+
+    Only errors the correction introduces are refused, judged by column, so a
+    record published with force=True that already fails can still be corrected.
+    The whole record is re-checked rather than the edited field alone because the
+    size floor judges capital and jobs together and reports on only one of them.
+
+    A sentinel typed with capitals or spaces is the same word, so it is stored in
+    its one spelling. It passes the checker either way, which is why it had to be
+    done here: nothing else would have stopped "Pending" reaching the CSV.
+    """
+    clean: dict[str, object] = {}
+    for col, val in changes.items():
+        if col in DERIVED_FIELDS:
+            raise ValueError(
+                f"{col!r} is derived (computed from the date strings) -- edit "
+                "announced / promised_first_output / actual_first_output instead"
+            )
+        if col not in EDITABLE_COLUMNS:
+            raise ValueError(f"{col!r} is not an editable Verify column")
+        value = _coerce(col, val)
+        if (col in SENTINELS_FOR and isinstance(value, str)
+                and value.strip().lower() in DATE_SENTINELS):
+            value = value.strip().lower()
+        clean[col] = value
+
+    before = row_to_v0_dict(base_row)
+    merged = dict(before)
+    merged.update({c: v for c, v in clean.items() if c in merged})
+
+    # If a date string changed, recompute the derived *_dt + lag/slip from the
+    # merged record so they never drift from the strings.
+    if DATE_STRING_COLUMNS & set(clean):
+        enriched = enrich_dates(dict(merged))
+        for c in ("announced_dt", "promised_first_output_dt",
+                  "actual_first_output_dt", "lag_years", "slip_years"):
+            clean[c] = enriched[c]
+            if c in merged:
+                merged[c] = enriched[c]
+
+    keys = base_row.keys() if hasattr(base_row, "keys") else ()
+    crit = criteria.get(base_row["criteria_id"] if "criteria_id" in keys else None)
+    had = {i["column"] for i in check_row(before, crit)["report"] if i["level"] == "ERROR"}
+    new = [i for i in check_row(merged, crit)["report"]
+           if i["level"] == "ERROR" and i["column"] not in had]
+    if new:
+        raise CorrectionRefused("; ".join(f"{i['column']}: {i['message']}" for i in new))
+    return clean
 
 
 class PromotionBlocked(Exception):
@@ -184,25 +250,9 @@ def edit(
     if row is None:
         raise ValueError(f"no verify_verified row with id {verify_verified_id}")
 
-    clean: dict[str, object] = {}
-    for col, val in changes.items():
-        if col in DERIVED_FIELDS:
-            raise ValueError(
-                f"{col!r} is derived (computed from the date strings) -- edit "
-                "announced / promised_first_output / actual_first_output instead"
-            )
-        if col not in EDITABLE_COLUMNS:
-            raise ValueError(f"{col!r} is not an editable Verify column")
-        clean[col] = _coerce(col, val)
-
-    # If a date string changed, recompute the derived *_dt + lag/slip from the
-    # merged row (current cells + this edit) so they never drift from the strings.
-    if DATE_STRING_COLUMNS & set(clean):
-        merged = {c: (clean[c] if c in clean else row[c]) for c in V0_COLUMNS}
-        enriched = enrich_dates(merged)
-        for c in ("announced_dt", "promised_first_output_dt",
-                  "actual_first_output_dt", "lag_years", "slip_years"):
-            clean[c] = enriched[c]
+    # Coerced, normalised, derived dates recomputed and held to the checker, in
+    # the one function the inspect page also calls before it publishes.
+    clean = prepare_changes(row, changes)
 
     # Guard: an edit must not demote a Verify row back to provisional.
     if "verification_tier" in clean:

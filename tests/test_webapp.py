@@ -1229,6 +1229,28 @@ class TestAttestRoute(unittest.TestCase):
         from webapp import screen as webscreen
         self.assertIs(webscreen.CHECKLIST_CELLS, pscreen.ATTESTABLE_FIELDS)
 
+    def test_confirming_an_absence_is_refused_at_the_route(self):
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        r = self.client.post(f"/screen/{self.sid}/attest",
+                             data={"field": "promised_first_output", "state": "confirmed",
+                                   "value": "n/a"})
+        self.assertEqual(400, r.status_code)
+        self.assertIn("not in this source", r.json()["error"])
+        self.assertEqual([], self._stored())
+
+    def test_the_page_value_is_what_gets_recorded(self):
+        """A typed correction is the claim; the stored value is what it replaces."""
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/attest",
+                         data={"field": "promised_jobs", "state": "confirmed",
+                               "value": "1750"})
+        self.assertEqual("1750", self._stored()[0]["value_at_time"])
+
+    def test_the_page_knows_which_values_record_an_absence(self):
+        """Sent from the server, so the checklist and the writer cannot disagree."""
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn('var ABSENT = ["", "n/a"];', body)
+
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestProjectName(unittest.TestCase):
@@ -1358,3 +1380,116 @@ class TestTheQueueIsWalkedTopDown(unittest.TestCase):
         conn.commit(); conn.close()
         body = self.client.post(f"/screen/{self.big}/promote", data={"tier": "V1"}).text
         self.assertIn("Verified Big &amp; Bold at tier V1.", body)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestCorrectionsAreChecked(unittest.TestCase):
+    """Typed corrections meet the checker, and the date fields offer their words.
+
+    A correction used to be stored as typed at every door, so a misspelt
+    `penidng` published a record the checker fails. The inspect page also
+    published before it corrected, which meant any refusal there would have
+    left the old value live. And the two date fields were free text beside a
+    sector field that was already a picker.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        lead = psource.insert_lead(conn, promise_source="https://example.com/p",
+                                   status_source="https://example.com/s", summary="x")
+        self.sid = pscreen.insert_extracted(conn, {
+            "project": "Check Fab", "sector": "Semiconductors", "state": "TX",
+            "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+            "promised_jobs": 1500, "promised_first_output": "2024",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s", "verification_tier": "P"},
+            source_collected_id=lead)
+        pscreen.run_check(conn, self.sid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _one(self, sql, *args):
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        try:
+            return conn.execute(sql, args).fetchone()
+        finally:
+            conn.close()
+
+    def test_a_typo_at_the_verify_button_publishes_nothing(self):
+        from urllib.parse import unquote
+        r = self.client.post(f"/screen/{self.sid}/promote",
+                             data={"tier": "V1", "actual_first_output": "penidng",
+                                   "edit_description": "typo"}, follow_redirects=False)
+        self.assertEqual(0, self._one("SELECT count(*) FROM verify_verified")[0])
+        self.assertIn("nothing was published", unquote(r.headers["location"]))
+
+    def test_a_valid_correction_at_the_verify_button_publishes_with_it(self):
+        self.client.post(f"/screen/{self.sid}/promote",
+                         data={"tier": "V1", "promised_first_output": "2025-Q4",
+                               "edit_description": "per the release"})
+        self.assertEqual("2025-Q4", self._one(
+            "SELECT promised_first_output FROM verify_verified")[0])
+
+    def test_a_typo_on_the_verify_edit_page_is_not_saved(self):
+        from urllib.parse import unquote
+        self.client.post(f"/screen/{self.sid}/promote", data={"tier": "V1"})
+        vid = self._one("SELECT id FROM verify_verified")[0]
+        r = self.client.post(f"/verify/{vid}/edit",
+                             data={"actual_first_output": "penidng", "edit_description": "typo"},
+                             follow_redirects=False)
+        self.assertEqual("pending", self._one(
+            "SELECT actual_first_output FROM verify_verified WHERE id = ?", vid)[0])
+        self.assertIn("Not saved", unquote(r.headers["location"]))
+        self.assertIn("penidng", unquote(r.headers["location"]),
+                      "the message must survive a quoted value in the URL")
+
+    def test_each_date_field_offers_only_its_own_words(self):
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        pick = lambda col: re.search(
+            r'<select class="datekind" data-for="%s"[^>]*>(.*?)</select>' % col, body, re.S).group(1)
+        self.assertIn('value="n/a"', pick("promised_first_output"))
+        self.assertNotIn('value="pending"', pick("promised_first_output"))
+        for word in ("pending", "unconfirmed", "never"):
+            self.assertIn(f'value="{word}"', pick("actual_first_output"))
+        self.assertNotIn('value="n/a"', pick("actual_first_output"))
+
+    def test_the_picker_tells_pending_from_unconfirmed(self):
+        """The two opposites, told apart at the moment of choice."""
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn("pending: not producing yet", body)
+        self.assertIn("unconfirmed: producing, but no source dates it", body)
+
+    def test_the_picker_never_submits(self):
+        """Only the text box is sent, so neither save handler had to change."""
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        tags = re.findall(r'<select class="datekind"[^>]*>', body)
+        self.assertEqual(2, len(tags))
+        for tag in tags:
+            self.assertNotIn("name=", tag)
+
+    def test_the_verify_edit_page_has_the_picker_and_its_script(self):
+        self.client.post(f"/screen/{self.sid}/promote", data={"tier": "V1"})
+        vid = self._one("SELECT id FROM verify_verified")[0]
+        body = self.client.get(f"/verify/{vid}").text
+        self.assertIn('data-for="actual_first_output"', body)
+        self.assertIn("select.datekind", body)
+
+    def test_the_promised_hint_names_its_sentinel(self):
+        """It explained dates and never mentioned `n/a`, the one word that field
+        accepts."""
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn("<code>n/a</code> if no source states one", body)

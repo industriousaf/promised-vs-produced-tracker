@@ -30,6 +30,7 @@ from pipeline.schema_check import (
     RAW_DATE_COLUMNS,
     check_row,
     check_url,
+    PROMISED_SENTINELS,
 )
 
 
@@ -550,6 +551,22 @@ ATTESTABLE_FIELDS = (
 
 ATTEST_STATES = ("confirmed", "not_in_source")
 
+# Values recording that no cited source stated a field: the promised-date
+# sentinel `n/a`, and an empty field. The two buttons record what the page
+# shows, so for these "not in this source" IS the verification, and "confirmed"
+# is refused -- it would say a page shows a value the field says does not exist.
+#
+# `pending`, `never` and `unconfirmed` are deliberately not here. Each describes
+# something a page does show -- construction still under way, a cancellation, a
+# plant running with no start date -- so they are confirmed like any other
+# value, and zero literal hits for them is expected rather than suspicious.
+ABSENCE_VALUES = frozenset({""} | set(PROMISED_SENTINELS))
+
+
+def is_absence(value) -> bool:
+    """True when a field's value records that no source stated it."""
+    return ("" if value is None else str(value)).strip().lower() in ABSENCE_VALUES
+
 
 def field_value(row, field: str) -> str:
     """One field as the string an attestation stores and later compares against.
@@ -564,12 +581,23 @@ def field_value(row, field: str) -> str:
 
 def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
            state: str, attested_by: str, source_url: str | None = None,
-           tab_index: int | None = None, match_count: int | None = None) -> int:
+           tab_index: int | None = None, match_count: int | None = None,
+           value: str | None = None) -> int:
     """Record that `attested_by` settled one field. Returns the new row's id.
 
     Append-only: re-settling a field writes another row and the newest one
-    counts. `value_at_time` is read from the stored row here rather than taken
-    from the caller, so it is always what the database actually held.
+    counts.
+
+    `value` is the value being vouched for -- what was in the field on screen
+    when the button was pressed. It used to be read from the stored row, on the
+    theory that the database is what can be trusted, and that was wrong about
+    what the row is for: a reviewer who corrects a field vouches for the
+    correction, and the stored Screen value is exactly what they are replacing.
+    Seven of the first eight corrections published a value nobody had confirmed,
+    while this table said the old one had been. Evidence is a different matter
+    and still never comes from the caller: the URL and the hit count are what the
+    server saw. Omitted, it falls back to the stored value, which is right for
+    any caller that does not edit.
     """
     if field not in ATTESTABLE_FIELDS:
         raise ValueError(f"{field!r} is not one of the checklist fields")
@@ -582,6 +610,12 @@ def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
     row = get_extracted(conn, screen_extracted_id)
     if row is None:
         raise ValueError(f"no screen_extracted row #{screen_extracted_id}")
+    held = field_value(row, field) if value is None else str(value).strip()
+    if state == "confirmed" and is_absence(held):
+        raise ValueError(
+            f"{field} records that no source stated it, so there is nothing on "
+            f"the page to confirm. Settle it as not in this source. If the page "
+            f"does state it, enter the value first, then confirm.")
 
     cur = conn.execute(
         """
@@ -590,7 +624,7 @@ def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
              source_url, tab_index, match_count, attested_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (now_iso(), screen_extracted_id, field, state, field_value(row, field),
+        (now_iso(), screen_extracted_id, field, state, held,
          source_url or None, tab_index, match_count, attested_by.strip()),
     )
     conn.commit()
@@ -627,6 +661,12 @@ def attestation_state(conn: sqlite3.Connection, screen_extracted_id: int) -> dic
         out[field] = {
             "state": a["state"],
             "stale": (a["value_at_time"] or "") != field_value(row, field),
+            "value": a["value_at_time"],
+            # Confirmed an absence. attest() refuses this now, but rows written
+            # before the rule exist; the page shows them for re-settling rather
+            # than rewriting them, because the table is append-only.
+            "confirmed_absence": (a["state"] == "confirmed"
+                                  and is_absence(a["value_at_time"])),
             "match_count": a["match_count"],
             "source_url": a["source_url"],
             "by": a["attested_by"],

@@ -86,7 +86,7 @@ pane found that value on that page.
 |---|---|
 | `field` | one of the six checklist fields, rejected otherwise |
 | `state` | `confirmed`, or `not_in_source` when the page does not carry it |
-| `value_at_time` | what the field said when it was settled |
+| `value_at_time` | the value vouched for: what was in the field when it was settled, including a correction just typed |
 | `source_url` | the page the pane had open |
 | `match_count` | hits the pane found there; `NULL` when it was never opened |
 | `attested_by` | an address from `VERIFIERS` in `settings.py` |
@@ -97,15 +97,41 @@ Three properties are the point of the table.
 counts, so someone changing their mind leaves both. Overwriting would hide the
 one thing worth seeing.
 
-**`value_at_time` makes staleness visible.** Edit a field after confirming it and
-the interface shows it as needing another look rather than leaving it ticked, so
-a confirmation always refers to a value the project still holds.
+**`value_at_time` is the value vouched for.** It is whatever was in the field on
+screen when the button was pressed, including a correction the reviewer had just
+typed. It used to be the stored Screen value, and seven of the first eight
+corrections published a value nobody confirmed while this table said the old one
+had been. Edit a field after settling it and the tick comes off, so a
+confirmation refers to the value that goes out.
 
 **`match_count` is what makes the record hard to wave away.** Nothing here proves
 anyone read anything, and the checkbox is trivially tickable. What the table
 stores instead is what the machine saw beside what the person asserted: a
 confirmation recorded against a page where the value never appeared reads as
 zero, and anyone can find those.
+
+### What the two buttons mean
+
+The buttons record what the page shows. Whether that agrees with the project is
+a separate question, answered by comparing the two.
+
+| button | means | use it for |
+|---|---|---|
+| confirmed | this page states or plainly shows the value | dates, figures, status text, and `pending`, `never`, `unconfirmed` |
+| not in this source | this page does not state this field | a value the page does not carry, and every field that is `n/a` or empty |
+
+`pending`, `never` and `unconfirmed` are confirmed rather than marked absent,
+because each describes something a page does show: construction still under way,
+a cancellation, a plant running with no start date. The words themselves rarely
+appear on the page, so zero hits for them is expected.
+
+`n/a` and an empty field are the opposite case. They record that no cited source
+stated the value, so "not in this source" is the verification and "confirmed" is
+refused: it would say a page shows a value the field says does not exist. If the
+page does state it, the field is wrong. Enter the value, then confirm it.
+
+Settles recorded before this rule are shown for re-settling rather than
+rewritten, because the table is append-only.
 
 The address comes from a list in `settings.py`, not a text box. A box accepts
 `asdf@asdf.com` as readily as a real address, so a typed identity is exactly as
@@ -144,6 +170,12 @@ and the word is wrong; they are corrected as verification reaches them.
 an ERROR and the row FAILs rather than reaching the human gate. That is the
 closed-vocabulary rule in *What the check returns* above, applied per column.
 `SENTINELS_FOR` in `schema.py` is where the two sets are named.
+
+The web forms offer these words as a picker on each date field, limited to that
+field's own set and with the meaning beside each word, so `pending` and
+`unconfirmed` are told apart at the moment of choice. The picker only fills in
+the text box. A value typed by hand, or sent from `tracker.py verify-edit`, is
+held to the same checker before it is saved.
 
 The parser still accepts `tbd`, `open`, `unknown` and a blank, all read as "not
 yet producing", so rows written before the vocabulary was narrowed keep
