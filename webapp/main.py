@@ -51,9 +51,9 @@ from webapp import (  # noqa: E402
     source as source_pages,
     verify as verify_pages,
 )
-from webapp.shared import _conn, _page, esc  # noqa: E402
+from webapp.shared import PROJECT_NAME, _conn, _page, esc  # noqa: E402
 
-app = FastAPI(title="Promised vs. Produced — Source → Verify Pipeline")
+app = FastAPI(title=f"{PROJECT_NAME} — Source → Verify Pipeline")
 
 
 @app.on_event("startup")
