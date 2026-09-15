@@ -1089,9 +1089,11 @@ class TestAttestRoute(unittest.TestCase):
         finally:
             conn.close()
 
-    def _attest(self, field="promised_jobs", state="confirmed"):
-        return self.client.post(f"/screen/{self.sid}/attest",
-                                data={"field": field, "state": state})
+    def _attest(self, field="promised_jobs", state="confirmed", **extra):
+        # "as" is the name the page shows, which the route checks against the
+        # browser's choice.
+        data = {"field": field, "state": state, "as": self.WHO, **extra}
+        return self.client.post(f"/screen/{self.sid}/attest", data=data)
 
     def test_nobody_can_confirm_before_saying_who_they_are(self):
         r = self._attest()
@@ -1099,14 +1101,15 @@ class TestAttestRoute(unittest.TestCase):
         self.assertEqual([], self._stored())
 
     def test_an_address_off_the_list_cannot_be_chosen(self):
-        """?verifier= is a bookmarkable URL, so it is the obvious way to put a
-        name into the record that the project never approved."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier=stranger@example.com")
-        self.assertEqual(400, self._attest().status_code)
+        """The buttons only offer listed addresses, so a hand-made request is the
+        way to put a name into the record that the project never approved."""
+        self.client.post(f"/screen/{self.sid}/verifier",
+                         data={"verifier": "stranger@example.com"})
+        self.assertEqual(400, self._attest(**{"as": "stranger@example.com"}).status_code)
         self.assertEqual([], self._stored())
 
     def test_confirming_records_who_and_which_page(self):
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=promised_jobs")
         self.assertEqual(200, self._attest().status_code)
         row = self._stored()[0]
@@ -1119,7 +1122,7 @@ class TestAttestRoute(unittest.TestCase):
         """The point of storing the count. The reviewer is not stopped -- a
         value phrased differently looks identical to one that is absent -- but
         the row says the page held no hits, and anyone can find those."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=announced")
         self._attest(field="announced")
         self.assertEqual(0, self._stored()[0]["match_count"])
@@ -1129,9 +1132,9 @@ class TestAttestRoute(unittest.TestCase):
         read out of it -- and anything the page sent instead would be a number
         the reviewer could choose. A field never opened stores no count at all
         rather than one the request supplied."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         r = self.client.post(f"/screen/{self.sid}/attest",
-                             data={"field": "promised_jobs", "state": "confirmed",
+                             data={"field": "promised_jobs", "state": "confirmed", "as": self.WHO,
                                    "match_count": "99", "source_url": "https://evil.test"})
         self.assertEqual(200, r.status_code)
         row = self._stored()[0]
@@ -1140,7 +1143,7 @@ class TestAttestRoute(unittest.TestCase):
 
     def test_the_page_comes_back_carrying_what_was_settled(self):
         """The reason closing the tab no longer loses your place."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self._attest()
         body = self.client.get(f"/screen/{self.sid}/inspect").text
         self.assertRegex(body, r"var ATTESTED = .*promised_jobs")
@@ -1161,7 +1164,7 @@ class TestAttestRoute(unittest.TestCase):
         for project #1 in the next -- and the app has a database switcher, so
         this is a click apart, not a contrivance."""
         from pipeline import db as pdb, source as psource, screen as pscreen
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=promised_jobs")
 
         other = Path(self.dir.name) / "other.db"
@@ -1180,7 +1183,7 @@ class TestAttestRoute(unittest.TestCase):
         self.assertEqual(self.sid, sid)            # the collision this is about
         pdb.set_active_db(other)
 
-        self.client.get(f"/screen/{sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{sid}/verifier", data={"verifier": self.WHO})
         self._attest()
         conn = pdb.connect(other)
         try:
@@ -1194,7 +1197,7 @@ class TestAttestRoute(unittest.TestCase):
         """Confirm a field, edit it, and the old look does not carry over. The
         browser still remembers opening it this visit, but what was on screen
         then is not the value being asked about now."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self._attest()
         from pipeline import db as pdb
         conn = pdb.connect(self.path)
@@ -1210,7 +1213,7 @@ class TestAttestRoute(unittest.TestCase):
         otherwise raise SystemExit from inside a request handler -- a refusal
         that reads as a crash. The route checks first and answers in words."""
         from webapp import screen as webscreen
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         webscreen.READ_ONLY = True
         try:
             r = self._attest()
@@ -1230,26 +1233,78 @@ class TestAttestRoute(unittest.TestCase):
         self.assertIs(webscreen.CHECKLIST_CELLS, pscreen.ATTESTABLE_FIELDS)
 
     def test_confirming_an_absence_is_refused_at_the_route(self):
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         r = self.client.post(f"/screen/{self.sid}/attest",
                              data={"field": "promised_first_output", "state": "confirmed",
-                                   "value": "n/a"})
+                                   "as": self.WHO, "value": "n/a"})
         self.assertEqual(400, r.status_code)
         self.assertIn("not in this source", r.json()["error"])
         self.assertEqual([], self._stored())
 
     def test_the_page_value_is_what_gets_recorded(self):
         """A typed correction is the claim; the stored value is what it replaces."""
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self.client.post(f"/screen/{self.sid}/attest",
                          data={"field": "promised_jobs", "state": "confirmed",
-                               "value": "1750"})
+                               "as": self.WHO, "value": "1750"})
         self.assertEqual("1750", self._stored()[0]["value_at_time"])
 
     def test_the_page_knows_which_values_record_an_absence(self):
         """Sent from the server, so the checklist and the writer cannot disagree."""
         body = self.client.get(f"/screen/{self.sid}/inspect").text
         self.assertIn('var ABSENT = ["", "n/a"];', body)
+
+    def test_with_nobody_chosen_the_page_asks_rather_than_names(self):
+        """It read "You are verifying as:" followed by both addresses, which
+        made the first one look already chosen."""
+        from pipeline import settings
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn("Who is verifying?", body)
+        self.assertNotIn("You are verifying as", body)
+        for p in settings.verifiers():
+            self.assertIn(f"I am {p}", body)
+
+    def test_a_link_cannot_choose_who_is_verifying(self):
+        """A link can be bookmarked or shared, and opening one used to change
+        the name on every settle after it."""
+        self.client.get(f"/screen/{self.sid}/inspect", params={"verifier": self.WHO})
+        self.assertEqual(400, self._attest().status_code)
+        self.assertEqual([], self._stored())
+
+    def test_nothing_switches_straight_to_someone_else(self):
+        from pipeline import settings
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn("Not you?", body)
+        for p in settings.verifiers():
+            if p != self.WHO:
+                self.assertNotIn(f'value="{p}"', body)
+                self.assertNotIn(f"verifier={p}", body)
+
+    def test_not_you_clears_the_choice(self):
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": ""})
+        self.assertIn("Who is verifying?", self.client.get(f"/screen/{self.sid}/inspect").text)
+        self.assertEqual(400, self._attest().status_code)
+
+    def test_a_settle_is_refused_when_the_page_shows_someone_else(self):
+        """Two tabs: choose again in one, and the other still shows the old
+        name. Its settles would be stored under a name it never showed."""
+        from pipeline import settings
+        other = next(p for p in settings.verifiers() if p != self.WHO)
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
+        r = self._attest(**{"as": other})
+        self.assertEqual(400, r.status_code)
+        self.assertIn("Reload the page", r.json()["error"])
+        self.assertEqual([], self._stored())
+
+    def test_a_settle_from_a_page_that_names_no_one_is_refused(self):
+        """A page opened before this check sends no name at all."""
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
+        r = self.client.post(f"/screen/{self.sid}/attest",
+                             data={"state": "confirmed", "field": "promised_jobs"})
+        self.assertEqual(400, r.status_code)
+        self.assertEqual([], self._stored())
 
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
@@ -1572,9 +1627,9 @@ class TestInspectShowsThePublishedRecord(unittest.TestCase):
 
     def test_a_settle_here_vouches_for_the_published_value(self):
         from pipeline import db as pdb
-        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
         self.client.post(f"/screen/{self.sid}/attest",
-                         data={"field": "promised_jobs", "state": "confirmed"})
+                         data={"field": "promised_jobs", "state": "confirmed", "as": self.WHO})
         conn = pdb.connect(self.path)
         try:
             got = conn.execute("SELECT value_at_time FROM screen_attested").fetchone()[0]

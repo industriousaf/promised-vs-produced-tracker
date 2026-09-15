@@ -539,6 +539,9 @@ _CHECKLIST_JS = """
   // waits on the network between every field is a checklist nobody finishes.
   function record(cell, value, previous) {
     var body = new FormData();
+    // The name this page shows. The server refuses the settle if the browser
+    // has been set to someone else since, in another tab. See screen_attest.
+    body.append('as', VERIFIER);
     body.append('field', cell);
     body.append('state', value === 'ok' ? 'confirmed' : 'not_in_source');
     // What is vouched for is what is in the field now, including a correction
@@ -808,7 +811,17 @@ CHECKLIST_CELLS = screen.ATTESTABLE_FIELDS
 # address and a typed identity is exactly as forgeable as a typed name. Remove
 # someone from the list and their cookie stops being accepted, which is the
 # behaviour you want.
-VERIFIER_COOKIE = "pvp_verifier"
+#
+# The choice is made with a button on the inspect page and nowhere else. It used
+# to be a link, ?verifier=, and a link can be bookmarked or shared: opening one
+# changed the name on every settle after it. The page also offered a one-click
+# "switch to" the other address. 142 of Lucas's settles were stored under
+# Ashwin's address through one of those two paths.
+#
+# The cookie was renamed with that change, so every browser chooses again with
+# the new buttons. The last settles from Lucas's browser were stored under
+# Ashwin's address, so it may still have been set that way.
+VERIFIER_COOKIE = "pvp_verifier_v2"
 VERIFIER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
 
@@ -824,26 +837,32 @@ def _verifier_bar(request: Request, who: str, screen_id: int) -> str:
     Always rendered, never collapsed. A record naming the wrong person is worse
     than no record, and the only defence available here is that the name is in
     front of you the whole time you are ticking.
+
+    With nobody chosen it asks, and each address is a button that says "I am".
+    It used to read "You are verifying as:" followed by both addresses, which
+    made the first one look already chosen. Once someone is chosen, "Not you?"
+    clears the choice and asks again. Nothing switches straight to another
+    address, so no single click moves one person's settles to someone else.
     """
     people = settings.verifiers()
     if not people:
         return ('<p class="ckwho none">No verifiers are configured, so nothing '
                 f'can be confirmed. Add an address to <code>VERIFIERS</code> in '
                 f'<code>{esc(settings.where("VERIFIERS"))}</code>.</p>')
+    action = f"/screen/{screen_id}/verifier"
     if not who:
         picks = " ".join(
-            f'<a class="ckwho-pick" href="/screen/{screen_id}/inspect?verifier={esc(p)}">{esc(p)}</a>'
+            f'<button type="submit" name="verifier" value="{esc(p)}" '
+            f'class="ckwho-pick">I am {esc(p)}</button>'
             for p in people)
-        return ('<p class="ckwho none">Confirmations are stored under your name. '
-                f'You are verifying as: {picks}</p>')
-    others = [p for p in people if p != who]
-    switch = ""
-    if others:
-        switch = " · switch to " + " ".join(
-            f'<a class="ckwho-pick" href="/screen/{screen_id}/inspect?verifier={esc(p)}">{esc(p)}</a>'
-            for p in others)
-    return (f'<p class="ckwho">Verifying as <b>{esc(who)}</b>. Every confirmation '
-            f'below is stored under this address and published with the data.{switch}</p>')
+        return (f'<form class="ckwho none" method="post" action="{action}">'
+                f'<b>Who is verifying?</b> Confirmations are stored under the '
+                f'address you choose and published with the data. {picks}</form>')
+    return (f'<form class="ckwho" method="post" action="{action}">'
+            f'Verifying as <b class="ckwho-name">{esc(who)}</b>. Every confirmation '
+            f'below is stored under this address and published with the data. '
+            f'<button type="submit" name="verifier" value="" class="ckwho-pick">'
+            f'Not you?</button></form>')
 
 
 def _check_strip(cell: str, row_id: int, ftabs: dict) -> str:
@@ -925,7 +944,7 @@ below, are the tools for it.</small></p>
 
 @router.get("/screen/{screen_id}/inspect", response_class=HTMLResponse)
 def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
-                   verifier: Optional[str] = None, verified: Optional[int] = None):
+                   verified: Optional[int] = None):
     conn = _conn()
     try:
         screen_row = screen.get_extracted(conn, screen_id)
@@ -957,11 +976,9 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
                         and evidence.settled_off_side(r, settled_tabs.get(f), f))
         a["wanted"] = evidence.wanted_sources(f)
 
-    # ?verifier= picks who is attesting and is remembered in a cookie, the same
-    # shape as the list toggles. An address that is not on the list is ignored
-    # rather than stored, so a stale bookmark cannot put a name into the record.
-    picked = (verifier or "").strip()
-    who = picked if settings.may_verify(picked) else current_verifier(request)
+    # Who is attesting is this browser's choice, made with a button on this page
+    # and nowhere else. A ?verifier= in the address is ignored. See _verifier_bar.
+    who = current_verifier(request)
 
     # ?verified= is set by the redirect after a verification, which lands on the
     # next project in the queue rather than the record just published. The
@@ -1131,10 +1148,28 @@ var ABSENT = {json.dumps(sorted(screen.ABSENCE_VALUES))};</script>
 <div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
 </details>
 """
-    resp = _page(f"Screen #{screen_id}", body, msg, wide=True)
-    if picked and who == picked:
-        resp.set_cookie(VERIFIER_COOKIE, who,
+    return _page(f"Screen #{screen_id}", body, msg, wide=True)
+
+
+@router.post("/screen/{screen_id}/verifier")
+async def screen_choose_verifier(screen_id: int, request: Request):
+    """Choose who this browser is verifying as, or clear the choice.
+
+    Only the buttons in the verifier line post here. The answer is a redirect
+    back to the project, so reloading the page never chooses again.
+    """
+    form = await request.form()
+    chosen = (form.get("verifier") or "").strip()
+    back = f"/screen/{screen_id}/inspect"
+    if chosen and not settings.may_verify(chosen):
+        msg = "That address is not on the verifier list, so nothing was changed."
+        return RedirectResponse(f"{back}?msg={urlquote(msg)}", status_code=303)
+    resp = RedirectResponse(back, status_code=303)
+    if chosen:
+        resp.set_cookie(VERIFIER_COOKIE, chosen,
                         max_age=VERIFIER_COOKIE_MAX_AGE, samesite="lax")
+    else:
+        resp.delete_cookie(VERIFIER_COOKIE)
     return resp
 
 
@@ -1159,6 +1194,14 @@ async def screen_attest(screen_id: int, request: Request):
         return bad("Choose who you are verifying as before confirming a field.")
 
     form = await request.form()
+    # The page sends the name it shows. If this browser has been set to someone
+    # else since, in another tab, the settle would be stored under a name that
+    # page never showed, so it is refused.
+    shown_as = (form.get("as") or "").strip()
+    if shown_as != who:
+        return bad(f"This page shows {shown_as or 'no one'} verifying, but this "
+                   f"browser has since been set to {who}. Reload the page. "
+                   f"Nothing was recorded.")
     field = (form.get("field") or "").strip()
     state = (form.get("state") or "").strip()
     shown = evidence.last_shown("screen", screen_id, field) or {}

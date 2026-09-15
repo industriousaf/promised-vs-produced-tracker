@@ -408,9 +408,12 @@ select.datekind + input[hidden] { display: none !important; }
    page with no sign-in is that the name stays in front of you while you tick. */
 .ckwho { font-size: .8rem; color: var(--type-2); margin: .1rem 0 .5rem; }
 .ckwho.none { color: var(--terracotta); }
+/* The chosen address, boxed so it reads as a setting rather than part of a sentence. */
+.ckwho-name { font-family: var(--font-mono); font-size: .85rem; color: var(--type-1);
+    border: 0.5px solid var(--teal); padding: .05rem .35rem; }
 .ckwho-pick { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em;
     border: 0.5px solid var(--rule); padding: .1rem .35rem; text-decoration: none;
-    color: var(--type-1); }
+    color: var(--type-1); background: none; cursor: pointer; margin: 0 .15rem; }
 .ckwho-pick:hover { border-color: var(--teal); background: var(--ground-page); }
 /* A write that did not land. Silence here would leave a tick on screen that
    exists nowhere else, which is the one failure this whole table exists to

@@ -142,6 +142,14 @@ here authenticates anyone either, and the data should be described as
 self-identified. What the list buys is that adding someone is a deliberate act
 by the project, and that there is nothing to typo.
 
+You choose your address with a button on the inspect page, once per browser. A
+link cannot choose it, because links get bookmarked and shared. To change it,
+press "Not you?" and choose again; nothing switches straight to someone else.
+Each settle also carries the name the page was showing, and is refused if the
+browser has been set to someone else since, for example in another tab. Before
+these guards, 142 of Lucas's settles from 14 September 2026 were stored under
+Ashwin's address. They were corrected in place.
+
 It does not gate promotion. The command line has no such gate, so blocking one
 of two doors would imply a stronger claim than the data supports.
 
