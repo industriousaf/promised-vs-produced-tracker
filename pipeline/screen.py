@@ -579,6 +579,41 @@ def field_value(row, field: str) -> str:
     return "" if v is None else str(v)
 
 
+# Columns that identify or date a record itself rather than describe the
+# project. A published project's view keeps these from Screen, so every address
+# built from the Screen id -- the checklist, the pane, the attest route -- still
+# points where it did.
+_IDENTITY_COLUMNS = frozenset({"id", "datetime", "created_at",
+                               "source_collected_id", "screen_extracted_id"})
+
+
+def review_view(conn: sqlite3.Connection, screen_id: int) -> tuple[dict | None, int | None]:
+    """The record a reviewer should see for a Screen project, and its Verify id.
+
+    Unpublished, that is the Screen record. Published, it is the Screen record
+    with every content column taken from the published one, because a project
+    can be corrected on its way out and the checklist has to vouch for what went
+    out. Before this, a published project's inspect page showed the extractor's
+    values, so a field corrected at verification could only be settled against
+    the value the correction replaced.
+
+    The Screen id and lineage are kept. Returns (None, None) for no such project.
+    """
+    row = get_extracted(conn, screen_id)
+    if row is None:
+        return None, None
+    view = {k: row[k] for k in row.keys()}
+    pub = conn.execute(
+        "SELECT * FROM verify_verified WHERE screen_extracted_id = ? "
+        "ORDER BY id DESC LIMIT 1", (screen_id,)).fetchone()
+    if pub is None:
+        return view, None
+    for k in pub.keys():
+        if k in view and k not in _IDENTITY_COLUMNS:
+            view[k] = pub[k]
+    return view, pub["id"]
+
+
 def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
            state: str, attested_by: str, source_url: str | None = None,
            tab_index: int | None = None, match_count: int | None = None,
@@ -607,7 +642,9 @@ def attest(conn: sqlite3.Connection, screen_extracted_id: int, field: str,
         raise ValueError(
             f"{attested_by!r} is not on the verifier list. Add the address to "
             f"VERIFIERS in {criteria.where('VERIFIERS')} before attesting.")
-    row = get_extracted(conn, screen_extracted_id)
+    # The published record when there is one, so a settle with no value sent
+    # vouches for what went out rather than the value it replaced.
+    row, _published = review_view(conn, screen_extracted_id)
     if row is None:
         raise ValueError(f"no screen_extracted row #{screen_extracted_id}")
     held = field_value(row, field) if value is None else str(value).strip()
@@ -652,8 +689,11 @@ def attestation_state(conn: sqlite3.Connection, screen_extracted_id: int) -> dic
     `stale` means the field has been edited since it was settled, so the
     confirmation is about a value the row no longer holds. The interface shows
     those as needing another look instead of leaving them ticked.
+
+    For a published project the comparison is with the published record, so a
+    settle on the value a correction replaced reads as stale, which it is.
     """
-    row = get_extracted(conn, screen_extracted_id)
+    row, _published = review_view(conn, screen_extracted_id)
     if row is None:
         return {}
     out = {}
@@ -672,4 +712,23 @@ def attestation_state(conn: sqlite3.Connection, screen_extracted_id: int) -> dic
             "by": a["attested_by"],
             "when": a["datetime"],
         }
+    return out
+
+
+def needs_resettle(conn: sqlite3.Connection) -> dict[int, list[str]]:
+    """{screen_id: [fields]} -- every project with a field to settle again.
+
+    Two kinds: a settle on a value the project no longer holds (stale), and a
+    "confirmed" on a field that records nothing was stated. Fields keep checklist
+    order, so the list reads the way the page does. The Screen list counts these
+    and filters to them; before it did, finding them took a query.
+    """
+    out: dict[int, list[str]] = {}
+    for (sid,) in conn.execute(
+            "SELECT DISTINCT screen_extracted_id FROM screen_attested ORDER BY 1"):
+        state = attestation_state(conn, sid)
+        fields = [f for f in ATTESTABLE_FIELDS
+                  if f in state and (state[f]["stale"] or state[f]["confirmed_absence"])]
+        if fields:
+            out[sid] = fields
     return out

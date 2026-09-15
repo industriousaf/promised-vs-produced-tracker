@@ -321,7 +321,10 @@ def _row_for(stage: str, row_id: int):
     try:
         if stage == "verify":
             return verify.get_verified(conn, row_id)
-        return screen.get_extracted(conn, row_id)
+        # A published project is checked for the values its inspect page shows,
+        # the published ones, the same record the pane marks. See
+        # screen.review_view.
+        return screen.review_view(conn, row_id)[0]
     finally:
         conn.close()
 

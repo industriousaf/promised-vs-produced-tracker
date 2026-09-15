@@ -102,7 +102,8 @@ screen when the button was pressed, including a correction the reviewer had just
 typed. It used to be the stored Screen value, and seven of the first eight
 corrections published a value nobody confirmed while this table said the old one
 had been. Edit a field after settling it and the tick comes off, so a
-confirmation refers to the value that goes out.
+confirmation refers to the value that goes out. Once a project is published,
+the inspect page shows the published record, and settles are compared with it.
 
 **`match_count` is what makes the record hard to wave away.** Nothing here proves
 anyone read anything, and the checkbox is trivially tickable. What the table
@@ -131,7 +132,8 @@ refused: it would say a page shows a value the field says does not exist. If the
 page does state it, the field is wrong. Enter the value, then confirm it.
 
 Settles recorded before this rule are shown for re-settling rather than
-rewritten, because the table is append-only.
+rewritten, because the table is append-only. The Screen list counts every field
+that needs one and can filter to them.
 
 The address comes from a list in `settings.py`, not a text box. A box accepts
 `asdf@asdf.com` as readily as a real address, so a typed identity is exactly as

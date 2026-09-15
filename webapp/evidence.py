@@ -1102,7 +1102,10 @@ def _row_for(stage: str, row_id: int):
     try:
         if stage == "verify":
             return verify.get_verified(conn, row_id)
-        return screen.get_extracted(conn, row_id)
+        # A published project's pane marks the published values, the ones the
+        # checklist beside it vouches for, while every address stays keyed to
+        # the Screen id. See screen.review_view.
+        return screen.review_view(conn, row_id)[0]
     finally:
         conn.close()
 

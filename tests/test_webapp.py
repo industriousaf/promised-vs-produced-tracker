@@ -1493,3 +1493,199 @@ class TestCorrectionsAreChecked(unittest.TestCase):
         accepts."""
         body = self.client.get(f"/screen/{self.sid}/inspect").text
         self.assertIn("<code>n/a</code> if no source states one", body)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestInspectShowsThePublishedRecord(unittest.TestCase):
+    """A published project's inspect page shows, marks and settles what went out.
+
+    It showed the Screen record, so a field corrected at verification could only
+    be settled against the value the correction replaced. It also still offered
+    the verify button, which on a published project can only fail.
+    """
+
+    WHO = "ashwin@industriousaf.org"
+    PAGE = "<html><body><p>The plant will create 2,300 jobs.</p></body></html>"
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource, verify as pverify
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        lead = psource.insert_lead(conn, promise_source="https://example.com/p",
+                                   status_source="https://example.com/s", summary="x")
+        self.sid = pscreen.insert_extracted(conn, {
+            "project": "Published Fab", "sector": "Semiconductors", "state": "TX",
+            "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+            "promised_jobs": 1500, "promised_first_output": "2024",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s", "verification_tier": "P"},
+            source_collected_id=lead)
+        pscreen.run_check(conn, self.sid)
+        self.vid = pverify.promote(conn, self.sid, verification_tier="V1",
+                                   flag="Resolved: checked.")
+        pverify.edit(conn, self.vid, {"promised_jobs": "2300"},
+                     edit_description="per the release")
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.client = TestClient(app)
+        self._fetch = ev.fetch
+        ev.fetch = lambda url, via="auto": {
+            "ok": True, "via": "live", "final_url": url, "html": self.PAGE}
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        ev.fetch = self._fetch
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _inspect(self) -> str:
+        return self.client.get(f"/screen/{self.sid}/inspect").text
+
+    def test_the_boxes_hold_the_published_values(self):
+        self.assertIn('name="promised_jobs" value="2300"', self._inspect())
+
+    def test_it_is_read_only_and_offers_no_second_publish(self):
+        body = self._inspect()
+        self.assertNotIn('id="verifybtn"', body)
+        self.assertIn('name="promised_jobs" value="2300" readonly', body)
+        self.assertNotIn('class="datekind"', body)
+
+    def test_corrections_are_sent_to_the_verify_page(self):
+        self.assertIn(f'href="/verify/{self.vid}"', self._inspect())
+
+    def test_the_pane_marks_the_published_value(self):
+        """2,300 is on the page and 1,500 is not, so a count of one means the
+        pane searched for what went out."""
+        self.client.get(f"/evidence/screen/{self.sid}?tab=0&field=promised_jobs")
+        self.assertEqual(1, ev.last_shown("screen", self.sid, "promised_jobs")["count"])
+
+    def test_the_model_check_is_asked_about_the_published_value(self):
+        """It read the Screen record, so on a corrected field the model was asked
+        whether the page carries the value the correction replaced."""
+        from webapp import agent as wa
+        self.assertEqual("2300", str(wa._row_for("screen", self.sid)["promised_jobs"]))
+
+    def test_a_settle_here_vouches_for_the_published_value(self):
+        from pipeline import db as pdb
+        self.client.get(f"/screen/{self.sid}/inspect?verifier={self.WHO}")
+        self.client.post(f"/screen/{self.sid}/attest",
+                         data={"field": "promised_jobs", "state": "confirmed"})
+        conn = pdb.connect(self.path)
+        try:
+            got = conn.execute("SELECT value_at_time FROM screen_attested").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual("2300", got)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestTheResettleFilter(unittest.TestCase):
+    """The Screen list counts the fields to settle again and filters to them.
+
+    Once the inspect page showed published values, a batch of fields needed a
+    re-settle, and nothing in the interface listed them: finding them took a query.
+    """
+
+    WHO = "ashwin@industriousaf.org"
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource, verify as pverify
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        base = {"sector": "Semiconductors", "state": "TX", "announced": "2022-01",
+                "promised_capital_usd": 5_000_000_000, "promised_jobs": 1500,
+                "promised_first_output": "2024", "actual_first_output": "pending",
+                "current_status": "UNDER CONSTRUCTION",
+                "promise_source": "https://example.com/p",
+                "status_source": "https://example.com/s", "verification_tier": "P"}
+        ids = {}
+        for name in ("Flagged Fab", "Quiet Fab"):
+            lead = psource.insert_lead(conn, promise_source=f"https://example.com/{name[0]}",
+                                       status_source="https://example.com/s", summary="x")
+            ids[name] = pscreen.insert_extracted(conn, dict(base, project=name),
+                                                 source_collected_id=lead)
+            pscreen.run_check(conn, ids[name])
+        self.flagged, self.quiet = ids["Flagged Fab"], ids["Quiet Fab"]
+        # Settled against 2024, then published with a correction, so the settle
+        # vouches for a value that did not go out.
+        pscreen.attest(conn, self.flagged, "promised_first_output", "confirmed",
+                       self.WHO, value="2024")
+        vid = pverify.promote(conn, self.flagged, verification_tier="V1",
+                              flag="Resolved: checked.")
+        pverify.edit(conn, vid, {"promised_first_output": "2025-Q4"},
+                     edit_description="per the release")
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _cards(self, body):
+        return [int(i) for i in re.findall(
+            r'href="/screen/(\d+)/inspect"><button type="button" class="primary">Inspect', body)]
+
+    def test_the_list_counts_them_and_links_to_the_filter(self):
+        body = self.client.get("/screen").text
+        self.assertIn("1 field(s) on 1 project(s) need a re-settle", body)
+        self.assertIn('href="/screen?resettle=1"', body)
+
+    def test_the_filter_shows_only_them_even_with_not_yet_verified_chosen(self):
+        """Nearly every project to re-settle is already verified, so the "not yet
+        verified" toggle would hide them all if the filter honoured it."""
+        body = self.client.get("/screen?resettle=1&show=pending").text
+        self.assertEqual([self.flagged], self._cards(body))
+
+    def test_a_flagged_card_names_its_fields_and_offers_the_resettle(self):
+        body = self.client.get("/screen?show=all").text
+        self.assertIn("re-settle: promised_first_output", body)
+        self.assertIn("Inspect &amp; re-settle", body)
+
+    def test_nothing_to_resettle_means_no_count_and_no_link(self):
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        conn.execute("DELETE FROM screen_attested")
+        conn.commit(); conn.close()
+        body = self.client.get("/screen").text
+        self.assertNotIn("need a re-settle", body)
+        self.assertNotIn("resettle=1", body)
+
+    def test_a_blocked_project_is_left_out_of_the_worklist(self):
+        """A failing check means it cannot be verified, so re-settling it changes
+        nothing a reader sees. Gulf Coast Growth Ventures was the case that showed
+        this: blocked below the size floor, carrying a confirmed empty capital."""
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        from pipeline.db import now_iso
+        conn = pdb.connect(self.path)
+        lead = psource.insert_lead(conn, promise_source="https://example.com/b",
+                                   status_source="https://example.com/s", summary="x")
+        blocked = pscreen.insert_extracted(conn, {
+            "project": "Blocked Fab", "sector": "Semiconductors", "state": "TX",
+            "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+            "promised_jobs": 1500, "promised_first_output": "2024",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "promise_source": "https://example.com/b",
+            "status_source": "https://example.com/s",
+            "promised_date_source": "not-a-url", "verification_tier": "P"},
+            source_collected_id=lead)
+        pscreen.run_check(conn, blocked)
+        conn.execute(
+            "INSERT INTO screen_attested (datetime, screen_extracted_id, field, state, "
+            "value_at_time, attested_by) VALUES (?, ?, 'promised_jobs', 'confirmed', '', ?)",
+            (now_iso(), blocked, self.WHO))
+        conn.commit(); conn.close()
+        self.assertIn("1 field(s) on 1 project(s) need a re-settle",
+                      self.client.get("/screen").text)
+        self.assertEqual([self.flagged],
+                         self._cards(self.client.get("/screen?resettle=1").text))

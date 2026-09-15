@@ -399,6 +399,10 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 select.datekind { margin: .15rem 0 .3rem; }
 select.datekind + input[hidden] { display: none !important; }
 
+/* The fields a card still needs settled again. Terracotta, like a stale tick:
+   not wrong, but asking for another look. */
+.card small.resettle { color: var(--terracotta); }
+
 /* Who is attesting. Never folded away and never a text box -- a record naming
    the wrong person is worse than no record, and the one defence available on a
    page with no sign-in is that the name stays in front of you while you tick. */

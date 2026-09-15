@@ -54,7 +54,7 @@ router = APIRouter()
 
 @router.get("/screen", response_class=HTMLResponse)
 def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str] = None,
-                verdict: Optional[str] = None):
+                verdict: Optional[str] = None, resettle: Optional[str] = None):
     conn = _conn()
     try:
         # Largest capital first, the order review_queue uses, because the
@@ -67,13 +67,23 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         all_rows = screen.list_extracted(conn, by_capital=True)
         promoted = _downstream_map(conn, "verify_verified", "screen_extracted_id")
         queue = screen.review_queue(conn)
+        # Blocked projects are left out. A failing check means they cannot be
+        # verified, so re-settling one changes nothing a reader sees. Once a fix
+        # makes one verifiable it leaves `blocked`, and its fields reappear here.
+        blocked = {b["id"] for b in queue["blocked"]}
+        flagged = {sid: fields for sid, fields in screen.needs_resettle(conn).items()
+                   if sid not in blocked}
 
         n_done = sum(1 for r in all_rows if r["id"] in promoted)
         n_pending = len(all_rows) - n_done
         # Resolved after the counts, so a drained queue falls back to "all"
         # rather than rendering an empty list under a toggle reading (0).
         show = _resolve_show(request, "/screen", show, n_pending)
-        staged = [r for r in all_rows if _keep(r["id"], promoted, show)]
+        # ?resettle= narrows to projects with a field to settle again, whatever
+        # the stage toggle remembers. Almost all of them are already verified, so
+        # a remembered "not yet verified" would otherwise hide every one.
+        staged = ([r for r in all_rows if r["id"] in flagged] if resettle
+                  else [r for r in all_rows if _keep(r["id"], promoted, show)])
         # Every row's verdict, before the verdict filter narrows the list, so
         # the legend below can state the whole distribution.
         all_checks = {r["id"]: screen.latest_check(conn, r["id"]) for r in staged}
@@ -97,7 +107,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
     rows = [r for r in staged if _v(r["id"]) == verdict] if verdict else staged
     checks = all_checks
 
-    toggle = _stage_toggle("/screen", show, {
+    toggle = _stage_toggle("/screen", "" if resettle else show, {
         "all": f"All ({len(all_rows)})",
         "pending": f"Not yet verified ({n_pending})",
         "done": f"Verified ({n_done})",
@@ -138,12 +148,18 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
             f'<button type="submit">Run check</button></form>')
         # Promotion now lives INSIDE the per-row inspect page (so you can review
         # every extracted field first) -- the list just links there.
+        fix = flagged.get(r["id"])
+        # A flagged card says which fields and offers the re-settle, so the list
+        # is itself the worklist rather than a count pointing somewhere else.
+        action = "Inspect &amp; re-settle →" if fix else "Inspect &amp; verify →"
+        fix_note = (f'<br><small class="resettle">re-settle: {esc(", ".join(fix))}</small>'
+                    if fix else "")
         return f"""<div class="card"><b>#{r['id']}</b> {esc(r['project'])}
           <small>({esc(r['sector'])}, {esc(r['state'])})</small>
           {_lineage_pill(r['id'], promoted, "Verify", "not verified yet")}
           check: {_verdict_span(verdict, chk)}
           {check_btn}
-          <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">Inspect &amp; verify →</button></a>
+          <a href="/screen/{r['id']}/inspect"><button type="button" class="primary">{action}</button></a>{fix_note}
           <br><small>{esc(r['current_status'])}</small>
           {"<br><small>flag: " + esc(r['flag']) + "</small>" if r['flag'] else ""}
         </div>"""
@@ -182,6 +198,22 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         lede = ("<p>Nothing is waiting: every project has been through the human "
                 "gate. <a href=\"/verify\">See the Tracker</a>.</p>")
 
+    if flagged:
+        n_fields = sum(len(v) for v in flagged.values())
+        lede += (f'<p><b>{n_fields} field(s) on {len(flagged)} project(s) need a '
+                 f're-settle.</b> Each was settled against a value the project no '
+                 f'longer holds, or confirmed a field that has no value. '
+                 f'<a href="/screen?resettle=1">Show them</a>.</p>')
+    resettle_note = ""
+    if resettle:
+        resettle_note = (
+            '<p class="msg">Showing only projects with a field to settle again. '
+            'Each page marks the field, and settling it again fixes the record. '
+            '<a href="/screen">Show all projects</a>.</p>'
+            if flagged else
+            '<p class="msg">Nothing needs a re-settle. '
+            '<a href="/screen">Show all projects</a>.</p>')
+
     body = f"""
 <h2>Review queue</h2>
 <div class="card">{lede}
@@ -189,6 +221,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
 <code>python3 tracker.py review</code></small></p></div>
 
 <h2>Projects ({len(rows)} of {len(all_rows)})</h2>
+{resettle_note}
 {toggle}
 {legend}
 {items}
@@ -895,9 +928,14 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
                    verifier: Optional[str] = None, verified: Optional[int] = None):
     conn = _conn()
     try:
-        r = screen.get_extracted(conn, screen_id)
-        if r is None:
+        screen_row = screen.get_extracted(conn, screen_id)
+        if screen_row is None:
             return _page("Screen inspect", "<p>No project with that id.</p>", "Not found")
+        # For a published project `r` is the published record under the Screen
+        # id, so the boxes, the pane and the checklist all show what went out.
+        # The check panel keeps `screen_row`: it reports what the checker tested,
+        # and that was the Screen record.
+        r, published_id = screen.review_view(conn, screen_id)
         chk = screen.latest_check(conn, screen_id)
         attested = screen.attestation_state(conn, screen_id)
         # The tab each confirmation was settled against. attestation_state
@@ -939,6 +977,25 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
     verdict = chk["result_status"] if chk else None
     promotable = verdict in ("PASS", "CLEAN")
 
+    # Published: the fields hold the published values and are read-only here.
+    # A published record has one place to be corrected, its Verify page, which
+    # logs every change with a reason. A second edit path on this page would be
+    # a second set of rules to keep in step with the first.
+    lock = " readonly" if published_id else ""
+    sel_lock = " disabled" if published_id else ""
+    if published_id:
+        intro = (f'<p>Published as <a href="/verify/{published_id}">Verify '
+                 f'#{published_id}</a>. These are the published values, so settling '
+                 f'a field vouches for what went out. To correct one, edit it on its '
+                 f'<a href="/verify/{published_id}">Verify page</a>, then settle it '
+                 f'again here.</p>')
+    else:
+        intro = ("<p>Confirm every field against the pane, then verify. Any field "
+                 "you change is applied to the project's new Verify row and logged "
+                 "in <code>verify_edits</code>. <b>lag_years / slip_years and the "
+                 "<code>*_dt</code> columns are derived</b> from the date strings "
+                 "and recompute when you edit a date.</p>")
+
     def _field(c: str) -> str:
         hint = FIELD_HINTS.get(c, "")
         hint_html = f' <small>{hint}</small>' if hint else ""
@@ -954,9 +1011,11 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
                 for o in sorted(opts)
             )
             return (f"""<div><label>sector</label>
-        <select name="sector">{options}</select></div>""")
+        <select name="sector"{sel_lock}>{options}</select></div>""")
+        # No picker on a published project: there is nothing to choose here.
+        picker = "" if published_id else date_kind_select(c, r[c])
         return (f"""<div><label>{esc(c)}{hint_html}</label>
-        {date_kind_select(c, r[c])}<input type="text" name="{esc(c)}" value="{esc(r[c])}">{_check_strip(c, r['id'], ftabs)}</div>""")
+        {picker}<input type="text" name="{esc(c)}" value="{esc(r[c])}"{lock}>{_check_strip(c, r['id'], ftabs)}</div>""")
 
     ftabs = evidence.field_tabs(r)
     fields = "".join(_field(c) for c in INSPECT_COLUMNS)
@@ -976,7 +1035,13 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
         for c in RAW_DATE_COLUMNS
     )
 
-    if promotable:
+    if published_id:
+        # Already published, so the verify button could only fail on a second
+        # write. Corrections go to the Verify page, as `intro` says.
+        promote_controls = (f'<p class="tiernote">Already published. '
+                            f'<a href="/verify/{published_id}">Open Verify '
+                            f'#{published_id}</a> to correct a value.</p>')
+    elif promotable:
         # No tier picker, for the reason spelled out in cmd_review: this page
         # shows the promised side and the produced side, two halves of one
         # not two readings of one claim, so V2 was never answerable from what
@@ -1022,7 +1087,7 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
     <input type="hidden" name="screen_id" value="{r['id']}">
     <button type="submit">Re-check</button></form>
   {check_note}
-  {_check_panel(r, chk)}
+  {_check_panel(screen_row, chk)}
 </div>
 
 <div class="review">
@@ -1033,10 +1098,7 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
   <div class="formcol">
     <div class="card">
       {just_published}
-      <p>Confirm every field against the pane, then verify. Any field you change
-      is applied to the project's new Verify row and logged in <code>verify_edits</code>.
-      <b>lag_years / slip_years and the <code>*_dt</code> columns are derived</b>
-      from the date strings and recompute when you edit a date.</p>
+      {intro}
       <div class="cktally-wrap"><span id="cktally" class="cktally"></span>
       <span id="ckleft" class="cktally-left"></span><span id="ckerr" class="ckerr"></span><button type="button" id="ckwalk" class="ckwalk" hidden>start checking \u2192</button><button type="button" id="ckgo" class="ckgo" hidden>verify this project \u2192</button></div>
       {_verifier_bar(request, who, r['id'])}
@@ -1109,7 +1171,9 @@ async def screen_attest(screen_id: int, request: Request):
         # partitioning was the only thing keeping those apart, and it is not a
         # guard -- it holds during a walk and not after a restart, when the shown
         # map is empty and the browser still remembers opening the field.
-        src = screen.get_extracted(conn, screen_id)
+        # Tabs come from the record the pane showed: the published one, once
+        # there is one. See screen.review_view.
+        src = screen.review_view(conn, screen_id)[0]
         if state == "confirmed" and evidence.settled_off_side(src, shown.get("tab"), field):
             return bad(f"{field} can only be confirmed against its own source. "
                        f"Open “find in source” and read the "

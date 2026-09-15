@@ -1509,3 +1509,83 @@ class TestCorrectionsMeetTheChecker(Base):
         self.assertNotEqual(0, r.returncode)
         self.assertIn("not saved", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
+
+
+# --------------------------------------------------------------------------- #
+class TestSettlesFollowThePublishedRecord(Base):
+    """Once a project is published, the checklist vouches for the published record.
+
+    The inspect page of a published project showed the Screen record, which is
+    what the extractor wrote, not what went out. A correction made at
+    verification reaches only the published record, so a corrected field could be
+    settled only against the value it replaced, and a settle on that value never
+    read as stale, because staleness was compared with Screen too.
+    """
+
+    WHO = "ashwin@industriousaf.org"
+
+    def setUp(self):
+        super().setUp()
+        self.sid = screen.insert_extracted(self.conn, a_row(), source_collected_id=self.lead())
+        screen.run_check(self.conn, self.sid)
+
+    def _publish_with_correction(self) -> int:
+        vid = verify.promote(self.conn, self.sid, verification_tier="V1",
+                             flag="Resolved: checked.")
+        verify.edit(self.conn, vid, {"promised_first_output": "2025-Q4"},
+                    edit_description="per the release")
+        return vid
+
+    def test_an_unpublished_project_is_seen_as_its_screen_record(self):
+        view, vid = screen.review_view(self.conn, self.sid)
+        self.assertIsNone(vid)
+        self.assertEqual("2024", view["promised_first_output"])
+
+    def test_a_published_project_is_seen_as_what_went_out_under_its_screen_id(self):
+        vid = self._publish_with_correction()
+        view, got = screen.review_view(self.conn, self.sid)
+        self.assertEqual(vid, got)
+        self.assertEqual("2025-Q4", view["promised_first_output"])
+        self.assertEqual(self.sid, view["id"], "every screen-keyed address depends on this")
+        self.assertEqual("2024", screen.get_extracted(self.conn, self.sid)["promised_first_output"],
+                         "the Screen record itself is untouched")
+
+    def test_a_settle_on_the_replaced_value_is_stale_once_published(self):
+        """The defect this pins: Chobani read "confirmed 2027" while its
+        published value was n/a, and nothing showed it."""
+        screen.attest(self.conn, self.sid, "promised_first_output", "confirmed",
+                      self.WHO, value="2024")
+        self.assertFalse(screen.attestation_state(
+            self.conn, self.sid)["promised_first_output"]["stale"])
+        self._publish_with_correction()
+        self.assertTrue(screen.attestation_state(
+            self.conn, self.sid)["promised_first_output"]["stale"])
+
+    def test_a_settle_with_no_value_sent_vouches_for_the_published_value(self):
+        self._publish_with_correction()
+        screen.attest(self.conn, self.sid, "promised_first_output", "confirmed", self.WHO)
+        self.assertEqual("2025-Q4", self.conn.execute(
+            "SELECT value_at_time FROM screen_attested").fetchone()["value_at_time"])
+
+    def test_needs_resettle_names_both_kinds_and_nothing_else(self):
+        """The Screen list's filter asks this, so it has to catch a settle on a
+        value that did not go out and a confirmed empty field, and leave a sound
+        settle alone."""
+        other = screen.insert_extracted(self.conn, a_row(project="Settled Fab"),
+                                        source_collected_id=self.lead())
+        screen.run_check(self.conn, other)
+        screen.attest(self.conn, other, "promised_jobs", "confirmed", self.WHO, value="1500")
+        self.assertEqual({}, screen.needs_resettle(self.conn))
+
+        screen.attest(self.conn, self.sid, "promised_first_output", "confirmed",
+                      self.WHO, value="2024")
+        self._publish_with_correction()
+        from pipeline.db import now_iso
+        self.conn.execute(
+            "INSERT INTO screen_attested (datetime, screen_extracted_id, field, state, "
+            "value_at_time, attested_by) VALUES (?, ?, 'promised_capital_usd', "
+            "'confirmed', '', ?)", (now_iso(), other, self.WHO))
+        self.conn.commit()
+        self.assertEqual({self.sid: ["promised_first_output"],
+                          other: ["promised_capital_usd"]},
+                         screen.needs_resettle(self.conn))
