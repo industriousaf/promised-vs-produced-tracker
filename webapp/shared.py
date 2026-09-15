@@ -382,6 +382,8 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
    nothing is wrong, the value simply moved after someone vouched for it, and
    the only thing being asked for is another look. */
 .ck.is-stale .ck-state { color: var(--terracotta); }
+/* Settled by someone else: their name is shown, and the field is still yours to settle. */
+.ck.is-other .ck-state { color: var(--terracotta); }
 
 /* A confirmation recorded against a page the cell cannot be proved from --
    the produced side of the row for a promised value, or the other way about.

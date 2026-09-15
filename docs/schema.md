@@ -150,6 +150,11 @@ browser has been set to someone else since, for example in another tab. Before
 these guards, 142 of Lucas's settles from 14 September 2026 were stored under
 Ashwin's address. They were corrected in place.
 
+The checklist ticks a field only when the latest settle on it is yours. A field
+someone else settled shows their name and the date, and stays open until you
+settle it. Before this, Ashwin's settles from 11 September showed as done when
+Lucas opened #1 and #5, so he published seven fields he never settled himself.
+
 It does not gate promotion. The command line has no such gate, so blocking one
 of two doors would imply a stronger claim than the data supports.
 

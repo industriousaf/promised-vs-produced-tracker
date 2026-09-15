@@ -484,6 +484,8 @@ _CHECKLIST_JS = """
   // lives in screen_attested and arrives in ATTESTED.
   var KEY = 'pvp-ck-' + ROW_ID;
   var offside = {};
+  // Settles someone else made, by field. Shown beside the field, not counted.
+  var other = {};
   var absenceTick = {}, settledValue = {};
   var state = {}, looked = {}, stale = {}, walking = false, armed = false;
 
@@ -496,6 +498,12 @@ _CHECKLIST_JS = """
   // holds. The label says so rather than silently emptying the tick.
   Object.keys(ATTESTED || {}).forEach(function (f) {
     var a = ATTESTED[f];
+    // A settle counts here only if it is yours. Someone else's shows their name
+    // and leaves the field open, so whoever verifies a project settles every
+    // field of it themselves. Ashwin's settles from 11 September showed as done
+    // when Lucas opened #1 and #5, so he published seven fields he never
+    // settled, and pressing "confirmed" on a field already showing it did nothing.
+    if (a.by !== VERIFIER) { other[f] = a; return; }
     if (a.stale) { stale[f] = 1; return; }
     // Settled against a page this cell cannot be proved from -- the produced
     // side of the row for a promised value, or the other way about. The tick is
@@ -558,7 +566,7 @@ _CHECKLIST_JS = """
         });
       })
       .then(function (d) {
-        if (d && d.ok) { delete stale[cell]; delete offside[cell]; delete absenceTick[cell]; settledValue[cell] = sent; note(''); paint(); return; }
+        if (d && d.ok) { delete stale[cell]; delete offside[cell]; delete absenceTick[cell]; delete other[cell]; settledValue[cell] = sent; note(''); paint(); return; }
         undo((d && d.error) || 'That confirmation was not recorded.');
       })
       .catch(function () {
@@ -621,7 +629,13 @@ _CHECKLIST_JS = """
                       : stale[cell] ? 'changed since it was confirmed \u2014 look again'
                       : offside[cell] ? 'confirmed against the wrong source — read '
                                         + ((ATTESTED[cell] || {}).wanted || 'its own source')
-                      : absenceTick[cell] ? 'confirmed, but it holds no value: settle it as not in this source' : (absent && looked[cell]) ? 'holds no value, so there is nothing to confirm' : looked[cell] ? 'opened, not settled' : '';
+                      : absenceTick[cell] ? 'confirmed, but it holds no value: settle it as not in this source'
+                      : other[cell] ? ('settled by ' + other[cell].by + ' on '
+                                       + String(other[cell].when || '').slice(0, 10)
+                                       + (other[cell].stale ? ', since changed' : '')
+                                       + ' — settle it yourself')
+                      : (absent && looked[cell]) ? 'holds no value, so there is nothing to confirm' : looked[cell] ? 'opened, not settled' : '';
+      s.classList.toggle('is-other', !v && !!other[cell]);
       s.classList.toggle('is-stale', !v && !!stale[cell]);
       s.classList.toggle('is-offside', !v && !!offside[cell]);
       s.classList.toggle('is-absence', !v && !!absenceTick[cell]);

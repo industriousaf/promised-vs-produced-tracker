@@ -1306,6 +1306,21 @@ class TestAttestRoute(unittest.TestCase):
         self.assertEqual(400, r.status_code)
         self.assertEqual([], self._stored())
 
+    def test_someone_elses_settle_leaves_the_field_open_for_you(self):
+        """Ashwin's settles from 11 September showed as done when Lucas opened
+        #1 and #5, so he published seven fields he never settled, and pressing
+        "confirmed" on a field already showing it did nothing."""
+        from pipeline import settings
+        other = next(p for p in settings.verifiers() if p != self.WHO)
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": other})
+        self.assertEqual(200, self._attest(**{"as": other}).status_code)
+        self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn(f'"by": "{other}"', body)
+        self.assertIn("if (a.by !== VERIFIER) { other[f] = a; return; }", body)
+        self.assertEqual(200, self._attest().status_code)
+        self.assertEqual([other, self.WHO], [r["attested_by"] for r in self._stored()])
+
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestProjectName(unittest.TestCase):
