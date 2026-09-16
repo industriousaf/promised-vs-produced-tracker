@@ -533,3 +533,189 @@ id,datetime,screen_extracted_id,field,state,value_at_time,source_url,tab_index,m
 532,2026-09-15T23:45:27Z,94,promised_first_output,not_in_source,n/a,https://www.intc.com/news-events/press-releases/detail/1464/intel-to-invest-3-5-billion-to-expand-new-mexico,0,2,lucas@industriousaf.org
 533,2026-09-15T23:46:15Z,94,actual_first_output,confirmed,2024-01,https://www.intc.com/news-events/press-releases/detail/1670/intel-opens-fab-9-in-new-mexico,1,2,lucas@industriousaf.org
 534,2026-09-15T23:48:05Z,112,actual_first_output,confirmed,2025-11,https://www.redwoodmaterials.com/news/redwood-begins-critical-materials-recovery-in-south-carolina/,1,2,lucas@industriousaf.org
+535,2026-09-16T20:35:36Z,76,announced,confirmed,2022-11,https://tnecd.com/news/governor-lee-commissioner-mcwhorter-announce-lg-chem-to-invest-more-than-3-billion-to-establish-manufacturing-operations-in-clarksville/,0,1,lucas@industriousaf.org
+536,2026-09-16T20:35:38Z,76,promised_capital_usd,confirmed,3200000000,https://tnecd.com/news/governor-lee-commissioner-mcwhorter-announce-lg-chem-to-invest-more-than-3-billion-to-establish-manufacturing-operations-in-clarksville/,0,4,lucas@industriousaf.org
+537,2026-09-16T20:35:40Z,76,promised_jobs,confirmed,860,https://tnecd.com/news/governor-lee-commissioner-mcwhorter-announce-lg-chem-to-invest-more-than-3-billion-to-establish-manufacturing-operations-in-clarksville/,0,1,lucas@industriousaf.org
+538,2026-09-16T20:35:44Z,76,promised_first_output,confirmed,2025 (second half),https://tnecd.com/news/governor-lee-commissioner-mcwhorter-announce-lg-chem-to-invest-more-than-3-billion-to-establish-manufacturing-operations-in-clarksville/,0,1,lucas@industriousaf.org
+539,2026-09-16T20:36:53Z,108,announced,confirmed,2019-04,,,,lucas@industriousaf.org
+540,2026-09-16T20:36:57Z,108,promised_capital_usd,confirmed,3100000000,,,,lucas@industriousaf.org
+541,2026-09-16T20:37:04Z,108,promised_jobs,confirmed,488,,,,lucas@industriousaf.org
+542,2026-09-16T20:37:30Z,108,actual_first_output,confirmed,2022-09,https://www.ti.com/about-ti/manufacturing/richardson.html,1,3,lucas@industriousaf.org
+543,2026-09-16T20:37:40Z,108,current_status,confirmed,IN PRODUCTION; both RFAB1 and RFAB2 ramping to full volume,https://www.ti.com/about-ti/manufacturing/richardson.html,1,2,lucas@industriousaf.org
+544,2026-09-16T20:38:31Z,148,promised_capital_usd,confirmed,3100000000,https://www.opportunitylouisiana.gov/news/dg-fuels-proposes-3-1-billion-sustainable-aviation-fuel-complex-in-st-james-parish,0,2,lucas@industriousaf.org
+545,2026-09-16T20:38:34Z,148,announced,confirmed,2023-03,https://www.opportunitylouisiana.gov/news/dg-fuels-proposes-3-1-billion-sustainable-aviation-fuel-complex-in-st-james-parish,0,2,lucas@industriousaf.org
+546,2026-09-16T20:38:37Z,148,promised_jobs,confirmed,1055,https://www.opportunitylouisiana.gov/news/dg-fuels-proposes-3-1-billion-sustainable-aviation-fuel-complex-in-st-james-parish,0,1,lucas@industriousaf.org
+547,2026-09-16T20:39:46Z,148,current_status,confirmed,"PRE-CONSTRUCTION; pre-FEED, final investment decision targeted Q3 2026",https://dgfuels.com/2025/11/10/dg-fuels-appoints-samsung-ea-as-contractor-for-saf-project-in-st-james/,1,0,lucas@industriousaf.org
+548,2026-09-16T20:39:47Z,148,actual_first_output,confirmed,pending,https://dgfuels.com/2025/11/10/dg-fuels-appoints-samsung-ea-as-contractor-for-saf-project-in-st-james/,1,1,lucas@industriousaf.org
+549,2026-09-16T20:42:10Z,86,announced,confirmed,2018-08,https://web.archive.org/web/20210507185954id_/https://investors.micron.com/news-releases/news-release-details/micron-announces-investment-its-semiconductor-manufacturing,0,3,lucas@industriousaf.org
+550,2026-09-16T20:42:14Z,86,promised_capital_usd,confirmed,3000000000,https://web.archive.org/web/20210507185954id_/https://investors.micron.com/news-releases/news-release-details/micron-announces-investment-its-semiconductor-manufacturing,0,2,lucas@industriousaf.org
+551,2026-09-16T20:42:18Z,86,promised_jobs,confirmed,1100,https://web.archive.org/web/20210507185954id_/https://investors.micron.com/news-releases/news-release-details/micron-announces-investment-its-semiconductor-manufacturing,0,2,lucas@industriousaf.org
+552,2026-09-16T20:42:24Z,86,promised_first_output,confirmed,2020 (first half),https://web.archive.org/web/20210507185954id_/https://investors.micron.com/news-releases/news-release-details/micron-announces-investment-its-semiconductor-manufacturing,0,1,lucas@industriousaf.org
+553,2026-09-16T20:42:51Z,86,current_status,confirmed,"PRODUCING; began 1-alpha (1a) DRAM production at Manassas May 2026 (billed as most advanced memory made in the U.S.); ~3,100 direct jobs",,,,lucas@industriousaf.org
+554,2026-09-16T20:43:43Z,76,actual_first_output,confirmed,pending,https://www.kedglobal.com/batteries/newsView/ked202312200013,2,1,lucas@industriousaf.org
+555,2026-09-16T20:44:03Z,76,current_status,confirmed,"UNDER CONSTRUCTION; groundbreaking Dec 19, 2023; mass production now targeted 2026",https://www.kedglobal.com/batteries/newsView/ked202312200013,2,3,lucas@industriousaf.org
+556,2026-09-16T20:45:01Z,108,promised_first_output,not_in_source,n/a,https://communityimpact.com/richardson/texas-instruments-commits-to-3-1-billion-north-richardson-expansion-project/,0,2,lucas@industriousaf.org
+557,2026-09-16T20:45:39Z,148,promised_first_output,not_in_source,n/a,https://www.opportunitylouisiana.gov/news/dg-fuels-proposes-3-1-billion-sustainable-aviation-fuel-complex-in-st-james-parish,0,2,lucas@industriousaf.org
+558,2026-09-16T20:46:23Z,88,announced,confirmed,2023-04,,,,lucas@industriousaf.org
+559,2026-09-16T20:46:27Z,88,promised_capital_usd,confirmed,3000000000,,,,lucas@industriousaf.org
+560,2026-09-16T20:46:40Z,88,promised_jobs,not_in_source,,,,,lucas@industriousaf.org
+561,2026-09-16T20:46:52Z,88,promised_first_output,confirmed,2026,,,,lucas@industriousaf.org
+562,2026-09-16T20:47:22Z,88,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+563,2026-09-16T20:47:23Z,88,current_status,confirmed,NOT YET OPERATIONAL; mass production delayed from 2026 to 2027; Samsung SDI acquired GM's stake for full ownership,,,,lucas@industriousaf.org
+564,2026-09-16T20:47:49Z,121,promised_capital_usd,confirmed,3000000000,,,,lucas@industriousaf.org
+565,2026-09-16T20:47:54Z,121,announced,confirmed,2024-12,,,,lucas@industriousaf.org
+566,2026-09-16T20:48:01Z,121,promised_jobs,confirmed,750,,,,lucas@industriousaf.org
+567,2026-09-16T20:50:08Z,86,actual_first_output,confirmed,2026-05,https://www.potomaclocal.com/2026/05/25/most-advanced-memory-chip-ever-made-in-usa-now-in-production-at-micron-manassas/,1,1,lucas@industriousaf.org
+568,2026-09-16T20:51:15Z,135,promised_capital_usd,confirmed,3000000000,https://web.archive.org/web/20251020195434id_/https://www.merck.com/news/merck-breaks-ground-on-3-billion-center-of-excellence-for-pharmaceutical-manufacturing-in-elkton-virginia/,0,5,lucas@industriousaf.org
+569,2026-09-16T20:51:17Z,135,announced,confirmed,2025-10,https://web.archive.org/web/20251020195434id_/https://www.merck.com/news/merck-breaks-ground-on-3-billion-center-of-excellence-for-pharmaceutical-manufacturing-in-elkton-virginia/,0,4,lucas@industriousaf.org
+570,2026-09-16T20:51:20Z,135,promised_jobs,confirmed,500,https://web.archive.org/web/20251020195434id_/https://www.merck.com/news/merck-breaks-ground-on-3-billion-center-of-excellence-for-pharmaceutical-manufacturing-in-elkton-virginia/,0,2,lucas@industriousaf.org
+571,2026-09-16T20:51:25Z,135,promised_first_output,confirmed,2029,https://web.archive.org/web/20251020195434id_/https://www.merck.com/news/merck-breaks-ground-on-3-billion-center-of-excellence-for-pharmaceutical-manufacturing-in-elkton-virginia/,0,1,lucas@industriousaf.org
+572,2026-09-16T20:52:19Z,136,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+573,2026-09-16T20:52:27Z,136,promised_first_output,confirmed,2028,,,,lucas@industriousaf.org
+574,2026-09-16T20:52:40Z,136,announced,confirmed,2026-07,,,,lucas@industriousaf.org
+575,2026-09-16T20:52:47Z,136,promised_capital_usd,confirmed,3000000000,,,,lucas@industriousaf.org
+576,2026-09-16T20:52:52Z,136,promised_jobs,confirmed,10000,,,,lucas@industriousaf.org
+577,2026-09-16T20:53:17Z,136,current_status,confirmed,"SITE SELECTED; construction not yet begun (anticipated 2026), operations targeted 2028",https://www.navalnews.com/naval-news/2026/07/saronic-port-alpha-shipyard-texas-autonomous-naval-vessels/,1,0,lucas@industriousaf.org
+578,2026-09-16T20:53:59Z,121,current_status,confirmed,"UNDER CONSTRUCTION; Village of Pleasant Prairie site/operations plan approved March 17, 2025; operations targeted March 2026, no production yet",https://constructionreviewonline.com/pleasant-prairie-approves-eli-lillys-multibillion-dollar-expansion-plan/,1,1,lucas@industriousaf.org
+579,2026-09-16T20:54:33Z,121,promised_first_output,not_in_source,2026-03,https://web.archive.org/web/20241206140057id_/https://investor.lilly.com/news-releases/news-release-details/lilly-announces-3-billion-expansion-its-recently-acquired,0,0,lucas@industriousaf.org
+580,2026-09-16T20:54:37Z,121,promised_first_output,not_in_source,n/a,https://web.archive.org/web/20241206140057id_/https://investor.lilly.com/news-releases/news-release-details/lilly-announces-3-billion-expansion-its-recently-acquired,0,0,lucas@industriousaf.org
+581,2026-09-16T20:56:40Z,121,actual_first_output,confirmed,pending,https://constructionreviewonline.com/pleasant-prairie-approves-eli-lillys-multibillion-dollar-expansion-plan/,1,3,lucas@industriousaf.org
+582,2026-09-16T20:57:18Z,135,current_status,confirmed,"UNDER CONSTRUCTION; groundbreaking Oct 2025, completion targeted 2029; not yet producing",,,,lucas@industriousaf.org
+583,2026-09-16T20:57:42Z,135,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+584,2026-09-16T20:57:59Z,93,promised_capital_usd,confirmed,2600000000,https://inside.lgensol.com/en/2022/01/gm-and-lg-energy-solution-investing-2-6-billion-to-build-3rd-ultium-cells-manufacturing-plant-in-lansing/,0,2,lucas@industriousaf.org
+585,2026-09-16T20:58:01Z,93,announced,confirmed,2022-01,https://inside.lgensol.com/en/2022/01/gm-and-lg-energy-solution-investing-2-6-billion-to-build-3rd-ultium-cells-manufacturing-plant-in-lansing/,0,1,lucas@industriousaf.org
+586,2026-09-16T20:58:07Z,93,promised_jobs,confirmed,1700,https://inside.lgensol.com/en/2022/01/gm-and-lg-energy-solution-investing-2-6-billion-to-build-3rd-ultium-cells-manufacturing-plant-in-lansing/,0,2,lucas@industriousaf.org
+587,2026-09-16T20:58:11Z,93,promised_first_output,confirmed,2024 (late),https://inside.lgensol.com/en/2022/01/gm-and-lg-energy-solution-investing-2-6-billion-to-build-3rd-ultium-cells-manufacturing-plant-in-lansing/,0,1,lucas@industriousaf.org
+588,2026-09-16T20:58:25Z,93,actual_first_output,confirmed,2026-08-18,https://news.lgensol.com/company-news/press-releases/5163/,1,10,lucas@industriousaf.org
+589,2026-09-16T20:58:54Z,93,current_status,confirmed,"PRODUCING; start of production Aug 18, 2026, ~900 employees ramping toward 1,700",https://news.lgensol.com/company-news/press-releases/5163/,1,3,lucas@industriousaf.org
+590,2026-09-16T20:59:28Z,127,announced,confirmed,2023-03,,,,lucas@industriousaf.org
+591,2026-09-16T20:59:35Z,127,promised_capital_usd,confirmed,2600000000,,,,lucas@industriousaf.org
+592,2026-09-16T21:00:02Z,127,promised_first_output,confirmed,2027,https://www.prnewswire.com/news-releases/yara-and-enbridge-to-develop-and-construct-a-low-carbon-blue-ammonia-project-at-enbridge-ingleside-energy-center-301786710.html,0,2,lucas@industriousaf.org
+593,2026-09-16T21:01:14Z,127,current_status,confirmed,"IN PERMITTING; no FID or construction start (Nov 2025 special use permit first reading passed 4-2, second reading set Dec 9, 2025)",,,,lucas@industriousaf.org
+594,2026-09-16T21:01:33Z,127,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+595,2026-09-16T21:01:41Z,127,promised_jobs,not_in_source,200,https://www.prnewswire.com/news-releases/yara-and-enbridge-to-develop-and-construct-a-low-carbon-blue-ammonia-project-at-enbridge-ingleside-energy-center-301786710.html,0,0,lucas@industriousaf.org
+596,2026-09-16T21:01:45Z,127,promised_jobs,not_in_source,,https://www.prnewswire.com/news-releases/yara-and-enbridge-to-develop-and-construct-a-low-carbon-blue-ammonia-project-at-enbridge-ingleside-energy-center-301786710.html,0,0,lucas@industriousaf.org
+597,2026-09-16T21:02:43Z,138,announced,confirmed,2026-06,,,,lucas@industriousaf.org
+598,2026-09-16T21:02:48Z,138,promised_capital_usd,confirmed,2500000000,,,,lucas@industriousaf.org
+599,2026-09-16T21:03:12Z,138,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+600,2026-09-16T21:03:53Z,138,current_status,confirmed,PLANNING; pre-construction — hot strip mill not yet under construction (as of July 2026),,,,lucas@industriousaf.org
+601,2026-09-16T21:04:19Z,75,announced,confirmed,2021-04,,,,lucas@industriousaf.org
+602,2026-09-16T21:04:23Z,75,promised_capital_usd,confirmed,2300000000,,,,lucas@industriousaf.org
+603,2026-09-16T21:04:27Z,75,promised_jobs,confirmed,1300,,,,lucas@industriousaf.org
+604,2026-09-16T21:04:32Z,75,promised_first_output,confirmed,2023 (second half),,,,lucas@industriousaf.org
+605,2026-09-16T21:05:13Z,75,actual_first_output,confirmed,2024-03-21,,,,lucas@industriousaf.org
+606,2026-09-16T21:05:28Z,75,current_status,confirmed,PRODUCING; retrofitting (~$70M) to add LFP cells for stationary ESS,,,,lucas@industriousaf.org
+607,2026-09-16T21:05:55Z,80,announced,confirmed,2020-01,,,,lucas@industriousaf.org
+608,2026-09-16T21:05:58Z,80,promised_capital_usd,confirmed,2200000000,,,,lucas@industriousaf.org
+609,2026-09-16T21:06:02Z,80,promised_jobs,confirmed,2200,,,,lucas@industriousaf.org
+610,2026-09-16T21:06:41Z,80,promised_first_output,not_in_source,n/a,https://www.fox2detroit.com/news/gm-investing-2-2-billion-in-detroit-hamtramck-plant-creating-2200-jobs,0,1,lucas@industriousaf.org
+611,2026-09-16T21:07:59Z,80,actual_first_output,confirmed,2021-12,,,,lucas@industriousaf.org
+612,2026-09-16T21:08:45Z,80,current_status,confirmed,"PRODUCING; repeated multi-week production pauses (latest Mar 16-Apr 13, 2026) amid weak EV demand",,,,lucas@industriousaf.org
+613,2026-09-16T21:09:34Z,138,promised_jobs,not_in_source,,,,,lucas@industriousaf.org
+614,2026-09-16T21:10:01Z,138,promised_first_output,not_in_source,n/a,,,,lucas@industriousaf.org
+615,2026-09-16T21:10:13Z,77,promised_capital_usd,confirmed,2000000000,https://web.archive.org/web/20260125033946id_/https://esd.ny.gov/esd-media-center/press-releases/governor-hochul-announces-regeneron-invest-more-2-billion-saratoga,0,3,lucas@industriousaf.org
+616,2026-09-16T21:10:16Z,77,announced,confirmed,2025-11,https://web.archive.org/web/20260125033946id_/https://esd.ny.gov/esd-media-center/press-releases/governor-hochul-announces-regeneron-invest-more-2-billion-saratoga,0,1,lucas@industriousaf.org
+617,2026-09-16T21:10:18Z,77,promised_jobs,confirmed,1000,https://web.archive.org/web/20260125033946id_/https://esd.ny.gov/esd-media-center/press-releases/governor-hochul-announces-regeneron-invest-more-2-billion-saratoga,0,5,lucas@industriousaf.org
+618,2026-09-16T21:11:50Z,100,announced,confirmed,2022-05,,,,lucas@industriousaf.org
+619,2026-09-16T21:11:58Z,100,promised_capital_usd,confirmed,2000000000,,,,lucas@industriousaf.org
+620,2026-09-16T21:12:14Z,100,promised_jobs,not_in_source,,,,,lucas@industriousaf.org
+621,2026-09-16T21:12:20Z,100,promised_first_output,confirmed,2027,,,,lucas@industriousaf.org
+622,2026-09-16T21:12:43Z,100,actual_first_output,confirmed,never,,,,lucas@industriousaf.org
+623,2026-09-16T21:12:45Z,100,current_status,confirmed,CANCELLED,,,,lucas@industriousaf.org
+624,2026-09-16T21:13:29Z,77,promised_first_output,not_in_source,n/a,https://web.archive.org/web/20260125033946id_/https://esd.ny.gov/esd-media-center/press-releases/governor-hochul-announces-regeneron-invest-more-2-billion-saratoga,0,1,lucas@industriousaf.org
+625,2026-09-16T21:13:31Z,77,actual_first_output,confirmed,pending,https://web.archive.org/web/20251119142822id_/https://www.fiercepharma.com/manufacturing/regeneron-pours-2b-saratoga-springs-plant-acquired-recent-onshoring-push,2,0,lucas@industriousaf.org
+626,2026-09-16T21:13:32Z,77,current_status,confirmed,"ANNOUNCED; site acquired, construction not yet begun",https://web.archive.org/web/20251119142822id_/https://www.fiercepharma.com/manufacturing/regeneron-pours-2b-saratoga-springs-plant-acquired-recent-onshoring-push,2,0,lucas@industriousaf.org
+627,2026-09-16T21:14:52Z,106,announced,confirmed,2023-09,https://web.archive.org/web/20230928113407id_/https://www.manufacturingdive.com/news/gotion-2-billion-ev-lithium-battery-plant-manteno-illinois/693223/,0,9,lucas@industriousaf.org
+628,2026-09-16T21:14:54Z,106,promised_capital_usd,confirmed,2000000000,https://web.archive.org/web/20230928113407id_/https://www.manufacturingdive.com/news/gotion-2-billion-ev-lithium-battery-plant-manteno-illinois/693223/,0,2,lucas@industriousaf.org
+629,2026-09-16T21:14:56Z,106,promised_jobs,confirmed,2600,https://web.archive.org/web/20230928113407id_/https://www.manufacturingdive.com/news/gotion-2-billion-ev-lithium-battery-plant-manteno-illinois/693223/,0,3,lucas@industriousaf.org
+630,2026-09-16T21:15:03Z,106,promised_first_output,confirmed,2024,https://web.archive.org/web/20230928113407id_/https://www.manufacturingdive.com/news/gotion-2-billion-ev-lithium-battery-plant-manteno-illinois/693223/,0,0,lucas@industriousaf.org
+631,2026-09-16T21:19:25Z,106,actual_first_output,confirmed,2025-Q2,https://www.shawlocal.com/daily-journal/2025/11/18/gotion-gives-updates-on-manteno-plant/,1,2,lucas@industriousaf.org
+632,2026-09-16T21:19:47Z,106,current_status,confirmed,PRODUCING; ramping below plan (~300 employees vs 450 target for end-2025),https://www.shawlocal.com/daily-journal/2025/11/18/gotion-gives-updates-on-manteno-plant/,1,1,lucas@industriousaf.org
+633,2026-09-16T21:20:57Z,134,announced,confirmed,2024-07,,,,lucas@industriousaf.org
+634,2026-09-16T21:21:13Z,134,promised_capital_usd,confirmed,2000000000,,,,lucas@industriousaf.org
+635,2026-09-16T21:21:18Z,134,promised_jobs,confirmed,2000,,,,lucas@industriousaf.org
+636,2026-09-16T21:21:24Z,134,promised_first_output,confirmed,2027,,,,lucas@industriousaf.org
+637,2026-09-16T21:21:26Z,134,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+638,2026-09-16T21:21:44Z,134,current_status,confirmed,"UNDER CONSTRUCTION; DELAYED, production postponed from 2027 to 2028",,,,lucas@industriousaf.org
+639,2026-09-16T21:22:13Z,141,announced,confirmed,2020-10,,,,lucas@industriousaf.org
+640,2026-09-16T21:22:18Z,141,promised_capital_usd,confirmed,2000000000,,,,lucas@industriousaf.org
+641,2026-09-16T21:22:54Z,141,actual_first_output,confirmed,2022-03,,,,lucas@industriousaf.org
+642,2026-09-16T21:23:39Z,141,current_status,confirmed,PRODUCING; reducing from two shifts to one for the first five months of 2026 amid slower EV demand,,,,lucas@industriousaf.org
+643,2026-09-16T21:24:25Z,142,promised_jobs,confirmed,330,,,,lucas@industriousaf.org
+644,2026-09-16T21:24:28Z,142,announced,confirmed,2026-03,,,,lucas@industriousaf.org
+645,2026-09-16T21:25:00Z,142,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+646,2026-09-16T21:25:14Z,142,current_status,confirmed,ANNOUNCED; planning/pre-construction phase,,,,lucas@industriousaf.org
+647,2026-09-16T21:25:57Z,163,announced,confirmed,2022-04,,,,lucas@industriousaf.org
+648,2026-09-16T21:26:19Z,163,promised_capital_usd,confirmed,2000000000,,,,lucas@industriousaf.org
+649,2026-09-16T21:27:24Z,163,promised_jobs,not_in_source,,https://www.prnewswire.com/news-releases/world-energy-secures-permits-will-completely-convert-its-southern-calif-refinery-to-create-north-americas-largest-worlds-most-advanced-sustainable-aviation-fuel-hub-301531135.html,0,0,lucas@industriousaf.org
+650,2026-09-16T21:28:52Z,163,current_status,confirmed,CANCELLED; Air Products terminated the expansion agreement and is exiting the site (Feb 2025); World Energy's pre-existing smaller SAF operations continue,https://www.biobased-diesel.com/post/air-products-to-exit-world-energy-s-saf-expansion-project-in-paramount-california,1,1,lucas@industriousaf.org
+651,2026-09-16T21:28:53Z,163,actual_first_output,confirmed,never,https://www.biobased-diesel.com/post/air-products-to-exit-world-energy-s-saf-expansion-project-in-paramount-california,1,1,lucas@industriousaf.org
+652,2026-09-16T21:29:17Z,171,announced,confirmed,2019-05,https://corporate.exxonmobil.com/news/news-releases/2019/0502_exxonmobil-announces-2-billion-baytown-chemical-expansion-project,0,2,lucas@industriousaf.org
+653,2026-09-16T21:29:19Z,171,promised_capital_usd,confirmed,2000000000,https://corporate.exxonmobil.com/news/news-releases/2019/0502_exxonmobil-announces-2-billion-baytown-chemical-expansion-project,0,2,lucas@industriousaf.org
+654,2026-09-16T21:29:52Z,171,promised_jobs,not_in_source,,https://corporate.exxonmobil.com/news/news-releases/2019/0502_exxonmobil-announces-2-billion-baytown-chemical-expansion-project,0,0,lucas@industriousaf.org
+655,2026-09-16T21:30:01Z,171,promised_first_output,confirmed,2022,https://corporate.exxonmobil.com/news/news-releases/2019/0502_exxonmobil-announces-2-billion-baytown-chemical-expansion-project,0,1,lucas@industriousaf.org
+656,2026-09-16T21:30:28Z,171,actual_first_output,confirmed,2023-09-19,,,,lucas@industriousaf.org
+657,2026-09-16T21:30:40Z,171,current_status,confirmed,PRODUCING; both units in service since 2023-09-19,,,,lucas@industriousaf.org
+658,2026-09-16T21:32:15Z,141,promised_jobs,not_in_source,,https://www.prnewswire.com/news-releases/gm-investing-2-billion-to-transition-spring-hill-tennessee-plant-to-build-electric-vehicles-including-cadillac-lyriq-301155945.html,0,0,lucas@industriousaf.org
+659,2026-09-16T21:32:16Z,141,promised_first_output,not_in_source,n/a,https://www.prnewswire.com/news-releases/gm-investing-2-billion-to-transition-spring-hill-tennessee-plant-to-build-electric-vehicles-including-cadillac-lyriq-301155945.html,0,4,lucas@industriousaf.org
+660,2026-09-16T21:32:47Z,142,promised_first_output,not_in_source,n/a,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,3,lucas@industriousaf.org
+661,2026-09-16T21:33:54Z,142,promised_capital_usd,not_in_source,,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,0,lucas@industriousaf.org
+662,2026-09-16T21:34:42Z,142,promised_capital_usd,not_in_source,2000000000,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,0,lucas@industriousaf.org
+663,2026-09-16T21:34:48Z,142,promised_capital_usd,not_in_source,,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,0,lucas@industriousaf.org
+664,2026-09-16T21:35:51Z,142,promised_capital_usd,confirmed,0,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,0,lucas@industriousaf.org
+665,2026-09-16T21:36:19Z,142,promised_capital_usd,not_in_source,2000000000,https://www.prnewswire.com/news-releases/ucb-selects-georgia-for-new-us-biologics-manufacturing-facility-5b-economic-impact-and-330-permanent-jobs-302723535.html,0,0,lucas@industriousaf.org
+666,2026-09-16T21:38:25Z,163,promised_first_output,not_in_source,n/a,https://www.prnewswire.com/news-releases/world-energy-secures-permits-will-completely-convert-its-southern-calif-refinery-to-create-north-americas-largest-worlds-most-advanced-sustainable-aviation-fuel-hub-301531135.html,0,0,lucas@industriousaf.org
+667,2026-09-16T21:40:37Z,176,announced,confirmed,2025-08,https://www.cnbc.com/2025/08/11/ford-louisville-assembly-plant-ev-investment.html,0,4,lucas@industriousaf.org
+668,2026-09-16T21:40:39Z,176,promised_capital_usd,confirmed,2000000000,https://www.cnbc.com/2025/08/11/ford-louisville-assembly-plant-ev-investment.html,0,3,lucas@industriousaf.org
+669,2026-09-16T21:40:43Z,176,promised_jobs,confirmed,2200,https://www.cnbc.com/2025/08/11/ford-louisville-assembly-plant-ev-investment.html,0,2,lucas@industriousaf.org
+670,2026-09-16T21:40:46Z,176,promised_first_output,confirmed,2027,https://www.cnbc.com/2025/08/11/ford-louisville-assembly-plant-ev-investment.html,0,2,lucas@industriousaf.org
+671,2026-09-16T21:41:18Z,176,actual_first_output,confirmed,pending,https://web.archive.org/web/20260814095251id_/https://www.detroitnews.com/story/business/autos/ford/2026/08/13/ford-fathom-electric-ev-midsize-truck-louisville-assembly-plant/91278666007/,2,1,lucas@industriousaf.org
+672,2026-09-16T21:41:30Z,176,current_status,confirmed,"RETOOLING COMPLETE; equipment install and quality verification continuing through end of 2026, preparing for Q1 2027 prototype production launch; not yet producing",https://web.archive.org/web/20260814095251id_/https://www.detroitnews.com/story/business/autos/ford/2026/08/13/ford-fathom-electric-ev-midsize-truck-louisville-assembly-plant/91278666007/,2,0,lucas@industriousaf.org
+673,2026-09-16T21:41:44Z,69,promised_capital_usd,confirmed,1900000000,https://web.archive.org/web/20241216004912id_/https://www.abc10.com/article/news/local/bosch-investment-in-roseville-facility/103-16dd2627-147c-401e-ab1a-58b8eb0d79b5,0,2,lucas@industriousaf.org
+674,2026-09-16T21:42:51Z,69,promised_first_output,confirmed,2026,https://web.archive.org/web/20241216004912id_/https://www.abc10.com/article/news/local/bosch-investment-in-roseville-facility/103-16dd2627-147c-401e-ab1a-58b8eb0d79b5,0,1,lucas@industriousaf.org
+675,2026-09-16T21:43:00Z,69,promised_jobs,confirmed,700,https://web.archive.org/web/20241216004912id_/https://www.abc10.com/article/news/local/bosch-investment-in-roseville-facility/103-16dd2627-147c-401e-ab1a-58b8eb0d79b5,0,2,lucas@industriousaf.org
+676,2026-09-16T21:43:33Z,69,current_status,confirmed,"PRE-PRODUCTION; sample production underway, first commercial 200mm SiC production targeted 2026; more than 300 associates on site",,,,lucas@industriousaf.org
+677,2026-09-16T21:43:41Z,69,actual_first_output,confirmed,pending,https://us.bosch-press.com/pressportal/us/en/press-release-31424.html,1,1,lucas@industriousaf.org
+678,2026-09-16T21:45:00Z,153,announced,confirmed,2023-02,https://www.linde.com/news-and-media/2023/linde-to-invest-1-8-billion-to-supply-clean-hydrogen-to-oci-s-world-scale-blue-ammonia-project-in-the-u-s-gulf-coas,0,2,lucas@industriousaf.org
+679,2026-09-16T21:45:02Z,153,promised_capital_usd,confirmed,1800000000,https://www.linde.com/news-and-media/2023/linde-to-invest-1-8-billion-to-supply-clean-hydrogen-to-oci-s-world-scale-blue-ammonia-project-in-the-u-s-gulf-coas,0,1,lucas@industriousaf.org
+680,2026-09-16T21:45:22Z,153,promised_jobs,not_in_source,,https://www.linde.com/news-and-media/2023/linde-to-invest-1-8-billion-to-supply-clean-hydrogen-to-oci-s-world-scale-blue-ammonia-project-in-the-u-s-gulf-coas,0,0,lucas@industriousaf.org
+681,2026-09-16T21:45:29Z,153,promised_first_output,confirmed,2025,https://www.linde.com/news-and-media/2023/linde-to-invest-1-8-billion-to-supply-clean-hydrogen-to-oci-s-world-scale-blue-ammonia-project-in-the-u-s-gulf-coas,0,1,lucas@industriousaf.org
+682,2026-09-16T21:46:16Z,173,announced,confirmed,2023-02,https://www.kansascommerce.gov/2023/02/governor-kelly-announces-integra-technologies-to-invest-1-8b-create-nearly-2000-jobs-with-wichita-semiconductor-plant/,0,2,lucas@industriousaf.org
+683,2026-09-16T21:46:18Z,173,promised_capital_usd,confirmed,1800000000,https://www.kansascommerce.gov/2023/02/governor-kelly-announces-integra-technologies-to-invest-1-8b-create-nearly-2000-jobs-with-wichita-semiconductor-plant/,0,2,lucas@industriousaf.org
+684,2026-09-16T21:46:21Z,173,promised_jobs,confirmed,2000,https://www.kansascommerce.gov/2023/02/governor-kelly-announces-integra-technologies-to-invest-1-8b-create-nearly-2000-jobs-with-wichita-semiconductor-plant/,0,3,lucas@industriousaf.org
+685,2026-09-16T21:46:33Z,173,promised_first_output,not_in_source,n/a,https://www.kansascommerce.gov/2023/02/governor-kelly-announces-integra-technologies-to-invest-1-8b-create-nearly-2000-jobs-with-wichita-semiconductor-plant/,0,0,lucas@industriousaf.org
+686,2026-09-16T21:48:04Z,173,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+687,2026-09-16T21:49:12Z,90,actual_first_output,confirmed,never,,,,lucas@industriousaf.org
+688,2026-09-16T21:49:13Z,90,current_status,confirmed,"CANCELLED; site sold, plant never built or produced",,,,lucas@industriousaf.org
+689,2026-09-16T21:49:38Z,90,announced,confirmed,2022-11,https://web.archive.org/web/20221111132115id_/https://ir.freyrbattery.com/ir-news/press-releases/news-details/2022/FREYR-Battery-Announces-Plans-for-U.S.-Gigafactory-in-Georgia/default.aspx,0,0,lucas@industriousaf.org
+690,2026-09-16T21:49:43Z,90,promised_capital_usd,confirmed,1700000000,https://web.archive.org/web/20221111132115id_/https://ir.freyrbattery.com/ir-news/press-releases/news-details/2022/FREYR-Battery-Announces-Plans-for-U.S.-Gigafactory-in-Georgia/default.aspx,0,0,lucas@industriousaf.org
+691,2026-09-16T21:49:48Z,90,promised_jobs,confirmed,720,https://web.archive.org/web/20221111132115id_/https://ir.freyrbattery.com/ir-news/press-releases/news-details/2022/FREYR-Battery-Announces-Plans-for-U.S.-Gigafactory-in-Georgia/default.aspx,0,0,lucas@industriousaf.org
+692,2026-09-16T21:50:27Z,113,promised_capital_usd,confirmed,1700000000,https://news.lgensol.com/company-news/supplementary-stories/681/,0,3,lucas@industriousaf.org
+693,2026-09-16T21:50:30Z,113,announced,confirmed,2022-03,https://news.lgensol.com/company-news/supplementary-stories/681/,0,3,lucas@industriousaf.org
+694,2026-09-16T21:50:38Z,113,promised_jobs,confirmed,1200,https://news.lgensol.com/company-news/supplementary-stories/681/,0,2,lucas@industriousaf.org
+695,2026-09-16T21:50:41Z,113,promised_first_output,confirmed,2024,https://news.lgensol.com/company-news/supplementary-stories/681/,0,1,lucas@industriousaf.org
+696,2026-09-16T21:51:07Z,113,actual_first_output,confirmed,2025-05,https://cleantechnica.com/2025/06/28/lg-energy-solution-opens-new-lfp-battery-cell-lines-in-michigan-to-support-energy-storage-as-demand-cools-from-ev-manufactures/,2,3,lucas@industriousaf.org
+697,2026-09-16T21:51:24Z,113,current_status,confirmed,PRODUCING LFP cells for ESS; two of three lines operating,https://cleantechnica.com/2025/06/28/lg-energy-solution-opens-new-lfp-battery-cell-lines-in-michigan-to-support-energy-storage-as-demand-cools-from-ev-manufactures/,2,1,lucas@industriousaf.org
+698,2026-09-16T21:52:45Z,69,announced,confirmed,2023-04,https://web.archive.org/web/20241216004912id_/https://www.abc10.com/article/news/local/bosch-investment-in-roseville-facility/103-16dd2627-147c-401e-ab1a-58b8eb0d79b5,0,0,lucas@industriousaf.org
+699,2026-09-16T21:53:37Z,153,actual_first_output,confirmed,pending,,,,lucas@industriousaf.org
+700,2026-09-16T21:55:22Z,153,current_status,confirmed,"UNDER CONSTRUCTION; co-located ammonia plant ~97% complete, Linde hydrogen supply expected 2026",https://www.pv-magazine.com/2025/10/24/the-hydrogen-stream-woodside-progresses-with-its-ammonia-and-hydrogen-projects-in-texas-and-western-australia/,1,0,lucas@industriousaf.org
+701,2026-09-16T21:58:17Z,173,current_status,confirmed,"NOT STARTED; acquired by Micross Components Jan 2025, still contingent on federal CHIPS funding",https://www.kwch.com/2025/01/18/ny-company-acquires-wichita-based-integra-technologies/,1,2,lucas@industriousaf.org
+702,2026-09-16T21:59:30Z,159,announced,confirmed,2018-06,https://www.prnewswire.com/news-releases/bayport-polymers-llc-celebrates-groundbreaking-ceremony-for-new-ethane-cracker-in-port-arthur-texas-300659131.html,0,2,lucas@industriousaf.org
+703,2026-09-16T21:59:40Z,159,promised_capital_usd,confirmed,1700000000,https://www.prnewswire.com/news-releases/bayport-polymers-llc-celebrates-groundbreaking-ceremony-for-new-ethane-cracker-in-port-arthur-texas-300659131.html,0,0,lucas@industriousaf.org
+704,2026-09-16T21:59:47Z,159,promised_jobs,confirmed,60,https://www.prnewswire.com/news-releases/bayport-polymers-llc-celebrates-groundbreaking-ceremony-for-new-ethane-cracker-in-port-arthur-texas-300659131.html,0,1,lucas@industriousaf.org
+705,2026-09-16T21:59:55Z,159,promised_first_output,confirmed,2020,https://www.prnewswire.com/news-releases/bayport-polymers-llc-celebrates-groundbreaking-ceremony-for-new-ethane-cracker-in-port-arthur-texas-300659131.html,0,1,lucas@industriousaf.org
+706,2026-09-16T22:00:11Z,159,actual_first_output,confirmed,2022-07,,,,lucas@industriousaf.org
+707,2026-09-16T22:00:27Z,159,current_status,confirmed,PRODUCING; commercial operations since July 2022,https://totalenergies.com/newsroom/united-states-totalenergies-announces-start-new-ethane-cracker-port/?lang=eng,1,2,lucas@industriousaf.org
+708,2026-09-16T22:01:06Z,90,promised_first_output,not_in_source,n/a,https://web.archive.org/web/20221111132115id_/https://ir.freyrbattery.com/ir-news/press-releases/news-details/2022/FREYR-Battery-Announces-Plans-for-U.S.-Gigafactory-in-Georgia/default.aspx,0,0,lucas@industriousaf.org
+709,2026-09-16T22:01:27Z,120,promised_capital_usd,confirmed,1600000000,https://media.stellantisnorthamerica.com/newsrelease.do?id=20661,0,2,lucas@industriousaf.org
+710,2026-09-16T22:01:48Z,120,announced,confirmed,2019-02,https://media.stellantisnorthamerica.com/newsrelease.do?id=20661,0,7,lucas@industriousaf.org
+711,2026-09-16T22:01:51Z,120,promised_jobs,confirmed,3850,https://media.stellantisnorthamerica.com/newsrelease.do?id=20661,0,2,lucas@industriousaf.org
+712,2026-09-16T22:02:01Z,120,promised_first_output,confirmed,2020-Q4,https://media.stellantisnorthamerica.com/newsrelease.do?id=20661,0,1,lucas@industriousaf.org
+713,2026-09-16T22:02:24Z,120,actual_first_output,confirmed,2021-03,https://media.stellantisnorthamerica.com/newsrelease.do?id=329,2,2,lucas@industriousaf.org
+714,2026-09-16T22:03:12Z,120,current_status,confirmed,PRODUCING; intermittent production pauses and layoffs amid ~11% Grand Cherokee sales decline while transitioning to the 2026 model (Apr 2025),https://www.cbtnews.com/stellantis-pauses-detroit-production-to-transition-to-2026-jeep-grand-cherokee-amid-sales-decline/,1,4,lucas@industriousaf.org
+715,2026-09-16T22:03:23Z,162,announced,confirmed,2022-02,https://gov.texas.gov/news/post/governor-abbott-announces-new-1.7-billion-usa-bioenergy-advanced-biorefinery-in-bon-wier,0,1,lucas@industriousaf.org
+716,2026-09-16T22:03:26Z,162,promised_capital_usd,confirmed,1700000000,https://gov.texas.gov/news/post/governor-abbott-announces-new-1.7-billion-usa-bioenergy-advanced-biorefinery-in-bon-wier,0,3,lucas@industriousaf.org
+717,2026-09-16T22:03:29Z,162,promised_jobs,confirmed,142,https://gov.texas.gov/news/post/governor-abbott-announces-new-1.7-billion-usa-bioenergy-advanced-biorefinery-in-bon-wier,0,4,lucas@industriousaf.org
+718,2026-09-16T22:04:34Z,162,current_status,confirmed,"IN DESIGN & ENGINEERING; 1,600+ acres acquired, construction not yet started",https://usabioenergy.com/bon-wier-land-purchase/,1,0,lucas@industriousaf.org
+719,2026-09-16T22:04:58Z,162,actual_first_output,confirmed,pending,https://usabioenergy.com/bon-wier-land-purchase/,1,0,lucas@industriousaf.org
+720,2026-09-16T22:06:23Z,162,promised_first_output,not_in_source,n/a,https://gov.texas.gov/news/post/governor-abbott-announces-new-1.7-billion-usa-bioenergy-advanced-biorefinery-in-bon-wier,0,0,lucas@industriousaf.org
