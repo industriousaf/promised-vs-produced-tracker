@@ -39,6 +39,7 @@ def a_row(**over) -> dict:
         "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
         "promised_jobs": 1500, "promised_first_output": "2024",
         "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+        "status": "under construction",
         "promise_source": "https://example.com/promise",
         "status_source": "https://example.com/status",
         # Stored rows always carry this: insert_extracted forces it. check_row
@@ -241,7 +242,7 @@ class TestQualityAndQueue(Base):
         """The quality panel's own bug: `slip >= 0` discarded it."""
         screen.insert_extracted(self.conn, a_row(
             announced="2025-01", promised_first_output="2026-07",
-            actual_first_output="2026-03", current_status="PRODUCING"),
+            actual_first_output="2026-03", current_status="PRODUCING", status="producing"),
             source_collected_id=self.lead())
         bars = {b["key"]: b for b in quality.measure(self.conn)["bars"]}
         self.assertEqual(bars["slip"]["n"], 1)
@@ -302,7 +303,7 @@ class TestFirstOutputBackfill(Base):
         sid = self.lead()
         rid = screen.insert_extracted(self.conn, a_row(
             actual_first_output="unconfirmed",
-            current_status="IN FULL OPERATION",
+            current_status="IN FULL OPERATION", status="producing",
             flag="status source confirms operation but states no first-output date.",
             **over), source_collected_id=sid)
         self.assertEqual(screen.get_extracted(self.conn, rid)["lag_years"],
@@ -366,7 +367,7 @@ class TestFirstOutputBackfill(Base):
         """Every row in the population is undated, so landing on a dated one
         means the id is wrong -- and the stored date is real research data."""
         sid = self.lead()
-        rid = screen.insert_extracted(self.conn, a_row(actual_first_output="2023-05"),
+        rid = screen.insert_extracted(self.conn, a_row(actual_first_output="2023-05", status="producing"),
                                       source_collected_id=sid)
         with self.assertRaises(screen.DateOverwriteBlocked):
             screen.set_first_output(self.conn, rid, date="2024",
@@ -695,11 +696,12 @@ class TestSentinelVocabulary(unittest.TestCase):
                 self.assertEqual("FAIL",
                                  self._check(actual_first_output=token)["result_status"])
 
-    def test_a_real_date_wins_over_a_stray_sentinel_word(self):
-        """A qualifier is not a sentinel. "2019 (pending permits)" is a dated
-        promise and has to stay promotable in either column."""
-        self.assertEqual([], self._messages("promised_first_output",
-                                            promised_first_output="2019 (pending permits)"))
+    def test_a_date_with_a_word_the_reader_does_not_know_is_refused(self):
+        """"2019 (pending permits)" used to pass here as a dated promise while
+        dates.py saw "pending" and resolved it to no date at all. A token the
+        checker accepts has to be one the date reader reads the same way."""
+        self.assertTrue(self._messages("promised_first_output",
+                                       promised_first_output="2019 (pending permits)"))
 
     def test_an_empty_cell_is_told_which_sentinel_its_own_column_takes(self):
         """The message used to suggest 'pending'/'never' in both columns, which
@@ -713,6 +715,94 @@ class TestSentinelVocabulary(unittest.TestCase):
         contradicts the promised_first_output rule directly above it."""
         self.assertIn("`None`, `null`, or `n/a` into `flag` or any other free-text cell",
                       self.prompt)
+
+
+# --------------------------------------------------------------------------- #
+class TestStatusIsCountable(Base):
+    """status: one of six words, agreeing with actual_first_output.
+
+    current_status is free text, and the first 85 published projects began it
+    32 different ways, so nothing could count how many were producing.
+    """
+
+    def _errors(self, **over):
+        return [i["message"] for i in sc.check_row(a_row(**over))["report"]
+                if i["column"] == "status" and i["level"] == "ERROR"]
+
+    def test_each_word_passes_with_a_first_output_that_fits(self):
+        for status, first in (("announced", "pending"), ("under construction", "pending"),
+                              ("paused", "pending"), ("producing", "2025-03"),
+                              ("producing", "unconfirmed"), ("closed", "2019"),
+                              ("cancelled", "never")):
+            with self.subTest(status=status, first=first):
+                self.assertEqual([], self._errors(status=status, actual_first_output=first))
+
+    def test_a_word_off_the_list_fails(self):
+        for word in ("delayed", "OPERATIONAL", ""):
+            with self.subTest(word=word):
+                self.assertTrue(self._errors(status=word))
+
+    def test_a_status_that_contradicts_first_output_fails(self):
+        """The two state one fact. A disagreement counts the project in the
+        wrong bar."""
+        for status, first in (("producing", "pending"), ("under construction", "2024"),
+                              ("cancelled", "unconfirmed"), ("closed", "never")):
+            with self.subTest(status=status, first=first):
+                msgs = self._errors(status=status, actual_first_output=first)
+                self.assertTrue(any("disagrees with actual_first_output" in m for m in msgs), msgs)
+
+    def test_it_is_stored_in_one_spelling_and_carried_to_verify(self):
+        rid = screen.insert_extracted(self.conn, a_row(status="Under  Construction"),
+                                      source_collected_id=self.lead())
+        self.assertEqual("under construction", screen.get_extracted(self.conn, rid)["status"])
+        screen.run_check(self.conn, rid)
+        vid = verify.promote(self.conn, rid, verification_tier="V1", flag="Resolved: checked.")
+        self.assertEqual("under construction", verify.get_verified(self.conn, vid)["status"])
+
+    def test_dating_first_output_needs_the_status_to_move_with_it(self):
+        """Otherwise a correction publishes a producing plant counted as under
+        construction."""
+        rid = screen.insert_extracted(self.conn, a_row(), source_collected_id=self.lead())
+        screen.run_check(self.conn, rid)
+        vid = verify.promote(self.conn, rid, verification_tier="V1", flag="Resolved: checked.")
+        with self.assertRaises(verify.CorrectionRefused):
+            verify.edit(self.conn, vid, {"actual_first_output": "2025-06"},
+                        edit_description="dated")
+        verify.edit(self.conn, vid, {"actual_first_output": "2025-06", "status": "producing"},
+                    edit_description="dated")
+        self.assertEqual("producing", verify.get_verified(self.conn, vid)["status"])
+
+
+class TestDateQualifiers(unittest.TestCase):
+    """A date token carries only words the date reader knows.
+
+    "2026 (end)" and "2024 (fall)" were both read as July 1: a word the reader
+    did not know fell through to the bare-year rule, and the checker accepted
+    any token with a year in it.
+    """
+
+    def test_end_and_fall_resolve_inside_their_window(self):
+        self.assertEqual(("2026-11-15", "date"), dates.interpret_date("2026 (end)"))
+        self.assertEqual(("2024-10-15", "date"), dates.interpret_date("2024 (fall)"))
+
+    def test_the_qualifiers_already_stored_still_read_the_same(self):
+        for token, iso in (("2025 (first half)", "2025-04-01"),
+                           ("2025 (second half)", "2025-10-01"),
+                           ("2023 (late)", "2023-10-01"), ("2021 (mid)", "2021-07-01"),
+                           ("2024 (early)", "2024-03-01"), ("2025-Q1", "2025-02-15"),
+                           ("2025", "2025-07-01"), ("2025-03", "2025-03-15"),
+                           ("2022-12-30", "2022-12-30")):
+            with self.subTest(token=token):
+                self.assertEqual((iso, "date"), dates.interpret_date(token))
+                self.assertEqual("", dates.unrecognized_words(token))
+                self.assertNotEqual("FAIL", sc.check_row(
+                    a_row(promised_first_output=token))["result_status"])
+
+    def test_a_word_the_reader_does_not_know_fails_the_row(self):
+        for token in ("2026 (spring)", "2027 (target)", "2019 (pending permits)"):
+            with self.subTest(token=token):
+                self.assertEqual("FAIL", sc.check_row(
+                    a_row(promised_first_output=token))["result_status"])
 
 
 # --------------------------------------------------------------------------- #
@@ -732,7 +822,8 @@ class TestVerbatimQuotesAtVerify(Base):
         rid = screen.insert_extracted(self.conn, a_row(
             actual_first_output="unconfirmed",
             actual_first_output_raw="unconfirmed",
-            current_status="IN FULL OPERATION", **over), source_collected_id=sid)
+            current_status="IN FULL OPERATION", status="producing", **over),
+            source_collected_id=sid)
         screen.run_check(self.conn, rid)
         return verify.promote(self.conn, rid, verification_tier="V1",
                               flag="Resolved: checked.")
@@ -1089,11 +1180,16 @@ class TestCheckVerdicts(Base):
     def test_no_flag_editing_command_exists_at_screen(self):
         """If one is ever added, the docs claiming promotion is the only writer
         become wrong and this test should be the thing that says so."""
+        import os
         import subprocess
-        out = subprocess.run(
-            [sys.executable, "tracker.py", "--help"],
-            cwd=str(Path(__file__).resolve().parent.parent),
-            capture_output=True, text=True, timeout=120).stdout
+        # A temporary database. Without one this opens outputs/tracker.db, and
+        # any migration waiting in the code runs on the real file.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = subprocess.run(
+                [sys.executable, "tracker.py", "--help"],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                env=dict(os.environ, TRACKER_DB=str(Path(tmp) / "t.db")),
+                capture_output=True, text=True, timeout=120).stdout
         self.assertNotIn("screen-flag", out)
 
     def test_prose_does_not_call_a_pass_unpublishable(self):
@@ -1313,11 +1409,16 @@ class TestVerifierList(unittest.TestCase):
     matters most."""
 
     def test_config_names_who_may_verify(self):
+        import os
         import subprocess
-        out = subprocess.run(
-            [sys.executable, "tracker.py", "config"],
-            cwd=str(Path(__file__).resolve().parent.parent),
-            capture_output=True, text=True).stdout
+        # A temporary database, for the reason given in the --help test above:
+        # adding the status column ran on outputs/tracker.db from here.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = subprocess.run(
+                [sys.executable, "tracker.py", "config"],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                env=dict(os.environ, TRACKER_DB=str(Path(tmp) / "t.db")),
+                capture_output=True, text=True).stdout
         self.assertIn("WHO MAY VERIFY", out)
         for who in settings.verifiers():
             self.assertIn(who, out)

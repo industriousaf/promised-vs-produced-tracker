@@ -40,7 +40,7 @@ from webapp import agent as agent_pane, evidence  # noqa: E402
 from webapp.shared import (  # noqa: E402
     _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_span, esc,
-    flag_only_reason, date_kind_select, DATEKIND_JS,
+    flag_only_reason, date_kind_select, status_select, DATEKIND_JS,
 )
 
 router = APIRouter()
@@ -202,6 +202,9 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
             )
             return (f"""<div><label>sector</label>
         <select name="sector">{options}</select></div>""")
+        if c == "status":
+            return (f"""<div><label>status</label>
+        {status_select(r["status"])}</div>""")
         return (f"""<div><label>{esc(c)}</label>
         {date_kind_select(c, r[c])}<input type="text" name="{esc(c)}" value="{esc(r[c])}"></div>""")
 

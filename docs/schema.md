@@ -197,6 +197,38 @@ yet producing", so rows written before the vocabulary was narrowed keep
 resolving exactly as they did. Reading them and writing them are different
 questions: nothing may write them now.
 
+A date may carry one word beside the year, from a fixed list: `first half`,
+`second half`, `early`, `mid`, `late`, `end` or `fall`, as in `2026 (end)`. Each
+resolves to the middle of the window it names. The checker refuses any other
+word, because the date reader used to skip words it did not know and read the
+year as July 1: `2026 (end)` read as mid-2026 until `end` was added.
+
+## Where a project stands: `status`
+
+`current_status` is free text, which suits the detail and cannot be counted: the
+first 85 published projects began it 32 different ways. `status` is the same
+fact as one of six words, so a chart by state or sector can count it.
+
+| status | means | `actual_first_output` must be |
+|---|---|---|
+| `announced` | construction has not started | `pending` |
+| `under construction` | being built or commissioned, not producing yet | `pending` |
+| `paused` | work stopped or on hold, not cancelled | `pending` |
+| `producing` | output has started, at any volume | a date or `unconfirmed` |
+| `closed` | produced, then shut down | a date or `unconfirmed` |
+| `cancelled` | will not be built or produce | `never` |
+
+The checker refuses any other word, and a status that disagrees with
+`actual_first_output`, because the two state one fact and a disagreement counts
+the project in the wrong bar. A delay is not a status: a delayed project is
+still announced, under construction or paused, and how late it is shows in
+`slip_years`.
+
+Projects stored before the column existed were given a status by
+`tools/backfill_status.py`, from their `actual_first_output` and the way their
+`current_status` began. It lists any project it cannot place rather than
+guessing.
+
 ## Details worth knowing
 
 - **Reset:** delete `outputs/tracker.db` (or point `TRACKER_DB` elsewhere)

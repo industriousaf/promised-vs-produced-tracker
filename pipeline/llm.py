@@ -32,7 +32,7 @@ from pathlib import Path
 from pipeline import settings
 from pipeline import settings as models
 from pipeline import settings as criteria
-from pipeline.schema_check import all_sectors
+from pipeline.schema_check import all_sectors, STATUSES
 
 # Models newer than Opus 4.6 support the _20260209 web tools with dynamic
 # filtering; Opus 4.8 is the default for flavour B.
@@ -64,7 +64,7 @@ SCREEN_KEYS = [
     "promised_capital_usd", "promised_jobs",
     "promised_first_output", "promised_first_output_raw",
     "actual_first_output", "actual_first_output_raw",
-    "current_status", "notes", "promise_source",
+    "current_status", "status", "notes", "promise_source",
     "status_source", "flag", "promised_date_source",
 ]
 
@@ -432,13 +432,14 @@ _SCREEN_SCHEMA = {
         "actual_first_output": {"type": "string"},
         "actual_first_output_raw": {"type": "string"},
         "current_status": {"type": "string"},
+        "status": {"type": "string", "enum": list(STATUSES)},
         "notes": {"type": "string"},
         "promise_source": {"type": "string"},
         "status_source": {"type": "string"},
         "flag": {"type": "string"},
         "promised_date_source": {"type": "string"},
     },
-    "required": ["project", "sector", "state", "announced", "current_status"],
+    "required": ["project", "sector", "state", "announced", "current_status", "status"],
     "additionalProperties": False,
 }
 

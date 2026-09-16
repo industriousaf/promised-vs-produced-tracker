@@ -546,8 +546,9 @@ def init_db(conn: sqlite3.Connection) -> None:
     # `actual_date_source` joins them here rather than in the DDL alone, because
     # it was added to the v0 shape after 112 rows already existed -- the DDL
     # covers a new database, this covers every one already on disk.
+    # `status` joined the same way, after 173 projects were already stored.
     date_partner_cols = (list(DERIVED_DATE_COLUMNS) + list(RAW_DATE_COLUMNS)
-                         + ["actual_date_source", "country", "criteria_id"])
+                         + ["actual_date_source", "country", "criteria_id", "status"])
     for table in ("screen_extracted", "verify_verified"):
         _ensure_columns(conn, table, date_partner_cols)
     # Source gained a provenance column (which entry path collected the lead);

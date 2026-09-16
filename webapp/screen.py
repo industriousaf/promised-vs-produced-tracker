@@ -42,7 +42,7 @@ from webapp.shared import (  # noqa: E402
     _cell, _conn, _downstream_map, _keep, _lineage_pill, _page,
     _remember_show, _resolve_show, _stage_toggle, _to_int, _verdict_legend,
     _verdict_span, esc,
-    flag_only_reason, date_kind_select, DATEKIND_JS,
+    flag_only_reason, date_kind_select, status_select, DATEKIND_JS,
 )
 
 router = APIRouter()
@@ -405,6 +405,12 @@ FIELD_HINTS = {
         "where it really stands today, in the sources' own terms — and where a "
         "revised output date goes."
     ),
+    "status": (
+        "the same fact as one word, the one that gets counted. It has to agree "
+        "with actual_first_output: <code>pending</code> → announced, under "
+        "construction or paused; a date or <code>unconfirmed</code> → producing "
+        "or closed; <code>never</code> → cancelled. A delay is not a status."
+    ),
     "promised_capital_usd": "digits only, no $ or commas.",
     "promised_jobs": "digits only.",
     "flag": "anything unresolved. Leave empty if the extraction is clean.",
@@ -446,11 +452,13 @@ CHECK_RULES: list[tuple[tuple[str, ...], str]] = [
      f"the size floor for phase <b>{_crit().id}</b>: {_crit().describe()} "
      f"(either figure alone puts the project in scope under OR)"),
     (("promised_first_output",),
-     "promised_first_output holds a 4-digit year or a sentinel"),
+     "promised_first_output holds a 4-digit year or a sentinel, and any word "
+     "beside the year is one the date reader knows"),
     (("actual_first_output",),
      "actual_first_output holds a 4-digit year or a sentinel "
      "(<code>pending</code> / <code>never</code> / <code>unconfirmed</code>)"),
     (("current_status",), "current_status is not empty"),
+    (("status",), "status is one of the six words and agrees with actual_first_output"),
     (("lag_years",), "the derived lag parses as a number or a sentinel"),
     (("verification_tier",), "the tier is a valid token (P / V1 / V2, or a pair)"),
     (("promise_source", "status_source", "promised_date_source",
@@ -1043,6 +1051,9 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
             )
             return (f"""<div><label>sector</label>
         <select name="sector"{sel_lock}>{options}</select></div>""")
+        if c == "status":
+            return (f"""<div><label>status{hint_html}</label>
+        {status_select(r.get("status"), sel_lock)}</div>""")
         # No picker on a published project: there is nothing to choose here.
         picker = "" if published_id else date_kind_select(c, r[c])
         return (f"""<div><label>{esc(c)}{hint_html}</label>

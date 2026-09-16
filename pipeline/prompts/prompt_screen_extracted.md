@@ -20,7 +20,7 @@ fields below — **plus, for each of the three dates, a `*_raw` verbatim partner
 *Date interpretation*). Extract only what the sources actually state; where a source can't
 be read or a value can't be found, record that in `flag` rather than guessing. **One lead in, one row out** — never merge projects.
 
-## The 18 fields (schema of `screen_extracted`)
+## The 19 fields (schema of `screen_extracted`)
 
 The table's `id` and `datetime` are added automatically — don't supply them. If you have
 the originating Source row's id, include it as `source_collected_id` for lineage
@@ -35,11 +35,12 @@ the originating Source row's id, include it as `source_collected_id` for lineage
 | `announced_raw` | **The exact source text** the `announced` date was read from, copied **verbatim** (e.g. `announced the project in May 2020`). Provenance only — never parsed. |
 | `promised_capital_usd` | Integer US dollars, digits only in the value (no `$`, `,`, or words). e.g. `12000000000`. Use the **initial** announcement's figure; do **not** sum later re-announcements/expansions (see re-announcement discipline below). |
 | `promised_jobs` | Integer, digits only. Count **direct** promised jobs only — not "regional," "supported," "induced," or construction jobs (record `2000`, not a `10000` regional claim). |
-| `promised_first_output` | **Normalized token:** a 4-digit year (optionally narrowed to a month/quarter/qualifier — and **to the exact day when the source states one**, e.g. `2024`, `2025 (first half)`, `2024-Q4`, `2025-03`, `2022-12-30`) **or** the single sentinel `n/a`, when no cited source states a promised first-output date. **Never `unconfirmed` here** — that word means something else (see *The four sentinels* below) and the check FAILs the row for it. Keep whatever precision the source gives — the pipeline honours a full `YYYY-MM-DD` and resolves anything coarser to its healthy-middle `promised_first_output_dt`. |
+| `promised_first_output` | **Normalized token:** a 4-digit year (optionally narrowed to a month/quarter/qualifier — and **to the exact day when the source states one**, e.g. `2024`, `2025 (first half)`, `2024-Q4`, `2025-03`, `2022-12-30`) **or** the single sentinel `n/a`, when no cited source states a promised first-output date. **Never `unconfirmed` here** — that word means something else (see *The four sentinels* below) and the check FAILs the row for it. Keep whatever precision the source gives — the pipeline honours a full `YYYY-MM-DD` and resolves anything coarser to its healthy-middle `promised_first_output_dt`. A qualifier must be one of `(first half)`, `(second half)`, `(early)`, `(mid)`, `(late)`, `(end)` or `(fall)`: any other word FAILs the check, because the date reader would misread it. |
 | `promised_first_output_raw` | **The exact source text** the promised-date token was read from, copied **verbatim** (e.g. `production is slated to begin in the first half of 2025`). Provenance only — never parsed. |
 | `actual_first_output` | **Normalized token** — same date shapes as `promised_first_output`: a real first-output date if it has produced, else exactly one of `pending` (not yet producing), `never` (cancelled), or `unconfirmed` (it HAS produced but no cited source dates it). Resolved to `actual_first_output_dt`. |
 | `actual_first_output_raw` | **The exact source text** the actual-date token was read from, copied **verbatim**. Provenance only — never parsed. |
 | `current_status` | Non-empty short free-text status (e.g. `AT VOLUME`, `DELAYED; …`, `PRODUCING slow ramp`). |
+| `status` | **One word from a closed list**: where the project stands today, in the form that gets counted. `announced` (construction has not started), `under construction` (being built or commissioned, not producing yet), `paused` (work stopped or on hold, not cancelled), `producing` (output has started, at any volume), `closed` (produced, then shut down), `cancelled` (will not be built or produce). It must agree with `actual_first_output`: `pending` → `announced`, `under construction` or `paused`; a date or `unconfirmed` → `producing` or `closed`; `never` → `cancelled`. A delay is not a status: a delayed project is still one of the first three, and `current_status` carries the new date. Any other word, or a disagreement, FAILs the check. |
 | `lag_years` | **Do not supply — the pipeline computes it** deterministically (see *Date interpretation* below). A float: years from `announced` to `actual_first_output`; sentinel `-1` ("to be completed") if not produced yet, `-2` ("cancelled") if the promise was cancelled. |
 | `slip_years` | **Do not supply — the pipeline computes it.** A float: years from `promised_first_output` to `actual_first_output` (negative = early); same `-1`/`-2` sentinels. |
 | `verification_tier` | **Always `P`** at this stage. Nothing is verified here. |
@@ -96,7 +97,7 @@ If you omit a `*_raw`, the pipeline falls back to storing the token as the raw �
 provide the real verbatim quote when you can; that is the whole point of this field.
 
 Coarser tokens resolve to the **middle** of their window (a bare year → mid-year, a
-quarter → its midpoint, `YYYY-MM` → the 15th), so keep every bit of precision the source
+quarter → its midpoint, `(end)` → the fourth quarter's midpoint, `YYYY-MM` → the 15th), so keep every bit of precision the source
 actually gives: `2024-Q4` carries information a bare `2024` throws away. The resolution
 rules and the lag/slip arithmetic are implemented in `pipeline/dates.py`.
 
@@ -224,6 +225,7 @@ tier to `P`. Example shape:
   "actual_first_output": "2024-Q4",
   "actual_first_output_raw": "began high-volume production in the fourth quarter of 2024",
   "current_status": "AT VOLUME",
+  "status": "producing",
   "notes": "Workforce ramp delays reported 2023–2025.",
   "promise_source": "https://…",
   "status_source": "https://…",

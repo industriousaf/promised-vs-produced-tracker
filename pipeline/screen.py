@@ -56,6 +56,9 @@ def _coerce(col: str, value) -> object:
                else NULL_STRINGS)
         if value.lower() in bad:
             return None
+    if col == "status" and isinstance(value, str):
+        # One spelling per word, so "Under Construction" is counted with the rest.
+        return " ".join(value.lower().split())
     if col in INT_COLUMNS and value is not None:
         s = str(value).replace(",", "").replace("_", "").replace("$", "").strip()
         if s == "":

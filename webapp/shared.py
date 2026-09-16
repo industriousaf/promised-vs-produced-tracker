@@ -33,6 +33,8 @@ from pipeline.schema_check import (  # noqa: E402
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
     SENTINEL_MEANING,
+    STATUSES,
+    STATUS_MEANING,
     SENTINELS_FOR,
     all_sectors,
 )
@@ -733,6 +735,22 @@ def date_kind_select(col: str, value) -> str:
                 f'{esc(w)}: {esc(SENTINEL_MEANING[w])}</option>' for w in words]
     return (f'<select class="datekind" data-for="{esc(col)}" '
             f'aria-label="what {esc(col)} holds">{"".join(options)}</select>')
+
+
+def status_select(value, lock: str = "") -> str:
+    """The status field: the six words with their meanings, and nothing to type.
+
+    An empty cell, or a word from before the list, is shown as it is and stays
+    selected, so saving the form never quietly picks a status for anyone.
+    """
+    cur = ("" if value is None else str(value)).strip()
+    options = []
+    if cur not in STATUSES:
+        label = "choose one" if not cur else f"{cur} (not one of the six)"
+        options.append(f'<option value="{esc(cur)}" selected>{esc(label)}</option>')
+    options += [f'<option value="{esc(s)}"{" selected" if s == cur else ""}>'
+                f'{esc(s)}: {esc(STATUS_MEANING[s])}</option>' for s in STATUSES]
+    return f'<select name="status"{lock}>{"".join(options)}</select>'
 
 
 DATEKIND_JS = """

@@ -32,7 +32,7 @@ sys.modules[_spec.name] = pvp_schema
 _spec.loader.exec_module(pvp_schema)
 
 # Re-export the pieces the rest of the package needs from the ONE source of truth.
-REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 14 core columns
+REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 15 core columns
 PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 6 provenance columns
 ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
@@ -63,6 +63,11 @@ PROMISED_SENTINELS = pvp_schema.PROMISED_SENTINELS
 SENTINELS_FOR = pvp_schema.SENTINELS_FOR
 DATE_SENTINELS = pvp_schema.DATE_SENTINELS
 SENTINEL_MEANING = pvp_schema.SENTINEL_MEANING
+# The status vocabulary, for the web forms and the one-time backfill, which must
+# offer and write exactly what the checker accepts.
+STATUSES = pvp_schema.STATUSES
+STATUS_MEANING = pvp_schema.STATUS_MEANING
+statuses_for = pvp_schema.statuses_for
 
 # Sector vocabulary, from the ONE source of truth: pipeline/settings.py, which
 # schema.py reads. `all_sectors()` is the active phase's vocabulary. There is no

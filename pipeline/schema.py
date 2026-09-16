@@ -50,6 +50,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import settings as _criteria  # noqa: E402
+from pipeline import dates as _dates  # noqa: E402
 
 # --------------------------------------------------------------------------- #
 # Controlled vocabularies                                                      #
@@ -73,6 +74,9 @@ REQUIRED_COLUMNS = [
     "promised_first_output",
     "actual_first_output",
     "current_status",
+    # One word from STATUSES: where the project stands, in a form that can be
+    # counted. current_status keeps the detail in the sources' own words.
+    "status",
     "lag_years",
     "slip_years",
     "verification_tier",
@@ -167,6 +171,27 @@ SENTINEL_MEANING = {
     "never": "cancelled",
 }
 
+# Where a project stands today, as one word from a closed list.
+#
+# current_status is free text, which suits the detail and cannot be counted: the
+# first 85 published projects began it 32 different ways ("PRODUCING",
+# "OPERATIONAL", "IN FULL OPERATION"...), so no chart by state or sector could
+# say how many were producing. current_status keeps the detail; this is what
+# gets counted.
+#
+# A delay is not a status. A delayed project is still announced, under
+# construction or paused, and how late it is shows in slip_years.
+STATUSES = ("announced", "under construction", "paused", "producing", "closed", "cancelled")
+
+STATUS_MEANING = {
+    "announced": "construction has not started",
+    "under construction": "being built or commissioned, not producing yet",
+    "paused": "work stopped or on hold, not cancelled",
+    "producing": "output has started, at any volume",
+    "closed": "produced, then shut down",
+    "cancelled": "will not be built or produce",
+}
+
 # A missing value that arrived as text. These are what a serializer writes when
 # it is handed nothing -- Python's str(None) is "None", JavaScript's is "null"
 # or "undefined" -- and they are not data, they are the absence of data wearing
@@ -232,17 +257,23 @@ def check_flexible_date(value: str, allowed: set | None = None) -> str | None:
     `unconfirmed` turned up in 40 promised cells, asserting about a promise the
     one thing only an actual first output can assert.
 
-    A real date still wins over a stray sentinel word: "2019 (pending permits)"
-    carries a year and is fine in either column.
+    A token with a year may carry only words dates.py reads (dates.QUALIFIERS).
+    Any other word was accepted here and then misread there: "2026 (end)" came
+    back as July 1, and "2019 (pending permits)" as no date at all, because the
+    reader saw "pending".
     """
     v = (value or "").strip()
     ok = allowed if allowed is not None else DATE_SENTINELS
     if v == "":
         return ("empty (use a year or "
                 + " / ".join(f"{t!r}" for t in sorted(ok)) + ")")
-    if any(tok in v.lower() for tok in ok):
-        return None
     if YEAR_RE.search(v):
+        if (extra := _dates.unrecognized_words(v)):
+            return (f"the date reader does not know {extra!r}, so it would misread "
+                    f"{value!r}. Use a year, YYYY-MM, YYYY-Q4, or a year with one of: "
+                    + ", ".join(f"({q})" for q in _dates.QUALIFIERS))
+        return None
+    if any(tok in v.lower() for tok in ok):
         return None
     wrong = sorted(t for t in DATE_SENTINELS - ok if t in v.lower())
     if wrong:
@@ -255,6 +286,38 @@ def check_flexible_date(value: str, allowed: set | None = None) -> str | None:
                     "stated a promised date, that is 'n/a'")
         return f"{value!r} is not a sentinel this column may carry. Use {use}"
     return f"no 4-digit year and no recognized sentinel in {value!r}"
+
+
+def statuses_for(actual_first_output) -> tuple:
+    """The statuses a project may hold, given its actual_first_output.
+
+    The two fields state one fact from two sides, and a status that contradicts
+    the first-output word would count the project in the wrong bar. An empty or
+    unreadable first output allows any status: the date check reports that cell.
+    """
+    kind = _dates.interpret_date(actual_first_output)[1]
+    if kind == "cancelled":
+        return ("cancelled",)
+    if kind in ("date", "produced_undated"):
+        return ("producing", "closed")
+    if kind == "to_be_completed":
+        return ("announced", "under construction", "paused")
+    return STATUSES
+
+
+def check_status(value: str, actual_first_output: str) -> str | None:
+    """status: one of STATUSES, and one that agrees with actual_first_output."""
+    v = (value or "").strip()
+    if v == "":
+        return "empty (use one of: " + ", ".join(STATUSES) + ")"
+    if v not in STATUSES:
+        return f"{value!r} is not a status. Use one of: " + ", ".join(STATUSES)
+    fits = statuses_for(actual_first_output)
+    if v not in fits:
+        allowed = (", ".join(fits[:-1]) + " or " + fits[-1]) if len(fits) > 1 else fits[0]
+        return (f"{v!r} disagrees with actual_first_output "
+                f"{(actual_first_output or '').strip()!r}, which allows only {allowed}")
+    return None
 
 
 def check_int(value: str) -> tuple[int | None, str | None]:
@@ -494,6 +557,10 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
     # current_status
     if (m := check_required_nonempty(row.get("current_status", ""))):
         add("current_status", ERROR, m)
+
+    # status: a word from the closed list that agrees with actual_first_output
+    if (m := check_status(row.get("status", ""), row.get("actual_first_output", ""))):
+        add("status", ERROR, m)
 
     # lag / slip
     #

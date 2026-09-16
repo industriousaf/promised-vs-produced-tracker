@@ -28,8 +28,10 @@ Two ideas:
    year). The `*_dt` column is that string resolved to a concrete ISO date. A
    fuzzy *range* is collapsed to its **"healthy middle"** -- exactly the trick
    `plot_promised_vs_produced.py` uses (a mid-window point): a bare year -> Jul 1,
-   "first half" -> Apr 1, "late"/"second half" -> Oct 1, "early" -> Mar 1, a
-   quarter -> the quarter's midpoint, `YYYY-MM` -> the 15th.
+   "first half" -> Apr 1, "late"/"second half" -> Oct 1, "fall" -> Oct 15,
+   "end" -> Nov 15 (the fourth quarter's middle), "early" -> Mar 1, a quarter ->
+   the quarter's midpoint, `YYYY-MM` -> the 15th. No other word is read: see
+   QUALIFIERS.
 
 2. **`lag_years` / `slip_years` are floats, computed by arithmetic on the `*_dt`
    dates** (assert the later date really is later for lag). When a value can't be
@@ -77,6 +79,27 @@ _Q_RE = re.compile(r"Q([1-4])", re.IGNORECASE)
 
 # The "healthy middle" of each quarter (month, day).
 _QUARTER_MID = {1: (2, 15), 2: (5, 15), 3: (8, 15), 4: (11, 15)}
+
+# Every word a date token may carry beside the date itself. interpret_date reads
+# each of these. Any other word used to reach the bare-year rule and come back as
+# July 1 without complaint, which is how "2026 (end)" and "2024 (fall)" were
+# read. The checker now refuses a token with any other word (unrecognized_words),
+# so a new qualifier has to be taught here first.
+QUALIFIERS = ("first half", "second half", "early", "mid", "late", "end", "fall")
+_QUALIFIER_RE = re.compile(
+    r"first half|second half|\b(?:early|mid|late|end|fall|autumn|h[12]|[12]h|q[1-4])\b",
+    re.IGNORECASE)
+
+
+def unrecognized_words(token) -> str:
+    """The words in a date token that interpret_date does not read, or ''.
+
+    Digits, dashes and brackets are the date's own shape and never count.
+    """
+    s = _YMD_RE.sub(" ", str(token or ""))
+    s = _YEAR_RE.sub(" ", s)
+    s = _QUALIFIER_RE.sub(" ", s)
+    return " ".join(re.findall(r"[A-Za-z]+", s))
 
 
 def interpret_date(raw) -> tuple[str | None, str]:
@@ -128,6 +151,14 @@ def interpret_date(raw) -> tuple[str | None, str]:
         return date(year, 4, 1).isoformat(), "date"
     if "second half" in low or "2h" in low or "h2" in low or "late" in low:
         return date(year, 10, 1).isoformat(), "date"
+    # "end" is the last quarter, so it resolves where Q4 does. It used to fall
+    # through to the bare-year rule: "2026 (end)" came back as 2026-07-01, and a
+    # plant promised for the end of the year read as overdue from July.
+    if "end" in low:
+        month, day = _QUARTER_MID[4]
+        return date(year, month, day).isoformat(), "date"
+    if "fall" in low or "autumn" in low:
+        return date(year, 10, 15).isoformat(), "date"
     if "early" in low:
         return date(year, 3, 1).isoformat(), "date"
     if "mid" in low:

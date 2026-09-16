@@ -264,7 +264,7 @@ class TestAgentCache(unittest.TestCase):
         r = {"project": "Test Fab", "announced": "2022-01",
              "announced_raw": "announced in January 2022",
              "promised_first_output": "2024", "promised_first_output_raw": "in 2024",
-             "actual_first_output": "pending", "actual_first_output_raw": "",
+             "actual_first_output": "pending", "actual_first_output_raw": "", "status": "under construction",
              "promised_capital_usd": "5000000000", "promised_jobs": "3000",
              "current_status": "UNDER CONSTRUCTION",
              "promise_source": "https://a.test/promise",
@@ -451,7 +451,7 @@ class TestRowCheckButton(unittest.TestCase):
         row = {"project": "Checked Fab", "sector": "Semiconductors", "state": "TX",
                "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
                "promised_jobs": 1500, "promised_first_output": "2024",
-               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                "promise_source": "https://example.com/p", "status_source": "https://example.com/s",
                "verification_tier": "P"}
         a = psource.insert_lead(conn, promise_source="https://example.com/a",
@@ -535,7 +535,7 @@ class TestDashboardIsAPipeline(unittest.TestCase):
         row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
                "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
                "promised_jobs": 1500, "promised_first_output": "2024",
-               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                "promise_source": "https://example.com/p",
                "status_source": "https://example.com/s", "verification_tier": "P"}
         lead = psource.insert_lead(conn, promise_source="https://example.com/a",
@@ -634,7 +634,7 @@ class TestOneVocabularyPerTransition(unittest.TestCase):
         base = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
                 "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
                 "promised_jobs": 1500, "promised_first_output": "2024",
-                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                 "promise_source": "https://example.com/p",
                 "status_source": "https://example.com/s", "verification_tier": "P"}
         for n, extra in ((1, {"flag": "announcement gives no start date"}), (2, {})):
@@ -927,7 +927,7 @@ class TestVerifyButtonIsNeverGated(unittest.TestCase):
         row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
                "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
                "promised_jobs": 1500, "promised_first_output": "2024",
-               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                "promise_source": "https://example.com/p",
                "status_source": "https://example.com/s", "verification_tier": "P"}
         lead = psource.insert_lead(conn, promise_source="https://example.com/a",
@@ -993,7 +993,7 @@ class TestModelCheckIsAnEscalation(unittest.TestCase):
         row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
                "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
                "promised_jobs": 1500, "promised_first_output": "2024",
-               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                "promise_source": "https://example.com/p",
                "status_source": "https://example.com/s", "verification_tier": "P"}
         lead = psource.insert_lead(conn, promise_source="https://example.com/a",
@@ -1062,7 +1062,7 @@ class TestAttestRoute(unittest.TestCase):
             "project": "Attest Fab", "sector": "Semiconductors", "state": "TX",
             "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
             "promised_jobs": 1500, "promised_first_output": "2024",
-            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
             "promise_source": "https://example.com/p",
             "status_source": "https://example.com/s",
             "verification_tier": "P"}, source_collected_id=lead)
@@ -1175,7 +1175,7 @@ class TestAttestRoute(unittest.TestCase):
             "project": "Other Fab", "sector": "Semiconductors", "state": "AZ",
             "announced": "2023-01", "promised_capital_usd": 2_000_000_000,
             "promised_jobs": 800, "promised_first_output": "2026",
-            "actual_first_output": "pending", "current_status": "ANNOUNCED",
+            "actual_first_output": "pending", "current_status": "ANNOUNCED", "status": "announced",
             "promise_source": "https://elsewhere.test/p",
             "status_source": "https://elsewhere.test/s",
             "verification_tier": "P"}, source_collected_id=lead)
@@ -1321,6 +1321,16 @@ class TestAttestRoute(unittest.TestCase):
         self.assertEqual(200, self._attest().status_code)
         self.assertEqual([other, self.WHO], [r["attested_by"] for r in self._stored()])
 
+    def test_status_is_a_list_not_a_text_box(self):
+        """It is the field that gets counted, so it offers the six words and
+        nothing can be typed into it."""
+        from pipeline import schema_check as sc
+        body = self.client.get(f"/screen/{self.sid}/inspect").text
+        self.assertIn('<select name="status">', body)
+        for word in sc.STATUSES:
+            self.assertIn(f'<option value="{word}"', body)
+        self.assertIn('<option value="under construction" selected>', body)
+
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestProjectName(unittest.TestCase):
@@ -1375,7 +1385,7 @@ class TestTheQueueIsWalkedTopDown(unittest.TestCase):
         pdb.init_db(conn)
         base = {"sector": "Semiconductors", "state": "TX", "announced": "2022-01",
                 "promised_jobs": 1500, "promised_first_output": "2024",
-                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
                 "promise_source": "https://example.com/p",
                 "status_source": "https://example.com/s", "verification_tier": "P"}
         made = {}
@@ -1477,7 +1487,7 @@ class TestCorrectionsAreChecked(unittest.TestCase):
             "project": "Check Fab", "sector": "Semiconductors", "state": "TX",
             "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
             "promised_jobs": 1500, "promised_first_output": "2024",
-            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
             "promise_source": "https://example.com/p",
             "status_source": "https://example.com/s", "verification_tier": "P"},
             source_collected_id=lead)
@@ -1591,7 +1601,7 @@ class TestInspectShowsThePublishedRecord(unittest.TestCase):
             "project": "Published Fab", "sector": "Semiconductors", "state": "TX",
             "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
             "promised_jobs": 1500, "promised_first_output": "2024",
-            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
             "promise_source": "https://example.com/p",
             "status_source": "https://example.com/s", "verification_tier": "P"},
             source_collected_id=lead)
@@ -1640,6 +1650,10 @@ class TestInspectShowsThePublishedRecord(unittest.TestCase):
         from webapp import agent as wa
         self.assertEqual("2300", str(wa._row_for("screen", self.sid)["promised_jobs"]))
 
+    def test_status_is_locked_here_and_offered_on_the_verify_page(self):
+        self.assertIn('<select name="status" disabled>', self._inspect())
+        self.assertIn('<select name="status">', self.client.get(f"/verify/{self.vid}").text)
+
     def test_a_settle_here_vouches_for_the_published_value(self):
         from pipeline import db as pdb
         self.client.post(f"/screen/{self.sid}/verifier", data={"verifier": self.WHO})
@@ -1673,7 +1687,7 @@ class TestTheResettleFilter(unittest.TestCase):
         pdb.init_db(conn)
         base = {"sector": "Semiconductors", "state": "TX", "announced": "2022-01",
                 "promised_capital_usd": 5_000_000_000, "promised_jobs": 1500,
-                "promised_first_output": "2024", "actual_first_output": "pending",
+                "promised_first_output": "2024", "actual_first_output": "pending", "status": "under construction",
                 "current_status": "UNDER CONSTRUCTION",
                 "promise_source": "https://example.com/p",
                 "status_source": "https://example.com/s", "verification_tier": "P"}
@@ -1744,7 +1758,7 @@ class TestTheResettleFilter(unittest.TestCase):
             "project": "Blocked Fab", "sector": "Semiconductors", "state": "TX",
             "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
             "promised_jobs": 1500, "promised_first_output": "2024",
-            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
             "promise_source": "https://example.com/b",
             "status_source": "https://example.com/s",
             "promised_date_source": "not-a-url", "verification_tier": "P"},
