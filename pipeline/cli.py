@@ -804,10 +804,11 @@ CONFIG_KEYS = {
 def cmd_config(conn, args):
     """Everything configurable, in one place, with what set each value.
 
-    One module, settings.py, in three sections -- what counts as a project, which
-    model runs each stage, how a collection run behaves -- and this is the view
-    of all of it at once, with the line to edit beside each value. `criteria`
-    and `models` remain as focused views.
+    One module, settings.py, in five sections -- what counts as a project, which
+    model runs each stage, how a collection run behaves, who may verify, and how
+    the review screen behaves -- and this is the view of all of it at once, with
+    the line to edit beside each value. `criteria` and `models` remain as
+    focused views.
     """
     if args.For:
         print(CONFIG_KEYS[args.For](args.stage, args.add))
@@ -858,6 +859,10 @@ def cmd_config(conn, args):
     else:
         row("verifier", "nobody -- no field can be confirmed",
             "settings.py", "VERIFIERS")
+    print()
+    print(bold("  HOW THE REVIEW SCREEN BEHAVES") + "   this machine")
+    row("preload articles", "on" if settings.preload_articles() else "off",
+        settings.preload_source(), "PRELOAD_ARTICLES")
     print()
     print("  Everything above is defined in pipeline/settings.py. Override any of")
     print("  it for one run without editing anything:")

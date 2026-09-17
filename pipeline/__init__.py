@@ -63,4 +63,44 @@ def load_config_env(path: Path = CONFIG_ENV) -> None:
             os.environ.setdefault(key, value)
 
 
+def set_config_env(key: str, value: str, path: Path | None = None) -> None:
+    """Write KEY=value into `config.env`, and into this process's environment.
+
+    For a setting a page can change, like the preload checkbox. Every other line
+    stays as it was, comments and the API key included. An existing KEY line is
+    replaced where it stands, and any later copy is dropped, since the loader
+    above would only ever read the first; otherwise the line goes at the end.
+
+    The file holds a key, so it keeps its permissions, or is created readable by
+    its owner only, and it is replaced whole rather than rewritten in place, so
+    a failure part way cannot leave it half-written. The temporary file beside
+    it is gitignored for the same reason config.env is.
+    """
+    path = path or CONFIG_ENV
+    try:
+        text = path.read_text(encoding="utf-8")
+        mode = path.stat().st_mode & 0o777
+    except FileNotFoundError:
+        text, mode = "", 0o600
+    lines, found = [], False
+    for line in text.splitlines():
+        stripped = line.strip()
+        name = stripped.partition("=")[0].strip()
+        if "=" in stripped and not stripped.startswith("#") and name == key:
+            if not found:
+                lines.append(f"{key}={value}")
+                found = True
+            continue
+        lines.append(line)
+    if not found:
+        lines.append(f"{key}={value}")
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+    os.environ[key] = value
+
+
 load_config_env()

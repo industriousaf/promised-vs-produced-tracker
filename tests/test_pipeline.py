@@ -1043,7 +1043,8 @@ class TestConfigCitations(unittest.TestCase):
 
     def test_every_constant_config_cites_resolves(self):
         for name in ("ACTIVE", "SECTORS", "SOURCE", "SCREEN", "API", "AGENT",
-                     "EFFORT", "LEADS_PER_CALL", "MAX_STALL", "VERBOSE", "ITERS_PER_ROW"):
+                     "EFFORT", "LEADS_PER_CALL", "MAX_STALL", "VERBOSE", "ITERS_PER_ROW",
+                     "PRELOAD_ARTICLES"):
             self.assertRegex(settings.where(name), r"^settings\.py:\d+$", name)
 
     def test_the_thresholds_have_a_line(self):
@@ -1432,6 +1433,82 @@ class TestVerifierList(unittest.TestCase):
         nothing would be a confusing refusal; matching a second time under a
         different string would be worse."""
         self.assertTrue(settings.may_verify("  " + settings.VERIFIERS[0] + "  "))
+
+
+# --------------------------------------------------------------------------- #
+class TestPreloadSetting(unittest.TestCase):
+    """Preloading downloads a hundred or more pages from other people's sites,
+    so it happens only on a machine that asked for it."""
+
+    def test_off_unless_this_machine_asks(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ):
+            os.environ.pop("PRELOAD_ARTICLES", None)
+            self.assertFalse(settings.preload_articles())
+            self.assertEqual(settings.preload_source(), "settings.py")
+
+    def test_the_variable_decides_once_it_is_set(self):
+        from unittest import mock
+        for value, want in (("1", True), ("on", True), ("0", False), ("no", False)):
+            with mock.patch.dict(os.environ, {"PRELOAD_ARTICLES": value}):
+                self.assertEqual(settings.preload_articles(), want, value)
+                self.assertEqual(settings.preload_source(), "$PRELOAD_ARTICLES")
+
+    def test_config_says_whether_pages_are_preloaded(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            out = subprocess.run(
+                [sys.executable, "tracker.py", "config"],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                env=dict(os.environ, TRACKER_DB=str(Path(tmp) / "t.db"),
+                         PRELOAD_ARTICLES="1"),
+                capture_output=True, text=True).stdout
+        self.assertRegex(out, r"preload articles\s+on\s+<- \$PRELOAD_ARTICLES")
+
+
+# --------------------------------------------------------------------------- #
+class TestConfigEnvWriter(unittest.TestCase):
+    """The preload checkbox writes config.env, and config.env holds the API key.
+
+    A writer that rewrote the file from what it understood would drop the
+    comments, reorder the lines, or leave the key readable by everyone. The
+    checkbox has to change one line and nothing else.
+    """
+
+    def setUp(self):
+        from unittest import mock
+        import pipeline
+        self.pipeline = pipeline
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = Path(self.dir.name) / "config.env"
+        self.env = mock.patch.dict(os.environ)
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.dir.cleanup()
+
+    def test_one_line_changes_and_the_key_stays(self):
+        self.path.write_text("# mine\nANTHROPIC_API_KEY=sk-test\n"
+                             "PRELOAD_ARTICLES=0\nMODEL=m\n")
+        os.chmod(self.path, 0o600)
+        self.pipeline.set_config_env("PRELOAD_ARTICLES", "1", path=self.path)
+        self.assertEqual(self.path.read_text(), "# mine\nANTHROPIC_API_KEY=sk-test\n"
+                                                "PRELOAD_ARTICLES=1\nMODEL=m\n")
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(os.environ["PRELOAD_ARTICLES"], "1")
+        self.assertFalse(Path(str(self.path) + ".tmp").exists())
+
+    def test_a_missing_file_is_created_readable_by_its_owner_only(self):
+        self.pipeline.set_config_env("PRELOAD_ARTICLES", "1", path=self.path)
+        self.assertEqual(self.path.read_text(), "PRELOAD_ARTICLES=1\n")
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+
+    def test_a_comment_is_not_a_setting(self):
+        """And a second copy goes, because the loader only ever reads the first."""
+        self.path.write_text("# PRELOAD_ARTICLES=1\nPRELOAD_ARTICLES=0\nPRELOAD_ARTICLES=0\n")
+        self.pipeline.set_config_env("PRELOAD_ARTICLES", "1", path=self.path)
+        self.assertEqual(self.path.read_text(), "# PRELOAD_ARTICLES=1\nPRELOAD_ARTICLES=1\n")
 
 
 # --------------------------------------------------------------------------- #

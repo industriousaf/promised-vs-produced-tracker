@@ -23,6 +23,9 @@ __pycache__/
 # Credentials. .env is the reason this block is not optional.
 .env
 config.env
+# The web app rewrites config.env through this file (the preload checkbox), so
+# it holds the same key for a moment, and a crash could leave it behind.
+config.env.tmp
 !.env.example
 
 # macOS Finder droppings. Finder writes one into any directory it displays, so
@@ -68,6 +71,8 @@ outputs/agent_cache/
 # ingest as JSON, then calls source-add / screen-add on it. Once the command
 # returns, the database holds the content and the file is just the envelope it
 # arrived in. The README is tracked so the directory exists in a fresh clone.
+# The web app's saved copies of cited pages live here too, in scratch/pages/:
+# other people's articles, which a public repository must never carry.
 #
 # `**/scratch/*` and not `scratch/*`: a leading `**/` matches at any depth, while
 # a pattern containing a slash is anchored to the repo root. A collection call

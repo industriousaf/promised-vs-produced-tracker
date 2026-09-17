@@ -19,8 +19,9 @@ Three things happen here, in order:
 
   1. FETCH  -- `fetch()` gets the page, with the same ladder the collection
      prompts tell the model to use (browser user-agent first, then the Wayback
-     Machine when the origin 403s or the page is gone). Cached in memory, so
-     switching tabs back and forth does not re-fetch.
+     Machine when the origin 403s or the page is gone). Saved to disk by
+     `page_cache`, so a page downloads once, and a preload can download it
+     before anyone opens it.
   2. SANITIZE -- `_Reader` rewrites the HTML down to an allowlist of text tags.
      Nothing executable survives: no script, style, iframe, form or event
      handler, and no remote asset. What is left is the article's words.
@@ -55,6 +56,7 @@ from fastapi.responses import HTMLResponse  # noqa: E402
 from pipeline import screen, verify  # noqa: E402
 from pipeline.db import db_path  # noqa: E402
 
+from webapp import page_cache  # noqa: E402
 from webapp.shared import _conn, esc  # noqa: E402
 
 router = APIRouter()
@@ -461,29 +463,6 @@ _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 _TIMEOUT = 25
 _MAX_BYTES = 4_000_000
-_CACHE_TTL = 30 * 60
-_CACHE_MAX = 24
-
-# {url: (fetched_at, result)}. Process-local and deliberately small: this is a
-# reading aid, not an archive, and a reviewer flipping between two tabs should
-# not pay for the page twice.
-_CACHE: dict[str, tuple[float, dict]] = {}
-
-
-def _cache_get(key: str):
-    hit = _CACHE.get(key)
-    if hit and time.time() - hit[0] < _CACHE_TTL:
-        return hit[1]
-    _CACHE.pop(key, None)
-    return None
-
-
-def _cache_put(key: str, value: dict):
-    if len(_CACHE) >= _CACHE_MAX:
-        for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[: _CACHE_MAX // 2]:
-            _CACHE.pop(k, None)
-    _CACHE[key] = (time.time(), value)
-
 
 # {(database, stage, row_id, field): {"url", "tab", "count"}} -- what the pane
 # last showed for one field, so a confirmation can record the page it was made
@@ -676,33 +655,60 @@ def _wayback(url: str) -> dict:
     return res
 
 
-def fetch(url: str, via: str = "auto") -> dict:
+def fetch(url: str, via: str = "auto", fresh: bool = False,
+          retry_failed: bool = False) -> dict:
     """The page, following the same ladder the collection prompts prescribe.
 
     `via="wayback"` skips the origin entirely, which is the button the pane
     offers when the live page loads but is a paywall stub or a JavaScript shell.
+
+    A saved copy is used when there is one; see page_cache. `fresh` downloads
+    regardless, which is the pane's "fetch again". `retry_failed` downloads a
+    page whose last attempt failed however recently, which is the preload.
     """
     key = f"{via}|{url}"
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-    if not re.match(r"^https?://", url, re.IGNORECASE):
-        res = {"ok": False, "status": 0, "html": "", "final_url": url, "via": "none",
-               "error": "not an http(s) URL — nothing to fetch"}
-    elif via == "wayback":
-        res = _wayback(url)
-    else:
-        res = _get(url)
-        res["via"] = "live"
-        # 403/404/410/429 and timeouts are exactly the ladder's steps 2-4, and
-        # the answer to all of them is the archive.
-        if not res["ok"]:
-            arch = _wayback(url)
-            if arch["ok"]:
-                arch["origin_error"] = res["error"]
-                res = arch
-    _cache_put(key, res)
-    return res
+    with page_cache.lock(key):
+        if not fresh:
+            saved = page_cache.read(key, failures=not retry_failed)
+            if saved is not None:
+                return saved
+        if not re.match(r"^https?://", url, re.IGNORECASE):
+            res = {"ok": False, "status": 0, "html": "", "final_url": url, "via": "none",
+                   "error": "not an http(s) URL — nothing to fetch"}
+        elif via == "wayback":
+            res = _wayback(url)
+        else:
+            res = _get(url)
+            res["via"] = "live"
+            # 403/404/410/429 and timeouts are exactly the ladder's steps 2-4, and
+            # the answer to all of them is the archive.
+            if not res["ok"]:
+                arch = _wayback(url)
+                if arch["ok"]:
+                    arch["origin_error"] = res["error"]
+                    res = arch
+        res["fetched_at"] = time.time()
+        if res["ok"]:
+            res["words"] = count_words(res["html"], res.get("final_url") or url)
+        page_cache.write(key, res)
+        return res
+
+
+# Fewer words than this, on a page that loaded, and the preload lists it as
+# nearly empty: a JavaScript shell, a cookie wall, a stub. A short press release
+# still runs to a few hundred.
+NEARLY_EMPTY = 100
+
+
+def count_words(raw_html: str, base_url: str) -> int:
+    """Words of text the pane would show for a page.
+
+    A page built by JavaScript downloads fine and comes through with almost
+    none, and in the pane it looks exactly like a page that does not carry the
+    value. Kept with each saved page so the preload can list those.
+    """
+    doc, _title, _marks = render_document(raw_html, base_url, [])
+    return len(re.findall(r"\w+", html.unescape(re.sub(r"<[^>]+>", " ", doc))))
 
 
 # --------------------------------------------------------------------------- #
@@ -924,7 +930,16 @@ mark.hl.off { background: transparent; color: inherit; outline: none; }
 .empty { padding: 2rem 1.1rem; font: 14px/1.6 system-ui, sans-serif;
          max-width: 40rem; }
 .empty code { background: #8882; padding: 0 .25rem; border-radius: 3px; }
+#bar .age { opacity: .7; }
+#refetching { display: none; color: #b45309; font-weight: 600; }
+body.refetching #refetching { display: inline; }
+body.refetching #doc, body.refetching .empty { opacity: .35; }
 """
+
+# On a link that reloads this frame. The page around the frame cannot see a
+# click in here, so nothing else would show that anything is happening, and a
+# download through the archive can take a minute.
+_RELOADS = 'onclick="document.body.classList.add(\'refetching\')"'
 
 # Arrow keys and n/p work too: a reviewer walking a page of highlights should
 # not have to move to the mouse between each one.
@@ -987,7 +1002,8 @@ def _pane(title: str, bar: str, main: str, nav: str) -> HTMLResponse:
         f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title><style>{_PANE_CSS}</style></head><body>
-<div id="bar">{bar}</div>{main}{nav}</body></html>"""
+<div id="bar">{bar} <span id="refetching">fetching the page again, which can
+take a minute</span></div>{main}{nav}</body></html>"""
     )
 
 
@@ -1111,8 +1127,9 @@ def pane_html(stage: str, row_id: int, row, tall: bool = True) -> str:
 <div class="paneload" id="paneload" aria-live="polite">
   <span class="paneload-l">Loading the cited page</span>
   <span class="paneload-h" id="paneloadhost">{esc(tabs[0]["label"])} · {esc(tabs[0]["host"])}</span>
-  <span class="paneload-n">fetched fresh each time, so a slow site is slow here.
-  If the origin refuses, the pane falls back to the Wayback Machine.</span>
+  <span class="paneload-n">A page is saved once it has loaded, so only its first
+  opening waits on the site. If the site refuses, the pane falls back to the
+  Wayback Machine.</span>
   <span class="paneload-n" id="paneloadslow" hidden>Still waiting after 30
   seconds. The site is slow or refusing, and the Wayback Machine can take another
   minute. <a id="paneloadopen" href="{esc(tabs[0]["url"])}" target="_blank"
@@ -1130,6 +1147,20 @@ pane will show no highlight for it.</p>
 <script>{_PANESTATE_JS}</script>"""
 
 
+def saved_when(res: dict) -> str:
+    """How long ago the page in the pane was downloaded."""
+    if not res.get("fetched_at"):
+        return ""
+    s = time.time() - float(res["fetched_at"])
+    if s < 90:
+        return "downloaded just now"
+    if s < 3600:
+        return f"saved {int(s // 60)} min ago"
+    if s < 2 * 86400:
+        return f"saved {int(s // 3600)} h ago"
+    return f"saved {int(s // 86400)} days ago"
+
+
 def _row_for(stage: str, row_id: int):
     conn = _conn()
     try:
@@ -1145,14 +1176,16 @@ def _row_for(stage: str, row_id: int):
 
 @router.get("/evidence/{stage}/{row_id}", response_class=HTMLResponse)
 def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
-                  field: str = ""):
+                  field: str = "", fresh: int = 0):
     """One cited page, rendered with the row's claims marked in it.
 
     The tab is addressed by INDEX into the row's own links, never by URL, so the
     only pages this route can be made to fetch are ones already stored on the
-    row it was asked about.
+    row it was asked about. `fresh=1` downloads the page again rather than using
+    the saved copy.
     """
     stage = "verify" if stage == "verify" else "screen"
+    via = "wayback" if via == "wayback" else "auto"
     row = _row_for(stage, row_id)
     if row is None:
         return _pane("no project", "", '<p class="empty">No project with that id.</p>', "")
@@ -1168,8 +1201,10 @@ def evidence_pane(stage: str, row_id: int, tab: int = 0, via: str = "auto",
     tab = tab if 0 <= tab < len(tabs) else 0
     t = tabs[tab]
 
-    res = fetch(t["url"], via=via)
+    res = fetch(t["url"], via=via, fresh=bool(fresh))
     origin = urllib.parse.urlsplit(t["url"]).netloc
+    again = (f'?tab={tab}&amp;via={via}&amp;field={urllib.parse.quote(field)}'
+             f'&amp;fresh=1')
 
     if not res["ok"]:
         note = ""
@@ -1189,8 +1224,12 @@ not make the project wrong.</p>
 <ol class="err-do-l">
 <li>Open it yourself:
     <a href="{esc(t['url'])}" target="_blank">{esc(t['url'])}</a></li>
-<li><a href="?tab={tab}&amp;via=wayback">Ask the archive directly</a>, which
-    sometimes finds a snapshot this did not.</li>
+<li><a href="{again}" {_RELOADS}>Try again now</a>. This answer is kept for
+    half an hour, so reopening the tab will not retry it: use this after a site
+    was down, or after turning on a VPN for a site that refuses other
+    countries.</li>
+<li><a href="?tab={tab}&amp;via=wayback" {_RELOADS}>Ask the archive directly</a>,
+    which sometimes finds a snapshot this did not.</li>
 <li>If the page is genuinely gone, find a replacement source and put it in the
     project, or record what happened in <code>flag</code>. Do not leave the field
     looking checked.</li>
@@ -1216,7 +1255,9 @@ not make the project wrong.</p>
            f'<a href="{esc(t["url"])}" target="_blank">{esc(origin)} ↗</a> '
            f'{via_note}')
     if res.get("via") != "wayback":
-        bar += f' <a href="?tab={tab}&amp;via=wayback">try the archive</a>'
+        bar += f' <a href="?tab={tab}&amp;via=wayback" {_RELOADS}>try the archive</a>'
+    bar += (f' <span class="age">{esc(saved_when(res))}</span>'
+            f' <a href="{again}" {_RELOADS}>fetch again</a>')
 
     chips = "".join(
         f'<span class="chip{" ctx" if c in ("current_status",) else ""}'
@@ -1234,3 +1275,47 @@ not make the project wrong.</p>
 <script>{_PANE_JS}</script>"""
 
     return _pane(page_title or origin, bar, f'<div id="doc">{doc}</div>', nav)
+
+
+# --------------------------------------------------------------------------- #
+# The preload                                                                  #
+# --------------------------------------------------------------------------- #
+
+def preload_targets(conn) -> list[dict]:
+    """Every page a verifier is about to open, in the order they will open them.
+
+    The review queue first, largest capital first, which is the order it is
+    walked; then the published projects with a field to settle again. The pages
+    are the ones the pane would show, so the published record's for a published
+    project, and a page two projects cite is downloaded once.
+    """
+    ids = [r["id"] for r in screen.review_queue(conn)["ready"]]
+    seen = set(ids)
+    ids += [sid for sid in screen.needs_resettle(conn) if sid not in seen]
+    pages: dict[str, dict] = {}
+    for sid in ids:
+        row, _published = screen.review_view(conn, sid)
+        if row is None:
+            continue
+        for t in tabs_for(row):
+            page = pages.setdefault(t["url"], {"url": t["url"], "host": t["host"],
+                                               "projects": []})
+            page["projects"].append({"id": sid, "project": row["project"],
+                                     "tab": t["label"]})
+    return list(pages.values())
+
+
+def start_preload() -> page_cache.Run:
+    """Download every page the waiting projects cite, on a thread.
+
+    A page that loaded within the week is skipped. A page that failed is tried
+    again however recently it failed, so running this after turning on a VPN
+    retries exactly the pages that need it.
+    """
+    def targets() -> list[dict]:
+        conn = _conn()
+        try:
+            return preload_targets(conn)
+        finally:
+            conn.close()
+    return page_cache.start(targets, lambda url: fetch(url, retry_failed=True))

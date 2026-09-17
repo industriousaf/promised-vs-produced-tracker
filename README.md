@@ -291,7 +291,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 It is loaded on `import pipeline`, so every entry point sees it: the CLI, the web
 app's agentic check, `tools/gather.py`, and the collection scripts. `TRACKER_DB`,
-`MODEL` and `EFFORT` can live there too. Simple `KEY=value` lines; `#` comments and
+`MODEL` and `EFFORT` can live there too, and `PRELOAD_ARTICLES`, which the
+checkbox at the foot of the web app writes for you. Simple `KEY=value` lines; `#` comments and
 blank lines are ignored; a missing file is not an error. Confirm it is being read
 without printing it:
 

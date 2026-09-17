@@ -7,7 +7,7 @@ reading it off:
 
     python3 tracker.py config
 
-Four sections, and the division is worth keeping in mind because the sections
+Five sections, and the division is worth keeping in mind because the sections
 mean different things:
 
     1. WHAT COUNTS AS A PROJECT   methodology. Changing a threshold changes what
@@ -19,6 +19,7 @@ mean different things:
                                   a run MEANS. See the note on each.
     4. WHO MAY VERIFY             methodology. These addresses are published
                                   beside the data they confirmed.
+    5. HOW THE REVIEW SCREEN BEHAVES  operations, and per machine.
 
 These were four separate places once -- two Python modules and defaults written
 twice across collect/source.sh and collect/all.sh, because all.sh launches
@@ -458,6 +459,41 @@ def verifiers() -> list[str]:
 def may_verify(address: str) -> bool:
     """True when `address` is on the list. Nothing else may be written."""
     return address.strip() in verifiers()
+
+
+# ========================================================================== #
+#  5. HOW THE REVIEW SCREEN BEHAVES                                        #
+# ========================================================================== #
+
+# --------------------------------------------------------------------------- #
+# The defaults. Edit these.                                                    #
+# --------------------------------------------------------------------------- #
+
+# Download every page the waiting projects cite whenever the web app starts,
+# and keep them in scratch/pages/, so opening a source reads a saved copy instead
+# of waiting on the site. See webapp/page_cache.py.
+#
+# Off by default, because it downloads a hundred or more pages from other
+# people's sites, which nobody who cloned the repository to read the data should
+# get unasked. It is a choice per machine rather than per project: the checkbox
+# at the foot of every page writes PRELOAD_ARTICLES to config.env.
+PRELOAD_ARTICLES = False
+
+
+# --------------------------------------------------------------------------- #
+# What is actually in effect                                                   #
+# --------------------------------------------------------------------------- #
+
+def preload_articles() -> bool:
+    """$PRELOAD_ARTICLES when it is set (config.env sets it too), else the default."""
+    v = (os.getenv("PRELOAD_ARTICLES") or "").strip().lower()
+    if not v:
+        return PRELOAD_ARTICLES
+    return v in ("1", "true", "yes", "on")
+
+
+def preload_source() -> str:
+    return "$PRELOAD_ARTICLES" if (os.getenv("PRELOAD_ARTICLES") or "").strip() else "settings.py"
 
 
 # --------------------------------------------------------------------------- #

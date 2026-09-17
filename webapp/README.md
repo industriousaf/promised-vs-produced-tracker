@@ -74,6 +74,16 @@ actually print the value — `2022-01` finds "Jan. 21, 2022"; 1,600,000,000 find
 as well; a chip walks one cell only. The pane opens on the first highlight, so
 the page arrives scrolled to the sentence in question.
 
+**A page downloads once.** The first time a tab opens, the page is saved to
+`scratch/pages/` (gitignored) and used from there for a week; **fetch again** in
+the pane's top bar downloads it anew. Tick **Preload articles** at the foot of
+any page and the app downloads every page the waiting projects cite each time it
+starts, largest capital first, so nothing waits on a slow site mid-review. **Run
+now** does it straight away and retries every page that failed, which is the
+thing to press after turning on a VPN. The count beside it opens `/pages`, the
+list of what could not be read. The checkbox is saved to `config.env`, so it is
+a setting for this machine.
+
 **Two checks, and they answer different questions.**
 
 | | Asks | Costs |
@@ -93,12 +103,13 @@ Answers go stale after two weeks; a status page is cited because it changes.
 
 | File | Holds |
 |---|---|
-| `main.py` | creates the app, mounts the stage modules and the two panes, and serves the dashboard plus the database picker |
+| `main.py` | creates the app, mounts the stage modules and the two panes, and serves the dashboard, the database picker, the preload checkbox and the list of saved pages |
 | `shared.py` | the stylesheet, the page skeleton, the database picker bar, and the small formatting helpers every page uses |
 | `source.py` | the Source pages: the lead list, the rendered collection prompt, and the three ways to add a lead |
 | `screen.py` | the Screen pages: the row list, the extraction prompt, the checker with its rule-by-rule panel, and the review screen |
 | `verify.py` | the Verify pages: the published rows, the capital/jobs filter, the sector vocabulary, and the edit form |
 | `evidence.py` | the document pane: fetching a cited page, stripping it to safe text, and marking the row's claims in it |
+| `page_cache.py` | the pages that pane has saved, and the preload that downloads them ahead of time |
 | `agent.py` | the agentic-check pane: the cell picker, and the model's answer rendered |
 | `agent_cache.py` | that check's background jobs and its cached answers — and what makes two questions the same question |
 

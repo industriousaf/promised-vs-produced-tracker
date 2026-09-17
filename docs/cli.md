@@ -115,7 +115,8 @@ Each stage is a small module the two interfaces share:
   issue list.
 - `settings.py` — **every setting**: the inclusion phases (what counts as a
   project — the size floor, the date window, the countries, the sector
-  vocabulary), which model runs each stage, and how a collection run behaves.
+  vocabulary), which model runs each stage, how a collection run behaves, who
+  may verify, and whether the web app preloads the pages projects cite.
   `config` prints it all with the line to edit. If this file and any document
   disagree, this file is right.
 - `schema.py` — **the definition of a well-formed row**: the columns and the row

@@ -23,6 +23,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -1100,6 +1101,275 @@ class TestThePaneSaysWhichPageIsLoading(unittest.TestCase):
         self.assertIn("marks.textContent = t.dataset.marks", ev._PANESTATE_JS)
 
 
+_ARTICLE = "<html><body><p>" + "word " * 300 + "</p></body></html>"
+
+
+class _FakeDownloads:
+    """Stands in for the network: records every download the pane asks for."""
+
+    def __init__(self, test):
+        self.calls, self.reply = [], {"ok": True, "status": 200, "error": "",
+                                      "html": _ARTICLE}
+        self._real = ev._get
+        ev._get = self.get
+        test.addCleanup(setattr, ev, "_get", self._real)
+
+    def get(self, url):
+        self.calls.append(url)
+        return dict(self.reply, final_url=url)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestSavedPages(unittest.TestCase):
+    """A page downloads once, and is read from disk after that.
+
+    The pane kept 24 pages in memory for 30 minutes and lost them on every
+    restart, so nearly every source a verifier opened was a live download, and a
+    refused one could take a minute and a half through the Wayback Machine.
+    """
+
+    def setUp(self):
+        from webapp import page_cache
+        self.pc = page_cache
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(setattr, page_cache, "PAGES_DIR", page_cache.PAGES_DIR)
+        page_cache.PAGES_DIR = Path(self.dir.name)
+        self.net = _FakeDownloads(self)
+
+    def _age(self, key, seconds):
+        import json
+        path = self.pc._path(key)
+        data = json.loads(path.read_text())
+        data["fetched_at"] = time.time() - seconds
+        path.write_text(json.dumps(data))
+
+    def test_a_page_downloads_once(self):
+        ev.fetch("https://a.test/x")
+        ev.fetch("https://a.test/x")
+        self.assertEqual(self.net.calls, ["https://a.test/x"])
+
+    def test_the_saved_copy_is_on_disk_not_in_this_process(self):
+        """So a restart keeps it, which the memory cache never did."""
+        ev.fetch("https://a.test/x")
+        saved = self.pc.read("auto|https://a.test/x")
+        self.assertTrue(saved["ok"])
+        self.assertIn("word word", saved["html"])
+
+    def test_a_page_older_than_a_week_downloads_again(self):
+        ev.fetch("https://a.test/x")
+        self._age("auto|https://a.test/x", self.pc.MAX_AGE + 60)
+        ev.fetch("https://a.test/x")
+        self.assertEqual(len(self.net.calls), 2)
+
+    def test_fetch_again_ignores_the_saved_copy(self):
+        ev.fetch("https://a.test/x")
+        ev.fetch("https://a.test/x", fresh=True)
+        self.assertEqual(len(self.net.calls), 2)
+
+    def test_a_failure_waits_for_a_click_but_not_for_the_preload(self):
+        """The VPN case. A page refused from abroad has to be retried the moment
+        the preload runs again, not half an hour later."""
+        self.net.reply = {"ok": False, "status": 403, "error": "HTTP 403 Forbidden",
+                          "html": ""}
+        ev.fetch("https://a.test/x")
+        tried = len(self.net.calls)
+        ev.fetch("https://a.test/x")
+        self.assertEqual(len(self.net.calls), tried)
+        ev.fetch("https://a.test/x", retry_failed=True)
+        self.assertGreater(len(self.net.calls), tried)
+
+    def test_a_page_with_almost_no_text_says_so(self):
+        """A JavaScript shell downloads fine and shows nothing, which in the pane
+        looks like a page that does not carry the value."""
+        self.assertGreater(ev.fetch("https://a.test/x")["words"], ev.NEARLY_EMPTY)
+        self.net.reply = dict(self.net.reply, html="<html><body><div id=app></div>"
+                              "<script>render()</script></body></html>")
+        self.assertLess(ev.fetch("https://a.test/shell")["words"], ev.NEARLY_EMPTY)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestThePreload(unittest.TestCase):
+    """The preload downloads what a verifier is about to open, in that order."""
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        from webapp import page_cache
+        self.pc = page_cache
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(setattr, page_cache, "PAGES_DIR", page_cache.PAGES_DIR)
+        page_cache.PAGES_DIR = Path(self.dir.name) / "pages"
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        self.ids = {}
+        for name, capital, promise, status in (
+                ("Two Fab", 2_000_000_000, "https://a.test/p2", "https://a.test/shared"),
+                ("Five Fab", 5_000_000_000, "https://a.test/p5", "https://a.test/s5"),
+                ("One Fab", 1_000_000_000, "https://a.test/p1", "https://a.test/shared")):
+            row = {"project": name, "sector": "Semiconductors", "state": "TX",
+                   "announced": "2022-01", "promised_capital_usd": capital,
+                   "promised_jobs": 1500, "promised_first_output": "2024",
+                   "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                   "status": "under construction", "promise_source": promise,
+                   "status_source": status, "verification_tier": "P"}
+            lead = psource.insert_lead(conn, promise_source=promise,
+                                       status_source=status, summary=name)
+            self.ids[name] = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+            pscreen.run_check(conn, self.ids[name])
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.addCleanup(pdb.set_active_db, None)
+        self.net = _FakeDownloads(self)
+        self.addCleanup(self._drain)
+
+    def _drain(self):
+        run = self.pc.last_run()
+        deadline = time.time() + 10
+        while run is not None and run.running and time.time() < deadline:
+            time.sleep(0.02)
+        self.pc._RUN = None
+
+    def test_pages_come_in_queue_order_and_once_each(self):
+        from pipeline import db as pdb
+        conn = pdb.connect(self.path)
+        try:
+            pages = ev.preload_targets(conn)
+        finally:
+            conn.close()
+        self.assertEqual([p["url"] for p in pages],
+                         ["https://a.test/p5", "https://a.test/s5", "https://a.test/p2",
+                          "https://a.test/shared", "https://a.test/p1"])
+        shared = pages[3]["projects"]
+        self.assertEqual([c["project"] for c in shared], ["Two Fab", "One Fab"])
+
+    def test_a_run_saves_every_page_and_counts_them(self):
+        run = ev.start_preload()
+        self._drain_run(run)
+        self.assertIsNone(run.error)
+        self.assertEqual((run.total, run.saved, run.failed), (5, 5, 0))
+        self.assertEqual(sorted(self.net.calls), sorted(p["url"] for p in run.pages))
+
+    def test_a_second_run_downloads_nothing_already_saved(self):
+        self._drain_run(ev.start_preload())
+        self.pc._RUN = None
+        before = len(self.net.calls)
+        self._drain_run(ev.start_preload())
+        self.assertEqual(len(self.net.calls), before)
+
+    def test_only_one_run_at_a_time(self):
+        gate = threading.Event()
+        slow = self.net.get
+        ev._get = lambda url: (gate.wait(5), slow(url))[1]
+        first = ev.start_preload()
+        self.assertIs(ev.start_preload(), first)
+        gate.set()
+        self._drain_run(first)
+
+    def test_the_pane_offers_to_fetch_again(self):
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        client = TestClient(app)
+        sid = self.ids["Five Fab"]
+        body = client.get(f"/evidence/screen/{sid}?tab=0").text
+        self.assertIn("downloaded just now", body)
+        self.assertIn("fresh=1", body)
+        client.get(f"/evidence/screen/{sid}?tab=0")
+        self.assertEqual(self.net.calls, ["https://a.test/p5"])
+        client.get(f"/evidence/screen/{sid}?tab=0&fresh=1")
+        self.assertEqual(self.net.calls, ["https://a.test/p5", "https://a.test/p5"])
+
+    def _drain_run(self, run):
+        deadline = time.time() + 10
+        while run.running and time.time() < deadline:
+            time.sleep(0.02)
+        self.assertFalse(run.running, "the preload did not finish")
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestPreloadCheckbox(unittest.TestCase):
+    """The checkbox is a setting for this machine, so it lands in config.env.
+
+    Not the database, which git cannot merge, and not settings.py, which both
+    verifiers share. It saves without leaving the page, because the page may
+    hold corrections not yet saved.
+    """
+
+    def setUp(self):
+        import pipeline
+        from pipeline import db as pdb
+        from webapp import page_cache
+        self.pc = page_cache
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.addCleanup(self.dir.cleanup)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        conn.close()
+        pdb.set_active_db(self.path)
+        self.addCleanup(pdb.set_active_db, None)
+        self.cfg = Path(self.dir.name) / "config.env"
+        self.cfg.write_text("ANTHROPIC_API_KEY=sk-test\n")
+        for patch in (mock.patch.object(pipeline, "CONFIG_ENV", self.cfg),
+                      mock.patch.dict(os.environ)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.addCleanup(setattr, page_cache, "_RUN", page_cache._RUN)
+
+    def _client(self):
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app)
+
+    def test_the_checkbox_shows_this_machines_setting(self):
+        os.environ["PRELOAD_ARTICLES"] = "1"
+        self.assertIn('name="on" value="1" checked', self._client().get("/").text)
+        os.environ["PRELOAD_ARTICLES"] = "0"
+        self.assertNotIn('value="1" checked', self._client().get("/").text)
+
+    def test_ticking_it_writes_one_line_and_starts_a_preload(self):
+        with mock.patch.object(ev, "start_preload", return_value=self.pc.Run()) as started:
+            r = self._client().post("/preload", data={"on": "1"},
+                                    headers={"Accept": "application/json"})
+        self.assertEqual(200, r.status_code)
+        self.assertEqual(self.cfg.read_text(),
+                         "ANTHROPIC_API_KEY=sk-test\nPRELOAD_ARTICLES=1\n")
+        self.assertEqual(os.environ["PRELOAD_ARTICLES"], "1")
+        started.assert_called_once()
+        self.assertIn("Preloading", r.json()["message"])
+
+    def test_unticking_it_starts_nothing(self):
+        with mock.patch.object(ev, "start_preload") as started:
+            r = self._client().post("/preload", data={},
+                                    headers={"Accept": "application/json"})
+        self.assertEqual(200, r.status_code)
+        self.assertIn("PRELOAD_ARTICLES=0", self.cfg.read_text())
+        started.assert_not_called()
+
+    def test_without_scripting_it_returns_to_the_page_it_was_on(self):
+        with mock.patch.object(ev, "start_preload", return_value=self.pc.Run()):
+            r = self._client().post(
+                "/preload", data={"on": "1"}, follow_redirects=False,
+                headers={"referer": "http://testserver/screen/7/inspect"})
+        self.assertEqual(303, r.status_code)
+        self.assertTrue(r.headers["location"].startswith("/screen/7/inspect?msg="))
+
+    def test_the_list_puts_what_could_not_be_read_first(self):
+        run = self.pc.Run(finished_at=time.time())
+        run.pages = [
+            {"url": "https://a.test/ok", "host": "a.test", "ok": True, "via": "live",
+             "words": 400, "fetched_at": time.time(),
+             "projects": [{"id": 1, "project": "Fab A", "tab": "Promised"}]},
+            {"url": "https://b.test/no", "host": "b.test", "ok": False, "status": 403,
+             "error": "HTTP 403 Forbidden", "fetched_at": time.time(),
+             "projects": [{"id": 2, "project": "Fab B", "tab": "Produced"}]}]
+        self.pc._RUN = run
+        body = self._client().get("/pages").text
+        self.assertLess(body.index("b.test refused the request"), body.index("a.test ↗"))
+        self.assertIn("1 of 2 pages saved, 1 could not be read", body)
+
+
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestAttestRoute(unittest.TestCase):
     """Confirming a field writes a row, and only a named person can do it.
@@ -1139,7 +1409,7 @@ class TestAttestRoute(unittest.TestCase):
         # The pane fetches for real otherwise, and these tests must not leave
         # the machine. The stub is what render_document counts against.
         self._fetch = ev.fetch
-        ev.fetch = lambda url, via="auto": {
+        ev.fetch = lambda url, via="auto", **_: {
             "ok": True, "via": "live", "final_url": url, "html": self.PAGE}
 
     def tearDown(self):
@@ -1681,7 +1951,7 @@ class TestInspectShowsThePublishedRecord(unittest.TestCase):
         pdb.set_active_db(self.path)
         self.client = TestClient(app)
         self._fetch = ev.fetch
-        ev.fetch = lambda url, via="auto": {
+        ev.fetch = lambda url, via="auto", **_: {
             "ok": True, "via": "live", "final_url": url, "html": self.PAGE}
 
     def tearDown(self):

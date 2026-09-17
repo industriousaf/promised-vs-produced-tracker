@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.responses import HTMLResponse  # noqa: E402
 
-from pipeline import source, screen, verify, orchestrate as orch, llm  # noqa: E402
+from pipeline import source, screen, verify, orchestrate as orch, llm, settings  # noqa: E402
 from pipeline.db import (  # noqa: E402
     DEFAULT_DB, READ_ONLY, connect, db_path, discover_databases, init_db,
     is_read_only, set_active_db, table_counts,
@@ -39,6 +39,8 @@ from pipeline.schema_check import (  # noqa: E402
     all_sectors,
 )
 from pipeline.llm import LLMUnavailable  # noqa: E402
+
+from webapp import page_cache  # noqa: E402
 
 
 def _conn():
@@ -241,6 +243,11 @@ body.wide .wrap { max-width: 1560px; }
     width: auto; max-width: 30rem; }
 .footpath { font-family: var(--font-mono); font-size: 10px; color: var(--type-3);
     margin: .5rem 0 0; word-break: break-all; }
+.preload { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+    margin-top: .9rem; }
+.preload label { margin: 0; display: flex; align-items: center; gap: .35rem; }
+.preload-status { font-family: var(--font-mono); font-size: 10px; color: var(--type-3); }
+.preload-status a { color: inherit; }
 
 /* ---- the wordmark: design system Section 01, SM tier ------------------- */
 /* Two lines at one cap-height. Line 1 reads the brand; line 2 reveals the
@@ -656,7 +663,80 @@ def _db_switcher() -> str:
 <button type="submit">Switch</button>
 </form>
 <p class="footpath">{html.escape(str(db_path()))}</p>
+{_preload_control()}
 </div></footer>"""
+
+
+def preload_status(run) -> str:
+    """What the preload is doing, or did, in a few words."""
+    if run is None:
+        return ""
+    if run.error:
+        return f"The preload stopped: {run.error}"
+    if run.running:
+        if not run.total:
+            return "Preloading: finding the pages"
+        return f"Preloading: {run.done} of {run.total} pages"
+    text = f"{run.saved} of {run.total} pages saved"
+    if run.failed:
+        text += f", {run.failed} could not be read"
+    return text
+
+
+# Ticking the box saves without leaving the page. The page may hold corrections
+# not yet saved, and a control in the footer must not be what throws them away.
+_PRELOAD_JS = """
+(function () {
+  var form = document.querySelector('form.preload');
+  if (!form) { return; }
+  var box = form.querySelector('input[name="on"]');
+  var say = document.getElementById('preloadstatus');
+  // With scripting on, the checkbox saves itself. The button is for a browser
+  // without it.
+  form.querySelector('.preload-save').hidden = true;
+
+  function show(text) {
+    say.textContent = '';
+    var a = document.createElement('a');
+    a.href = '/pages';
+    a.textContent = text;
+    say.appendChild(a);
+  }
+  function post(url) {
+    var body = new FormData();
+    if (box.checked) { body.append('on', '1'); }
+    show('\\u2026');
+    fetch(url, { method: 'POST', body: body, headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { show(d.message); })
+      .catch(function () { show('Nothing was saved: the server did not answer.'); });
+  }
+  box.addEventListener('change', function () { post('/preload'); });
+  form.querySelector('.preload-run').addEventListener('click', function (e) {
+    e.preventDefault();
+    post('/preload/run');
+  });
+})();
+"""
+
+
+def _preload_control() -> str:
+    """Whether this machine preloads cited pages, and what the last preload did.
+
+    Saved to config.env, the file for settings of one machine. Not the
+    database, which git cannot merge, and not settings.py, which is committed
+    and shared by everyone who verifies. See webapp/page_cache.py.
+    """
+    on = settings.preload_articles()
+    status = preload_status(page_cache.last_run())
+    link = f'<a href="/pages">{html.escape(status)}</a>' if status else ""
+    return f"""<form class="preload" method="post" action="/preload">
+<label><input type="checkbox" name="on" value="1"{" checked" if on else ""}> Preload articles</label>
+<button type="submit" class="preload-save">Save</button>
+<button type="submit" formaction="/preload/run" class="preload-run">Run now</button>
+<span class="preload-status" id="preloadstatus">{link}</span>
+</form>
+<script>{_PRELOAD_JS}</script>"""
 
 
 
