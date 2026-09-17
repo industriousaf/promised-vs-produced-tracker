@@ -592,6 +592,12 @@ def explain_fetch_error(res: dict, host: str) -> tuple[str, str]:
     low = raw.lower()
     status = res.get("status") or 0
 
+    if res.get("unreadable") == "region" or status == 451:
+        return (f"{host} would not show this page in this region",
+                "It sent a notice that the site is not available where this "
+                "machine is, instead of the page. Many US news sites do this "
+                "for readers in Europe. Turn on a VPN to a US location and try "
+                "again.")
     if status in (401, 403):
         return (f"{host} refused the request",
                 "The site blocks automated readers. It will usually open "
@@ -676,39 +682,82 @@ def fetch(url: str, via: str = "auto", fresh: bool = False,
             res = {"ok": False, "status": 0, "html": "", "final_url": url, "via": "none",
                    "error": "not an http(s) URL — nothing to fetch"}
         elif via == "wayback":
-            res = _wayback(url)
+            res = _judge(_wayback(url), url)
         else:
-            res = _get(url)
+            res = _judge(_get(url), url)
             res["via"] = "live"
             # 403/404/410/429 and timeouts are exactly the ladder's steps 2-4, and
-            # the answer to all of them is the archive.
-            if not res["ok"]:
-                arch = _wayback(url)
-                if arch["ok"]:
-                    arch["origin_error"] = res["error"]
+            # the answer to all of them is the archive. So is a region notice.
+            # A page with almost no text is replaced only by an archived copy
+            # that has more, because a short page may be all there is.
+            thin = res["ok"] and res["words"] < NEARLY_EMPTY
+            if not res["ok"] or thin:
+                arch = _judge(_wayback(url), url)
+                if arch["ok"] and (not thin or arch["words"] >= NEARLY_EMPTY):
+                    if thin:
+                        arch["origin_error"] = f"almost no text ({res['words']} words)"
+                        arch["origin_unreadable"] = "empty"
+                    else:
+                        arch["origin_error"] = res["error"]
+                        arch["origin_unreadable"] = res.get("unreadable")
                     res = arch
         res["fetched_at"] = time.time()
-        if res["ok"]:
-            res["words"] = count_words(res["html"], res.get("final_url") or url)
         page_cache.write(key, res)
         return res
 
 
-# Fewer words than this, on a page that loaded, and the preload lists it as
-# nearly empty: a JavaScript shell, a cookie wall, a stub. A short press release
-# still runs to a few hundred.
+# --------------------------------------------------------------------------- #
+# Pages that download but are not the page                                     #
+# --------------------------------------------------------------------------- #
+
+# Fewer words than this on a page that loaded, and the page is nearly empty: a
+# JavaScript shell, a cookie wall, a stub. A short press release still runs to
+# a few hundred.
 NEARLY_EMPTY = 100
 
+# What a site shows a visitor from outside the country in place of the page,
+# with status 200, so the download looks as if it worked. The first three are the
+# notices Tribune, Lee Enterprises and the Dallas Morning News put up for readers
+# in Europe when GDPR took effect, which many regional US sites still show. The
+# last is Cloudflare's, for a site that blocks whole countries.
+_REGION_NOTICE = re.compile(
+    r"unavailable in most european countries"
+    r"|from a country belonging to the european economic area"
+    r"|unavailable to (?:european union|european|eu|eea) (?:visitors|users|readers)"
+    r"|(?:not available|unavailable|not accessible) in your (?:region|country|location|area)"
+    r"|banned the country or region your ip address is in",
+    re.IGNORECASE)
 
-def count_words(raw_html: str, base_url: str) -> int:
-    """Words of text the pane would show for a page.
+# A notice is short. An article that quotes one is not a notice, so the pattern
+# counts only on a page with fewer words than this.
+_NOTICE_MAX_WORDS = 400
 
-    A page built by JavaScript downloads fine and comes through with almost
-    none, and in the pane it looks exactly like a page that does not carry the
-    value. Kept with each saved page so the preload can list those.
+
+def _plain(doc: str) -> str:
+    """The text of rendered pane HTML, with the markup and extra space taken out."""
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", doc))).strip()
+
+
+def _judge(res: dict, url: str) -> dict:
+    """Measure a download, and fail it if what came back is not the page.
+
+    Adds `words`, the words of text the pane would show. A region notice
+    becomes a failure marked unreadable="region", so the archive is asked, the
+    pane says why, and the preload tries it again. A nearly empty page is left a
+    success: it may be a short page that really is all there is, and the pane
+    says what no highlight on it means rather than hiding it.
     """
-    doc, _title, _marks = render_document(raw_html, base_url, [])
-    return len(re.findall(r"\w+", html.unescape(re.sub(r"<[^>]+>", " ", doc))))
+    if res.get("status") == 451:
+        res["unreadable"] = "region"
+    if not res.get("ok"):
+        return res
+    doc, _title, _marks = render_document(res["html"], res.get("final_url") or url, [])
+    text = _plain(doc)
+    res["words"] = len(re.findall(r"\w+", text))
+    if res["words"] < _NOTICE_MAX_WORDS and _REGION_NOTICE.search(text):
+        res.update(ok=False, unreadable="region",
+                   error="a notice that the page is not available in this region")
+    return res
 
 
 # --------------------------------------------------------------------------- #
@@ -934,6 +983,9 @@ mark.hl.off { background: transparent; color: inherit; outline: none; }
 #refetching { display: none; color: #b45309; font-weight: 600; }
 body.refetching #refetching { display: inline; }
 body.refetching #doc, body.refetching .empty { opacity: .35; }
+.thin { border: 1px solid #b45309; background: #fef3c7; color: #111;
+        padding: .6rem .8rem; margin: 0 0 1rem; font: 13px/1.5 system-ui, sans-serif; }
+#doc .thin a { color: #92400e; }
 """
 
 # On a link that reloads this frame. The page around the frame cannot see a
@@ -1249,7 +1301,10 @@ not make the project wrong.</p>
 
     via_note = ""
     if res.get("via") == "wayback":
-        via_note = ('<span class="warn">read via the Wayback Machine</span> '
+        why = {"region": ", because the site would not show the page in this region",
+               "empty": ", because the live page had almost no text",
+               }.get(res.get("origin_unreadable"), "")
+        via_note = (f'<span class="warn">read via the Wayback Machine{why}</span> '
                     f'<a href="{esc(res.get("snapshot", ""))}" target="_blank">snapshot ↗</a>')
     bar = (f'<b>{esc(page_title[:90] or origin)}</b> '
            f'<a href="{esc(t["url"])}" target="_blank">{esc(origin)} ↗</a> '
@@ -1274,7 +1329,20 @@ not make the project wrong.</p>
 </div><script>var START_FIELD = {json.dumps(field)};</script>
 <script>{_PANE_JS}</script>"""
 
-    return _pane(page_title or origin, bar, f'<div id="doc">{doc}</div>', nav)
+    # A page with almost no text and nothing marked on it cannot show that a
+    # value is missing, yet it looks just like a page that does. With a mark on
+    # it, a short page is simply short.
+    thin = ""
+    words = len(re.findall(r"\w+", _plain(doc)))
+    if words < NEARLY_EMPTY and not any(counts.values()):
+        thin = (f'<div class="thin"><b>This page came through with almost no text '
+                f'({words} words), so a missing highlight here tells you nothing.</b> '
+                f'It is probably built by JavaScript, which the pane does not run, or '
+                f'it sits behind a sign-in or cookie wall. '
+                f'<a href="{esc(t["url"])}" target="_blank" rel="noopener noreferrer">'
+                f'Open it in your browser ↗</a> to read it.</div>')
+
+    return _pane(page_title or origin, bar, f'<div id="doc">{thin}{doc}</div>', nav)
 
 
 # --------------------------------------------------------------------------- #

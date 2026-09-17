@@ -1102,20 +1102,31 @@ class TestThePaneSaysWhichPageIsLoading(unittest.TestCase):
 
 
 _ARTICLE = "<html><body><p>" + "word " * 300 + "</p></body></html>"
+_SAME_AS_THE_SITE = object()
 
 
 class _FakeDownloads:
-    """Stands in for the network: records every download the pane asks for."""
+    """Stands in for the network: records every download the pane asks for.
+
+    `reply` answers the site. `archive` answers the Wayback Machine: the same
+    as the site unless a test sets it, and None for an archive with nothing.
+    """
 
     def __init__(self, test):
         self.calls, self.reply = [], {"ok": True, "status": 200, "error": "",
                                       "html": _ARTICLE}
+        self.archive = _SAME_AS_THE_SITE
         self._real = ev._get
         ev._get = self.get
         test.addCleanup(setattr, ev, "_get", self._real)
 
     def get(self, url):
         self.calls.append(url)
+        if self.archive is not _SAME_AS_THE_SITE and "archive.org" in url:
+            if self.archive is None:
+                return {"ok": False, "status": 404, "error": "HTTP 404 Not Found",
+                        "html": "", "final_url": url}
+            return dict(self.archive, final_url=url)
         return dict(self.reply, final_url=url)
 
 
@@ -1186,6 +1197,129 @@ class TestSavedPages(unittest.TestCase):
         self.net.reply = dict(self.net.reply, html="<html><body><div id=app></div>"
                               "<script>render()</script></body></html>")
         self.assertLess(ev.fetch("https://a.test/shell")["words"], ev.NEARLY_EMPTY)
+
+
+_REGION_NOTICE = (
+    "<html><body><p>We recognize you are attempting to access this website from a "
+    "country belonging to the European Economic Area (EEA) including the EU which "
+    "enforces the General Data Protection Regulation (GDPR) and therefore access "
+    "cannot be granted at this time.</p></body></html>")
+_SHELL = "<html><body><div id=app></div><script>render()</script></body></html>"
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestPagesThatAreNotThePage(unittest.TestCase):
+    """A download that worked is not always the page.
+
+    Two kinds looked exactly like a page that does not carry the value, which is
+    the wrong answer the pane exists to avoid: a notice that the site is not
+    available in this region, which many US news sites show readers in Europe,
+    and a page built by JavaScript, which arrives with almost no text.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        from webapp import page_cache
+        self.pc = page_cache
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(setattr, page_cache, "PAGES_DIR", page_cache.PAGES_DIR)
+        page_cache.PAGES_DIR = Path(self.dir.name) / "pages"
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+               "status": "under construction", "promise_source": "https://a.test/p",
+               "status_source": "https://a.test/s", "verification_tier": "P"}
+        lead = psource.insert_lead(conn, promise_source="https://a.test/p",
+                                   status_source="https://a.test/s", summary="x")
+        self.rid = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.addCleanup(pdb.set_active_db, None)
+        self.net = _FakeDownloads(self)
+
+    def _pane(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get(f"/evidence/screen/{self.rid}?tab=0").text
+
+    def test_a_region_notice_is_read_from_the_archive_instead(self):
+        self.net.reply = dict(self.net.reply, html=_REGION_NOTICE)
+        self.net.archive = dict(self.net.reply, html=_ARTICLE)
+        res = ev.fetch("https://a.test/x")
+        self.assertTrue(res["ok"])
+        self.assertEqual((res["via"], res["origin_unreadable"]), ("wayback", "region"))
+        self.assertIn("because the site would not show the page in this region",
+                      self._pane())
+
+    def test_with_nothing_archived_it_says_the_site_would_not_show_the_page(self):
+        self.net.reply = dict(self.net.reply, html=_REGION_NOTICE)
+        self.net.archive = None
+        res = ev.fetch("https://a.test/x")
+        self.assertFalse(res["ok"])
+        headline, meaning = ev.explain_fetch_error(res, "a.test")
+        self.assertIn("would not show this page in this region", headline)
+        self.assertIn("VPN", meaning)
+        # A failure, so the preload tries it again: turn on a VPN, run it.
+        self.assertIsNone(self.pc.read("auto|https://a.test/x", failures=False))
+
+    def test_451_is_the_same_notice_sent_as_a_status(self):
+        headline, _ = ev.explain_fetch_error(
+            {"status": 451, "error": "HTTP 451 Unavailable For Legal Reasons"}, "a.test")
+        self.assertIn("in this region", headline)
+
+    def test_an_article_that_quotes_a_notice_is_still_the_article(self):
+        self.net.reply = dict(self.net.reply, html=(
+            "<html><body><p>" + "word " * 450 + "The app is not available in your "
+            "region, the company said.</p></body></html>"))
+        res = ev.fetch("https://a.test/x")
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["via"], "live")
+
+    def test_a_nearly_empty_page_gives_way_to_a_fuller_archived_copy(self):
+        self.net.reply = dict(self.net.reply, html=_SHELL)
+        self.net.archive = dict(self.net.reply, html=_ARTICLE)
+        res = ev.fetch("https://a.test/x")
+        self.assertEqual((res["via"], res["origin_unreadable"]), ("wayback", "empty"))
+
+    def test_a_page_saved_before_these_checks_downloads_again(self):
+        """A region notice saved as a page by the first version of the preload
+        would otherwise be trusted for a week."""
+        import json
+        self.net.reply = dict(self.net.reply, html=_REGION_NOTICE)
+        self.net.archive = None
+        self.pc.write("auto|https://a.test/x", dict(self.net.reply, ok=True, via="live",
+                                                    final_url="https://a.test/x",
+                                                    fetched_at=time.time()))
+        path = self.pc._path("auto|https://a.test/x")
+        data = json.loads(path.read_text())
+        del data["format"]
+        path.write_text(json.dumps(data))
+        self.assertFalse(ev.fetch("https://a.test/x")["ok"])
+
+    def test_a_nearly_empty_page_is_kept_when_the_archive_has_no_more(self):
+        """It may be a short page that really is all there is."""
+        self.net.reply = dict(self.net.reply, html=_SHELL)
+        self.net.archive = None
+        res = ev.fetch("https://a.test/x")
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["via"], "live")
+        self.assertLess(res["words"], ev.NEARLY_EMPTY)
+
+    def test_the_pane_warns_on_an_empty_page_with_nothing_marked(self):
+        self.net.reply = dict(self.net.reply, html=_SHELL)
+        self.net.archive = None
+        self.assertIn("came through with almost no text", self._pane())
+
+    def test_a_short_page_that_carries_a_value_is_not_warned_about(self):
+        self.net.reply = dict(self.net.reply, html=(
+            "<html><body><p>Test Fab will invest $5 billion.</p></body></html>"))
+        self.net.archive = None
+        self.assertNotIn("came through with almost no text", self._pane())
 
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")

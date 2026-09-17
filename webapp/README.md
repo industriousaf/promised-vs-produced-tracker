@@ -84,6 +84,15 @@ thing to press after turning on a VPN. The count beside it opens `/pages`, the
 list of what could not be read. The checkbox is saved to `config.env`, so it is
 a setting for this machine.
 
+**A page that is not the page is not shown as one.** Some sites answer a
+download with a notice that they are not available in this region, as many US
+news sites do for readers in Europe. The pane reads the Wayback Machine's copy
+instead and says why, and with no copy there it says the site would not show
+the page and suggests a VPN. A page that arrives with almost no text, usually
+one built by JavaScript, is swapped for the archived copy when that has more.
+Otherwise it is shown with a warning, because on a page with no text a missing
+highlight means nothing.
+
 **Two checks, and they answer different questions.**
 
 | | Asks | Costs |

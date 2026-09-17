@@ -49,6 +49,11 @@ PAGES_DIR = _ROOT / "scratch" / "pages"
 MAX_AGE = 7 * 24 * 60 * 60
 RETRY_AFTER = 30 * 60
 
+# Raised whenever what fetch() decides about a page changes, so a page saved
+# under the old rules downloads again instead of being trusted for a week.
+# 2: a region notice is a failure, and a nearly empty page tries the archive.
+FORMAT = 2
+
 # Pages the preload downloads at once. Enough that one slow site does not hold
 # up the rest, and few enough not to look like a crawler to the sites.
 WORKERS = 4
@@ -76,6 +81,8 @@ def read(key: str, failures: bool = True) -> dict | None:
     # collision or a hand-copied file can never serve one page as another.
     if not isinstance(data, dict) or data.get("key") != key:
         return None
+    if data.get("format") != FORMAT:
+        return None
     age = time.time() - float(data.get("fetched_at") or 0)
     if data.get("ok"):
         return data if age < MAX_AGE else None
@@ -89,8 +96,8 @@ def write(key: str, result: dict) -> None:
         PAGES_DIR.mkdir(parents=True, exist_ok=True)
         path = _path(key)
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(dict(result, key=key), ensure_ascii=False),
-                       encoding="utf-8")
+        tmp.write_text(json.dumps(dict(result, key=key, format=FORMAT),
+                                  ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)
     except OSError:
         pass
@@ -131,7 +138,8 @@ class Run:
     """One pass over every page the waiting projects cite.
 
     `pages` is in the order the pages were asked for, and each entry gains the
-    outcome of its fetch as it lands: ok, via, status, error, fetched_at, words.
+    outcome of its fetch as it lands: ok, via, status, error, fetched_at, words,
+    and why a page was not the page, if it was not (see evidence._judge).
     Held in this process only; the pages themselves are what is kept.
     """
     started_at: float = field(default_factory=time.time)
@@ -187,7 +195,9 @@ def start(targets: Callable[[], list[dict]], fetch: Callable[[str], dict]) -> Ru
         with _RUN_GUARD:
             page.update(ok=bool(res.get("ok")), via=res.get("via"),
                         status=res.get("status"), error=res.get("error") or "",
-                        fetched_at=res.get("fetched_at"), words=res.get("words"))
+                        fetched_at=res.get("fetched_at"), words=res.get("words"),
+                        unreadable=res.get("unreadable"),
+                        origin_unreadable=res.get("origin_unreadable"))
             run.done += 1
 
     def work() -> None:

@@ -162,7 +162,12 @@ the app started. Tick <b>Preload articles</b> at the foot of any page, or press
             return 3, "waiting"
         if not p["ok"]:
             return 0, evidence_pane.explain_fetch_error(p, p["host"])[0]
-        where = " from the Wayback Machine" if p.get("via") == "wayback" else ""
+        where = ""
+        if p.get("via") == "wayback":
+            where = " from the Wayback Machine" + {
+                "region": ", because the site would not show it in this region",
+                "empty": ", because the live page had almost no text",
+            }.get(p.get("origin_unreadable"), "")
         if (p.get("words") or 0) < evidence_pane.NEARLY_EMPTY:
             return 1, f"saved{where}, but nearly empty"
         return 2, f"saved{where}"
