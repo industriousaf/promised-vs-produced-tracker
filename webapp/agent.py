@@ -458,3 +458,130 @@ does not cost a second call.</p>""", poll=3, poll_url=here)
             f'this one is not kept — reloading will ask again.</small>'
             f'<small><a href="{here}&again=1">Ask again →</a></small>')
     return _answer_pane(job.reply or "", picked, model, foot)
+
+
+# --------------------------------------------------------------------------- #
+# The checks waiting on a reviewer, across projects                            #
+# --------------------------------------------------------------------------- #
+
+# A check takes up to a minute, so a reviewer asks and moves on to the next
+# project, and comes back when the answer is in. Nothing said which projects
+# that was: each answer showed only on its own project's page, so the list of
+# checks in flight was kept in the reviewer's head.
+
+_CHECK_LABELS = dict(CHECKABLE)
+
+# How long an answer counts as waiting. Answers are kept for two weeks, and a
+# check asked last week and never settled after is history, not a to-do: listing
+# all of them would bury the ones from the last hour.
+WAITING_FOR = 24 * 60 * 60
+
+
+def waiting_checks(conn, who: str = "") -> list[dict]:
+    """Model checks on the review screen that still need the reviewer.
+
+    One per project, the one asked last: running, or failed or answered within
+    WAITING_FOR while a field it asked about has not been settled since it was
+    asked. Settled by `who` when given, since the checklist counts only your
+    own settles.
+
+    An answer about a value the project no longer holds is left out, and so is
+    one from another database or model: neither answers anything on screen now.
+    The fingerprint, which already decides whether an answer is served, decides
+    this too.
+    """
+    model = models.agent()
+    db = str(db_path())
+    latest: dict[int, dict] = {}
+
+    def offer(item: dict) -> None:
+        held = latest.get(item["id"])
+        if held is None or item["asked_at"] > held["asked_at"]:
+            latest[item["id"]] = item
+
+    for job in agent_cache.jobs("screen"):
+        offer({"id": job.row_id, "cells": list(job.cells), "key": job.key,
+               "state": ("running" if job.running
+                         else "failed" if job.error else "answered"),
+               "asked_at": job.started_at,
+               "at": job.finished_at or job.started_at})
+    for a in agent_cache.latest_answers("screen"):
+        offer({"id": int(a["row_id"]), "cells": [str(c) for c in a["cells"]],
+               "key": a.get("key"), "state": "answered",
+               "asked_at": float(a.get("asked_at") or 0),
+               "at": float(a.get("answered_at") or 0)})
+
+    out, oldest = [], time.time() - WAITING_FOR
+    for item in latest.values():
+        if item["state"] != "running" and item["asked_at"] < oldest:
+            continue
+        row, _published = screen.review_view(conn, item["id"])
+        if row is None:
+            continue
+        key = agent_cache.fingerprint("screen", item["id"], item["cells"], row,
+                                      model, db=db)
+        if key != item["key"]:
+            continue
+        if item["state"] != "running":
+            asked = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(item["asked_at"]))
+            if set(item["cells"]) <= screen.settled_since(conn, item["id"], asked,
+                                                         who or None):
+                continue
+        item["project"] = row["project"]
+        out.append(item)
+    first = {"answered": 0, "failed": 1, "running": 2}
+    return sorted(out, key=lambda i: (first[i["state"]], -i["at"]))
+
+
+def checks_html(items: list[dict], src: str) -> str:
+    """The waiting checks as a short list, or nothing when there are none.
+
+    `src` is where the page fetches a fresh copy of the list while a check in it
+    is still running. Each project opens with its answer panel unfolded.
+    """
+    if not items:
+        return ""
+    now = time.time()
+    lines = []
+    for i in items:
+        if i["state"] == "running":
+            when = f"running {_ago(now - i['asked_at'])}"
+        elif i["state"] == "failed":
+            when = "failed, open it to try again"
+        else:
+            when = f"answered {_ago(now - i['at'])} ago"
+        fields = ", ".join(_CHECK_LABELS.get(c, c) for c in i["cells"])
+        lines.append(
+            f'<li><a href="/screen/{i["id"]}/inspect?answer=1#agentbox">'
+            f'#{i["id"]} {esc(i["project"])}</a> '
+            f'<small>{esc(fields)} · {esc(when)}</small></li>')
+    running = any(i["state"] == "running" for i in items)
+    return (f'<div class="checkswait" id="checkswait" data-src="{esc(src)}" '
+            f'data-running="{1 if running else 0}"><b>Model checks</b>'
+            f'<ul>{"".join(lines)}</ul></div>')
+
+
+# The list asks for a fresh copy of itself every ten seconds, but only while a
+# check in it is running: that is the only change it can show without the
+# reviewer doing something that reloads the page anyway. It replaces the list
+# alone, so nothing typed into the form around it is touched.
+CHECKS_JS = """
+(function () {
+  function poll() {
+    var box = document.getElementById('checkswait');
+    if (!box || box.dataset.running !== '1') { return; }
+    fetch(box.dataset.src)
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var holder = document.createElement('div');
+        holder.innerHTML = html;
+        var fresh = holder.firstElementChild;
+        if (fresh) { box.parentNode.replaceChild(fresh, box); }
+        else { box.parentNode.removeChild(box); }
+        setTimeout(poll, 10000);
+      })
+      .catch(function () { setTimeout(poll, 30000); });
+  }
+  setTimeout(poll, 10000);
+})();
+"""

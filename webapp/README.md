@@ -108,6 +108,13 @@ quotes, the source URLs and the model — so correcting `announced` after a chec
 does not serve the old "CONFIRMED" back for a value the row no longer holds.
 Answers go stale after two weeks; a status page is cited because it changes.
 
+**Checks on other projects are listed where you are working**: at the top of the
+Screen list, and beside the form on each project's page. A check stays listed
+while it runs, and for a day after it is asked until you settle every field it
+asked about.
+The list updates itself while a check is running, and each entry opens its
+project with the answer showing.
+
 ## What each file holds
 
 | File | Holds |

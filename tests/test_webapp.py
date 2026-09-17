@@ -1035,6 +1035,155 @@ class TestModelCheckIsAnEscalation(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestModelChecksList(unittest.TestCase):
+    """Checks on other projects are listed until their answers are acted on.
+
+    A check takes up to a minute, so Lucas asks and moves on to the next project,
+    and comes back when the answer is in. Each answer showed only on its own
+    project's page, so which projects had one waiting was kept in his head.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, settings
+        from pipeline import source as psource
+        from webapp import agent_cache
+        self.ac, self.settings = agent_cache, settings
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(setattr, agent_cache, "CACHE_DIR", agent_cache.CACHE_DIR)
+        agent_cache.CACHE_DIR = Path(self.dir.name) / "answers"
+        agent_cache._JOBS.clear()
+        self.addCleanup(agent_cache._JOBS.clear)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        self.ids = {}
+        for name, capital in (("Waiting Fab", 5_000_000_000), ("Other Fab", 2_000_000_000)):
+            row = {"project": name, "sector": "Semiconductors", "state": "TX",
+                   "announced": "2022-01", "promised_capital_usd": capital,
+                   "promised_jobs": 1500, "promised_first_output": "2024",
+                   "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+                   "status": "under construction",
+                   "promise_source": f"https://a.test/{capital}",
+                   "status_source": "https://a.test/s", "verification_tier": "P"}
+            lead = psource.insert_lead(conn, promise_source=row["promise_source"],
+                                       status_source="https://a.test/s", summary=name)
+            self.ids[name] = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+        self.addCleanup(pdb.set_active_db, None)
+        self.who, self.other = settings.verifiers()[0], settings.verifiers()[1]
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        self.client = TestClient(app)
+        self.client.post(f"/screen/{self.ids['Waiting Fab']}/verifier",
+                         data={"verifier": self.who})
+
+    def _key(self, name, cells, db=None):
+        from pipeline import db as pdb, screen as pscreen
+        conn = pdb.connect(self.path)
+        try:
+            row = pscreen.review_view(conn, self.ids[name])[0]
+        finally:
+            conn.close()
+        return self.ac.fingerprint("screen", self.ids[name], cells, row,
+                                   self.settings.agent(), db=db or str(pdb.db_path()))
+
+    def _answer(self, name, cells, db=None, asked_ago=60):
+        """An answer to a check asked a minute ago, unless told otherwise."""
+        key, now = self._key(name, cells, db), time.time()
+        self.ac.write("screen", self.ids[name], key, {
+            "key": key, "stage": "screen", "row_id": self.ids[name], "cells": cells,
+            "model": self.settings.agent(), "asked_at": now - asked_ago,
+            "answered_at": now - asked_ago + 30, "seconds": 30.0,
+            "reply": "**CONFIRMED** it does"})
+
+    def _settle(self, name, field, who, hours_ago=0):
+        from pipeline import db as pdb
+        when = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - hours_ago * 3600))
+        conn = pdb.connect(self.path)
+        try:
+            conn.execute("INSERT INTO screen_attested (datetime, screen_extracted_id, field, "
+                         "state, value_at_time, attested_by) VALUES (?, ?, ?, 'not_in_source', "
+                         "'', ?)", (when, self.ids[name], field, who))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _box(self, path="/screen"):
+        body = self.client.get(path).text
+        i = body.find('id="checkswait"')
+        return "" if i < 0 else body[i:body.index("</div>", i)]
+
+    def test_an_answer_waiting_is_listed_and_opens_its_project(self):
+        self._answer("Waiting Fab", ["announced"])
+        box = self._box()
+        sid = self.ids["Waiting Fab"]
+        self.assertIn(f"#{sid} Waiting Fab", box)
+        self.assertIn("announced", box)
+        self.assertIn("answered", box)
+        self.assertIn(f'href="/screen/{sid}/inspect?answer=1#agentbox"', box)
+
+    def test_settling_its_fields_after_asking_takes_it_off(self):
+        self._answer("Waiting Fab", ["announced"])
+        self._settle("Waiting Fab", "announced", self.who)
+        self.assertEqual(self._box(), "")
+
+    def test_a_settle_from_before_the_check_does_not(self):
+        """The usual order: "not in this source", then ask a model where it is."""
+        self._settle("Waiting Fab", "announced", self.who, hours_ago=2)
+        self._answer("Waiting Fab", ["announced"])
+        self.assertIn("Waiting Fab", self._box())
+
+    def test_someone_elses_settle_does_not_take_it_off_your_list(self):
+        self._answer("Waiting Fab", ["announced"])
+        self._settle("Waiting Fab", "announced", self.other)
+        self.assertIn("Waiting Fab", self._box())
+
+    def test_an_answer_about_a_value_since_changed_is_not_listed(self):
+        from pipeline import db as pdb
+        self._answer("Waiting Fab", ["announced"])
+        conn = pdb.connect(self.path)
+        conn.execute("UPDATE screen_extracted SET announced = '2023-05' WHERE id = ?",
+                     (self.ids["Waiting Fab"],))
+        conn.commit(); conn.close()
+        self.assertEqual(self._box(), "")
+
+    def test_an_answer_from_days_ago_is_history_not_a_to_do(self):
+        """Answers are kept for two weeks, and the first list after this shipped
+        would otherwise have held every one of them."""
+        from webapp import agent
+        self._answer("Waiting Fab", ["announced"], asked_ago=agent.WAITING_FOR + 3600)
+        self.assertEqual(self._box(), "")
+
+    def test_an_answer_from_another_database_is_not_listed(self):
+        """Project ids start at 1 in every database, so #1 there is not #1 here."""
+        self._answer("Waiting Fab", ["announced"], db="/elsewhere/tracker.db")
+        self.assertEqual(self._box(), "")
+
+    def test_a_running_check_is_listed_and_the_list_refreshes_itself(self):
+        sid = self.ids["Waiting Fab"]
+        key = self._key("Waiting Fab", ["announced"])
+        self.ac._JOBS[key] = self.ac.Job(key=key, stage="screen", row_id=sid,
+                                         cells=["announced"], model=self.settings.agent())
+        box = self._box()
+        self.assertIn("running", box)
+        self.assertIn('data-running="1"', box)
+        self.assertIn(f"#{sid} Waiting Fab", self.client.get("/screen/checks").text)
+
+    def test_a_project_page_lists_the_other_projects_only(self):
+        self._answer("Waiting Fab", ["announced"])
+        self._answer("Other Fab", ["promised_jobs"])
+        box = self._box(f"/screen/{self.ids['Waiting Fab']}/inspect")
+        self.assertIn("Other Fab", box)
+        self.assertNotIn("Waiting Fab", box)
+
+    def test_opening_it_unfolds_the_answer(self):
+        body = self.client.get(f"/screen/{self.ids['Waiting Fab']}/inspect?answer=1").text
+        self.assertIn('<details class="byhand" id="agentbox" open>', body)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestThePaneSaysWhichPageIsLoading(unittest.TestCase):
     """What the page says about the pane follows the link that loaded it.
 

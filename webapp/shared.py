@@ -340,6 +340,11 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
 .msg { background: var(--ground-card); border: 0.5px solid var(--teal);
        padding: .6rem 1rem; border-radius: 0; margin: 1rem 0;
        font-family: var(--font-sans); font-size: .9rem; }
+.checkswait { background: var(--ground-card); border: 0.5px solid var(--teal);
+       padding: .5rem .9rem; margin: 0 0 1rem; font-family: var(--font-sans);
+       font-size: .9rem; }
+.checkswait ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+.checkswait li { margin: .15rem 0; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .8rem; }
 
 .verdict-FAIL  { color: var(--danger);  font-family: var(--font-mono);

@@ -686,6 +686,20 @@ def attestations(conn: sqlite3.Connection, screen_extracted_id: int) -> dict:
     return out
 
 
+def settled_since(conn: sqlite3.Connection, screen_extracted_id: int, since: str,
+                  by: str | None = None) -> set[str]:
+    """The fields of one project settled after `since`, a UTC ISO timestamp, by
+    `by` when given. The web app uses it to tell whether a model check has been
+    acted on: its fields settled after it was asked."""
+    sql = ("SELECT DISTINCT field FROM screen_attested "
+           "WHERE screen_extracted_id = ? AND datetime > ?")
+    params: list = [screen_extracted_id, since]
+    if by:
+        sql += " AND attested_by = ?"
+        params.append(by)
+    return {r[0] for r in conn.execute(sql, params)}
+
+
 def attestation_state(conn: sqlite3.Connection, screen_extracted_id: int) -> dict:
     """{field: {"state", "stale", "match_count", "source_url", "by", "when"}}.
 

@@ -73,6 +73,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         blocked = {b["id"] for b in queue["blocked"]}
         flagged = {sid: fields for sid, fields in screen.needs_resettle(conn).items()
                    if sid not in blocked}
+        waiting = agent_pane.waiting_checks(conn, current_verifier(request))
 
         n_done = sum(1 for r in all_rows if r["id"] in promoted)
         n_pending = len(all_rows) - n_done
@@ -215,6 +216,8 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
             '<a href="/screen">Show all projects</a>.</p>')
 
     body = f"""
+{agent_pane.checks_html(waiting, "/screen/checks")}
+<script>{agent_pane.CHECKS_JS}</script>
 <h2>Review queue</h2>
 <div class="card">{lede}
 <p><small>Or work the same queue in a terminal, largest capital first:
@@ -262,6 +265,20 @@ extract a specific lead, or to paste a project you built yourself.</small></p>
 </form></div>
 """
     return _remember_show(_page("Screen", body, msg), "/screen", show)
+
+
+@router.get("/screen/checks", response_class=HTMLResponse)
+def screen_checks(request: Request, exclude: Optional[int] = None):
+    """The waiting model checks alone, for a page to refresh its list while one
+    runs. `exclude` is the project that page is showing. See agent.waiting_checks."""
+    conn = _conn()
+    try:
+        items = [i for i in agent_pane.waiting_checks(conn, current_verifier(request))
+                 if i["id"] != exclude]
+    finally:
+        conn.close()
+    src = "/screen/checks" + (f"?exclude={exclude}" if exclude else "")
+    return HTMLResponse(agent_pane.checks_html(items, src))
 
 
 @router.get("/screen/prompt", response_class=HTMLResponse)
@@ -966,12 +983,16 @@ below, are the tools for it.</small></p>
 
 @router.get("/screen/{screen_id}/inspect", response_class=HTMLResponse)
 def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
-                   verified: Optional[int] = None):
+                   verified: Optional[int] = None, answer: Optional[int] = None):
     conn = _conn()
     try:
         screen_row = screen.get_extracted(conn, screen_id)
         if screen_row is None:
             return _page("Screen inspect", "<p>No project with that id.</p>", "Not found")
+        # Checks on other projects, because this is the page a reviewer is on
+        # when one comes back: verifying lands on the next project, not the list.
+        waiting = [i for i in agent_pane.waiting_checks(conn, current_verifier(request))
+                   if i["id"] != screen_id]
         # For a published project `r` is the published record under the Screen
         # id, so the boxes, the pane and the checklist all show what went out.
         # The check panel keeps `screen_row`: it reports what the checker tested,
@@ -1139,6 +1160,7 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
 
   <div class="formcol">
     <div class="card">
+      {agent_pane.checks_html(waiting, f"/screen/checks?exclude={r['id']}")}
       {just_published}
       {intro}
       <div class="cktally-wrap"><span id="cktally" class="cktally"></span>
@@ -1167,8 +1189,9 @@ var VERIFIER = {json.dumps(who)};
 var ABSENT = {json.dumps(sorted(screen.ABSENCE_VALUES))};</script>
 <script>{_CHECKLIST_JS}</script>
 <script>{DATEKIND_JS}</script>
+<script>{agent_pane.CHECKS_JS}</script>
 
-<details class="byhand" id="agentbox">
+<details class="byhand" id="agentbox"{" open" if answer else ""}>
 <summary>Ask a model to read the cited pages</summary>
 <div class="card">{agent_pane.picker_html("screen", r["id"], r)}</div>
 </details>

@@ -314,6 +314,41 @@ def drop(key: str, running_too: bool = False) -> None:
             _JOBS.pop(key, None)
 
 
+def jobs(stage: str) -> list[Job]:
+    """Every job for a stage in this process, newest first."""
+    with _LOCK:
+        js = [j for j in _JOBS.values() if j.stage == stage]
+    return sorted(js, key=lambda j: j.started_at, reverse=True)
+
+
+def latest_answers(stage: str) -> list[dict]:
+    """The newest saved answer for each project in a stage, newest first.
+
+    The project is read from the file name, so only one file per project is
+    opened, however many answers it has. An answer too old to be served is left
+    out, for the same reason read() would not serve it.
+    """
+    out, seen = [], set()
+    try:
+        paths = sorted(CACHE_DIR.glob(f"{stage}-*.json"),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        return out
+    now = time.time()
+    for p in paths:
+        try:
+            row_id = int(p.name.split("-")[1])
+            if row_id in seen or now - p.stat().st_mtime > MAX_AGE:
+                continue
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError, IndexError):
+            continue
+        if isinstance(data, dict) and data.get("reply") and data.get("cells"):
+            seen.add(row_id)
+            out.append(data)
+    return out
+
+
 def jobs_for(stage: str, row_id: int) -> list[Job]:
     """Jobs about one row, newest first."""
     with _LOCK:
