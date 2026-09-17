@@ -1034,6 +1034,73 @@ class TestModelCheckIsAnEscalation(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestThePaneSaysWhichPageIsLoading(unittest.TestCase):
+    """What the page says about the pane follows the link that loaded it.
+
+    Lucas reported seeing the second source about one time in fifteen. "find in
+    source" loads a tab without clicking the tab strip, and only strip clicks
+    repainted anything, so opening a produced field left the highlighted tab,
+    the loading screen and the field list under the pane all naming the
+    Promised page. The loading screen also lifted after 30 seconds whether or
+    not the new page had arrived, uncovering the previous one.
+    """
+
+    def setUp(self):
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        self.dir = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        self.path = Path(self.dir.name) / "t.db"
+        conn = pdb.connect(self.path)
+        pdb.init_db(conn)
+        row = {"project": "Test Fab", "sector": "Semiconductors", "state": "TX",
+               "announced": "2022-01", "promised_capital_usd": 5_000_000_000,
+               "promised_jobs": 1500, "promised_first_output": "2024",
+               "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION", "status": "under construction",
+               "promise_source": "https://example.com/p",
+               "status_source": "https://example.com/s", "verification_tier": "P"}
+        lead = psource.insert_lead(conn, promise_source="https://example.com/a",
+                                   status_source="https://example.com/s", summary="x")
+        self.rid = pscreen.insert_extracted(conn, row, source_collected_id=lead)
+        pscreen.run_check(conn, self.rid)
+        conn.commit(); conn.close()
+        pdb.set_active_db(self.path)
+
+    def tearDown(self):
+        from pipeline import db as pdb
+        pdb.set_active_db(None)
+        self.dir.cleanup()
+
+    def _inspect(self) -> str:
+        from fastapi.testclient import TestClient
+        from webapp.main import app
+        return TestClient(app).get(f"/screen/{self.rid}/inspect").text
+
+    def test_find_in_source_names_a_tab_the_strip_can_describe(self):
+        """The script names the loading page from the tab number in the link,
+        so the checklist's links and the strip must agree on each number."""
+        b = self._inspect()
+        n = re.search(r'\?tab=(\d+)&amp;field=actual_first_output"', b).group(1)
+        marks = re.search(rf'data-tab="{n}"[^>]*data-marks="([^"]*)"', b).group(1)
+        self.assertIn("actual first output", marks)
+        self.assertNotIn("capital", marks)
+
+    def test_only_the_frame_lifts_the_loading_screen(self):
+        """Not a timer, which uncovered whatever page was still in the frame.
+        And not a listener in the script: inline scripts wait for the font
+        stylesheet and the frame does not, so a cached page could arrive before
+        the listener existed."""
+        b = self._inspect()
+        self.assertIn(
+            "onload=\"document.getElementById('paneload').classList.add('done')\"", b)
+        self.assertNotIn("add('done')", ev._PANESTATE_JS)
+
+    def test_the_field_list_under_the_pane_follows_the_tab(self):
+        b = self._inspect()
+        self.assertIn('<span id="panemarks">announced, promised first output, '
+                      'capital, jobs</span>', b)
+        self.assertIn("marks.textContent = t.dataset.marks", ev._PANESTATE_JS)
+
+
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestAttestRoute(unittest.TestCase):
     """Confirming a field writes a row, and only a named person can do it.
 

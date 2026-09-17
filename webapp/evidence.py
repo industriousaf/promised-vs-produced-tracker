@@ -997,56 +997,73 @@ def _pane(title: str, bar: str, main: str, nav: str) -> HTMLResponse:
 
 # Tabs are ordinary links with a `target`, so switching documents does not
 # reload the page around them and cannot cost the reviewer a half-filled form.
-# The script only repaints which tab looks selected; with JS off the pane still
-# changes, it just stops saying which tab it is showing.
-_PANELOAD_JS = """
+# The script repaints what the page says about the pane; with JS off the pane
+# still changes, it just stops saying which tab it is showing.
+#
+# It repaints from whichever link loaded the pane. It used to repaint on tab
+# strip clicks only, but the checklist's "find in source" loads a tab without
+# touching the strip. Opening a produced field that way left the highlighted
+# tab, the loading screen and the field list under the pane all naming the
+# Promised page, while the Produced one loaded and after it arrived. Lucas
+# reported seeing the second source about one time in fifteen.
+#
+# The loading screen also lifted after 30 seconds whether or not anything had
+# arrived, uncovering the previous page, still in the frame. A site that refuses
+# is retried through the Wayback Machine, which takes longer than that, so the
+# page uncovered was usually the Promised one. The screen now stays up until the
+# frame loads, and after 30 seconds says it is still waiting and offers the page
+# in a new tab.
+_PANESTATE_JS = """
 (function () {
-  var frame = document.querySelector('iframe[name="evidencepane"]');
   var veil = document.getElementById('paneload');
+  if (!veil) { return; }
   var host = document.getElementById('paneloadhost');
-  if (!frame || !veil) { return; }
+  var slow = document.getElementById('paneloadslow');
+  var open = document.getElementById('paneloadopen');
+  var marks = document.getElementById('panemarks');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs a[data-tab]'));
+  var timer = null;
 
-  function show(h) {
-    if (h && host) { host.textContent = h; }
-    veil.classList.remove('done');
-  }
-  function hide() { veil.classList.add('done'); }
-
-  frame.addEventListener('load', hide);
   // Nothing here may READ the frame. It is sandboxed without allow-same-origin,
   // so it has an opaque origin: contentDocument is null and touching
   // contentWindow.location throws a SecurityError. An earlier version of this
   // function did exactly that and died on the spot, taking the click handler
-  // below with it -- the load handler above had already registered, so the
-  // veil lifted correctly and never appeared again, which looked like the
-  // feature simply not working.
-  //
-  // A hard ceiling instead, so a fetch that never returns cannot leave the
-  // veil up forever. The server's own fetch timeout is 25s.
-  setTimeout(hide, 30000);
+  // below with it. So which tab is loading comes from the link, and the frame
+  // lifts the loading screen itself, with the onload attribute in pane_html.
+  function loading() { return !veil.classList.contains('done'); }
 
-  // Anything that retargets the pane starts another fetch.
+  function wait() {
+    clearTimeout(timer);
+    if (slow) { slow.hidden = true; }
+    timer = setTimeout(function () {
+      if (slow && loading()) { slow.hidden = false; }
+    }, 30000);
+  }
+
+  function point(n) {
+    var t = tabs.filter(function (x) { return x.dataset.tab === n; })[0] || tabs[0];
+    if (!t) { return; }
+    tabs.forEach(function (x) { x.classList.toggle('on', x === t); });
+    if (host) { host.textContent = t.dataset.label + ' \\u00b7 ' + t.dataset.host; }
+    if (open) { open.href = t.dataset.url; }
+    if (marks) { marks.textContent = t.dataset.marks; }
+  }
+
+  // The first page was requested before this script ran, and may have arrived.
+  if (loading()) { wait(); }
+
   document.addEventListener('click', function (e) {
     var a = e.target.closest ? e.target.closest('a[target="evidencepane"]') : null;
     if (!a) { return; }
-    var h = '';
-    try { h = new URL(a.href, location.href).searchParams.get('tab') !== null
-              ? (a.querySelector('small') ? a.querySelector('small').textContent : '')
-              : ''; } catch (err) {}
-    show(h);
+    // A modified click opens the link in a new browser tab. The frame stays
+    // where it is, so nothing is loading.
+    if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) { return; }
+    var n = '0';
+    try { n = new URL(a.href, location.href).searchParams.get('tab') || '0'; } catch (err) {}
+    point(n);
+    veil.classList.remove('done');
+    wait();
   }, true);
-})();
-"""
-
-_TABS_JS = """
-(function () {
-  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs a'));
-  tabs.forEach(function (t) {
-    t.addEventListener('click', function () {
-      tabs.forEach(function (o) { o.classList.remove('on'); });
-      t.classList.add('on');
-    });
-  });
 })();
 """
 
@@ -1067,34 +1084,50 @@ def pane_html(stage: str, row_id: int, row, tall: bool = True) -> str:
                 "and a <code>status_source</code> below. The deterministic check "
                 "refuses a project that cites nothing, and so should you.</p></div>")
 
+    # Each tab carries what the page says about it while it loads. The script
+    # cannot read the frame, and the link that loads a tab is not always the
+    # tab: "find in source" carries only the tab's number.
+    marks = {t["n"]: ", ".join(FIELD_LABELS.get(c, c) for c in t["highlight"])
+             for t in tabs}
     strip = "".join(
         f'<a class="{"on" if t["n"] == 0 else ""}" target="evidencepane" '
         f'href="/evidence/{esc(stage)}/{row_id}?tab={t["n"]}" '
+        f'data-tab="{t["n"]}" data-label="{esc(t["label"])}" '
+        f'data-host="{esc(t["host"])}" data-url="{esc(t["url"])}" '
+        f'data-marks="{esc(marks[t["n"]])}" '
         f'title="{esc(t["url"])}">{esc(t["label"])} '
         f'<small>{esc(t["host"])}</small></a>'
         for t in tabs
     )
-    marks = ", ".join(FIELD_LABELS.get(c, c) for c in tabs[0]["highlight"])
     height = "tall" if tall else "short"
+    # The frame lifts the loading screen itself, from an attribute rather than a
+    # listener in the script. Inline scripts wait for the font stylesheet, but
+    # the frame, which comes before this one, starts loading as soon as it is
+    # read. A page served from the cache could arrive before a listener existed,
+    # and the screen then stayed up over it until a 30-second timer ran out.
     return f"""
 <div class="tabs">{strip}</div>
 <div class="panewrap">
 <div class="paneload" id="paneload" aria-live="polite">
   <span class="paneload-l">Loading the cited page</span>
-  <span class="paneload-h" id="paneloadhost">{esc(tabs[0]["host"])}</span>
+  <span class="paneload-h" id="paneloadhost">{esc(tabs[0]["label"])} · {esc(tabs[0]["host"])}</span>
   <span class="paneload-n">fetched fresh each time, so a slow site is slow here.
   If the origin refuses, the pane falls back to the Wayback Machine.</span>
+  <span class="paneload-n" id="paneloadslow" hidden>Still waiting after 30
+  seconds. The site is slow or refusing, and the Wayback Machine can take another
+  minute. <a id="paneloadopen" href="{esc(tabs[0]["url"])}" target="_blank"
+  rel="noopener noreferrer">Open the page in a new tab ↗</a></span>
 </div>
 <iframe class="pane {height}" name="evidencepane" title="cited page"
   src="/evidence/{esc(stage)}/{row_id}?tab=0"
+  onload="document.getElementById('paneload').classList.add('done')"
   sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
 </div>
-<p class="panehint">Highlighted in this tab: {esc(marks)}. Walk them with the
-arrows at the foot of the pane (or ← →); click a chip there to walk one field
-only. A value the page does <i>not</i> carry is the finding — the pane will show
-no highlight for it.</p>
-<script>{_TABS_JS}</script>
-<script>{_PANELOAD_JS}</script>"""
+<p class="panehint">Highlighted in this tab: <span id="panemarks">{esc(marks[0])}</span>.
+Walk them with the arrows at the foot of the pane (or ← →); click a chip there to
+walk one field only. A value the page does <i>not</i> carry is the finding — the
+pane will show no highlight for it.</p>
+<script>{_PANESTATE_JS}</script>"""
 
 
 def _row_for(stage: str, row_id: int):
