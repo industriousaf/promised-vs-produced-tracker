@@ -317,6 +317,16 @@ h2.rowtitle small { font-family: var(--font-sans); font-size: .7em;
 .qtrack { background: var(--ground-deep); border-radius: 0; height: 1.1rem;
         overflow: hidden; }
 .qfill { height: 100%; border-radius: 0; }
+.qgroup { font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--teal); margin: 1.6rem 0 .2rem; }
+.qgroup:first-of-type { margin-top: .8rem; }
+.qlede { font-size: .85rem; color: var(--type-3); margin: 0 0 .8rem; max-width: 42rem; }
+/* A label with a definition behind it says so, rather than relying on a reader
+   hovering over something that looks like plain text. What the number is
+   measured FROM is the part a label cannot carry, and it decides whether two
+   people mean the same quantity. */
+.qdef { cursor: help; text-decoration: underline dotted var(--rule);
+    text-underline-offset: .25rem; }
 .qnum { text-align: right; font-family: var(--font-mono);
         font-variant-numeric: tabular-nums; font-size: .85rem; }
 @media (max-width: 640px) { .qrow { grid-template-columns: 1fr; } }

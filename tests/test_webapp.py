@@ -574,6 +574,29 @@ class TestDashboardIsAPipeline(unittest.TestCase):
     def test_the_gate_between_stages_is_shown(self):
         self.assertIn('class="gate"', self._body())
 
+    def test_the_panel_separates_the_work_from_the_world(self):
+        """"Can measure slip" was red at 23%, which read as a broken Tracker.
+        It was reporting that three-quarters of these plants have not opened
+        yet. The gates are work and stay coloured; the findings are counts."""
+        b = self._body()
+        gates = b.index("Is the record sound?")
+        findings = b.index("The findings")
+        self.assertLess(gates, findings)
+        # Sourced, then checked, then verified: each set inside the one above.
+        self.assertLess(b.index("Sourced"), b.index("Structurally clean"))
+        self.assertLess(b.index("Structurally clean"), b.index("Publishable"))
+        # No colour and no bar under the second heading.
+        self.assertNotIn("#d9534f", b[findings:])
+        self.assertNotIn("qfill", b[findings:])
+
+    def test_each_finding_says_what_it_is_measured_from(self):
+        """A lag from the announcement is not the time-to-build of the
+        literature. The label cannot say which one it is; the note can."""
+        b = self._body()
+        self.assertIn('<span class="qdef" title="Years from the announcement', b)
+        self.assertIn("not from the start of construction", b)
+        self.assertIn("Negative means early", b)
+
 
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestChromePlacement(unittest.TestCase):

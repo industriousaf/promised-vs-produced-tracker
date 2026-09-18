@@ -43,7 +43,7 @@ python3 tracker.py initdb                # create the six tables
 python3 tracker.py config                # every setting in effect, with the line to edit
 python3 tracker.py criteria              # what counts as a project (the inclusion rules)
 python3 tracker.py models                # which model each stage runs, and why
-python3 tracker.py quality               # five measures of whether the Tracker can carry the claim
+python3 tracker.py quality               # the three gates, then the findings
 python3 tracker.py --help                # all of the below, with examples
 
 # Collect  (needs the claude CLI; spends money)

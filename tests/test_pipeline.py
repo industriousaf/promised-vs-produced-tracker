@@ -238,14 +238,64 @@ class TestChecker(Base):
 
 # --------------------------------------------------------------------------- #
 class TestQualityAndQueue(Base):
+    def _published(self, **over):
+        """One project, verified, which is where the findings are counted."""
+        sid = screen.insert_extracted(self.conn, a_row(**over),
+                                      source_collected_id=self.lead())
+        screen.run_check(self.conn, sid)        # promotion is gated on a check
+        verify.promote(self.conn, sid, verification_tier="V1")
+        return sid
+
     def test_early_delivery_counts_as_measurable_slip(self):
         """The quality panel's own bug: `slip >= 0` discarded it."""
+        self._published(announced="2025-01", promised_first_output="2026-07",
+                        actual_first_output="2026-03", current_status="PRODUCING",
+                        status="producing")
+        self.assertEqual(quality.measure(self.conn)["findings"]["slip"]["n"], 1)
+
+    def test_the_gates_are_a_funnel_in_pipeline_order(self):
+        """Sourced, then checked, then verified. Read down, they say where the
+        work is; read any other order they are five unrelated scores."""
+        self.assertEqual([g["key"] for g in quality.measure(self.conn)["gates"]],
+                         ["sourced", "clean", "publishable"])
+
+    def test_the_findings_count_the_published_projects_only(self):
+        """A project nobody has verified is not a finding yet, and the panel
+        says the findings are the projects that cleared every gate."""
         screen.insert_extracted(self.conn, a_row(
-            announced="2025-01", promised_first_output="2026-07",
-            actual_first_output="2026-03", current_status="PRODUCING", status="producing"),
+            project="Unverified Fab", announced="2020-01",
+            promised_first_output="2022-01", actual_first_output="2023-01",
+            current_status="PRODUCING", status="producing"),
             source_collected_id=self.lead())
-        bars = {b["key"]: b for b in quality.measure(self.conn)["bars"]}
-        self.assertEqual(bars["slip"]["n"], 1)
+        fi = quality.measure(self.conn)["findings"]
+        self.assertEqual((fi["published"], fi["lag"]["n"], fi["slip"]["n"]), (0, 0, 0))
+
+    def test_what_cannot_be_measured_yet_is_counted_not_failed(self):
+        """Three quarters of these plants have not opened. That is the finding,
+        not a hole in the data, so the panel states it instead of scoring it."""
+        self._published(project="Building", actual_first_output="pending")
+        self._published(project="Cancelled", actual_first_output="never",
+                        current_status="CANCELLED", status="cancelled")
+        self._published(project="Producing, undated", actual_first_output="unconfirmed",
+                        current_status="PRODUCING", status="producing")
+        self._published(project="No promise", announced="2020-01",
+                        promised_first_output="n/a", actual_first_output="2023-01",
+                        current_status="PRODUCING", status="producing")
+        fi = quality.measure(self.conn)["findings"]
+        self.assertEqual(len(fi["pending"]), 1)
+        self.assertEqual(len(fi["cancelled"]), 1)
+        self.assertEqual(len(fi["undated"]), 1)
+        # Produced without a promise: a lag, but nothing to slip against.
+        self.assertEqual((fi["lag"]["n"], fi["slip"]["n"]), (1, 0))
+        self.assertEqual(len(fi["no_promise"]), 1)
+
+    def test_each_finding_says_what_it_is_measured_from(self):
+        """A lag from the announcement is not the time-to-build of the
+        literature, and a label alone cannot say which one it is."""
+        fi = quality.measure(self.conn)["findings"]
+        self.assertIn("announcement", fi["lag"]["tip"])
+        self.assertIn("not from the start of construction", fi["lag"]["tip"])
+        self.assertIn("Negative means early", fi["slip"]["tip"])
 
     def test_failing_rows_are_blocked_not_ready(self):
         ok = screen.insert_extracted(self.conn, a_row(), source_collected_id=self.lead())

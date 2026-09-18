@@ -326,18 +326,24 @@ is complete. First up: <a href="/screen/{top['id']}/inspect"><b>{esc(top['projec
 
 
 def _quality_card(m: dict) -> str:
-    """Five bars, and no blended score.
+    """The gates, then the findings, and no blended score.
 
     The counts on the tiles above cannot say whether the Tracker is any good --
     "23 screened" is a finished Tracker or a backlog depending on facts they do
-    not carry. These five say it. They are shown side by side rather than
-    combined because a single number invites an argument about the weights, and
-    a referee will ask what is in it.
+    not carry. These say it. They are shown side by side rather than combined
+    because a single number invites an argument about the weights, and a referee
+    will ask what is in it.
+
+    Two groups, and only the first is coloured. The gates are work: red means go
+    and fix something. The findings are the world: the two of them were red at
+    23% and 30% and read as a broken Tracker, when what they were reporting is
+    that three-quarters of these plants have not opened yet. A count cannot be
+    failed, so they are counts.
     """
     if not m["total"]:
         return ""
     rows = ""
-    for b in m["bars"]:
+    for b in m["gates"]:
         pct = b["pct"]
         # Red below a third, amber below two thirds, green above. The point is
         # to draw the eye to the row that needs work, not to grade anything.
@@ -349,11 +355,43 @@ def _quality_card(m: dict) -> str:
     <div class="qnum">{b['n']}/{b['total']}<br><small>{pct:.0f}%</small></div>
   </div>"""
 
+    # The findings carry no bar at all. A bar invites reading a count as a score
+    # out of the same 173, which is the misreading this panel just fixed.
+    fi = m["findings"]
+    counts = ""
+    for key in ("lag", "slip"):
+        b = fi[key]
+        counts += f"""
+  <div class="qrow">
+    <div class="qlabel"><span class="qdef" title="{esc(b['tip'])}">{esc(b['label'])}</span>
+      <br><small>{esc(b['why'])}</small></div>
+    <div></div>
+    <div class="qnum">{b['n']}<br><small>projects</small></div>
+  </div>"""
+    undated = len(fi["undated"])
+    gap = ""
+    if undated:
+        gap = (f" <b>{undated}</b> are producing with no confirmed date — the one "
+               f"gap here a verifier can close.")
+    no_promise = len(fi["no_promise"])
+    fewer = (f" {no_promise} of the {len(fi['produced'])} that have produced never "
+             f"promised a date, which is why slip counts fewer."
+             if no_promise else "")
+
     f = m["flags"]
     n_prov, n_subst = len(f["provenance"]), len(f["substantive"])
     return f"""
 <div class="card"><h2>Can this Tracker carry the claim?</h2>
+<h3 class="qgroup">Is the record sound?</h3>
+<p class="qlede">Each project passes three gates in order, and each set sits
+inside the one above.</p>
 {rows}
+<h3 class="qgroup">The findings</h3>
+<p class="qlede">The {fi['published']} projects that cleared all three gates.
+{len(fi['pending'])} are still building and {len(fi['cancelled'])} were cancelled,
+so neither figure exists for them yet.</p>
+{counts}
+<p class="qlede">{gap}{fewer}</p>
 <p style="margin-top:1rem"><b>Open questions.</b> {n_prov + n_subst} of {m['total']}
 projects carry an unresolved flag, of two very different kinds:</p>
 <ul>

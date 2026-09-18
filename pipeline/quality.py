@@ -5,24 +5,34 @@ backlog depending on facts the counts do not carry, and the question a reader of
 the paper will actually ask is not how many rows there are but how many of them
 can carry the claim.
 
-So this measures five things, and deliberately does NOT blend them into one
+So this measures several things, and deliberately does NOT blend them into one
 score. A single number invites an argument about the weights, and a referee will
-ask what is in it. Five bars, each with the rows behind it, is a triage screen:
-it says which rows to go fix, not what grade the Tracker deserves.
+ask what is in it. Separate measures, each with the projects behind them, make a
+triage screen: it says which projects to go fix, not what grade the Tracker
+deserves.
 
-The measures, in the order they matter for publication:
+They come in two groups, because they answer different questions.
 
-  publishable      a human has verified it. Verify is the only gate that makes
-                   a row part of the published Tracker, so this is the one
-                   that gates the paper.
-  measurable slip  promised AND actual first-output dates are both known. Slip
-                   is the promised-vs-produced quantity; a row missing either
-                   date contributes nothing to it, however complete it looks.
-  measurable lag   announced AND actual are both known. Weaker than slip and
-                   available on more rows -- announcement-anchored gestation
-                   survives a missing promise.
+THE GATES are work. Every project short of one is somebody's next task, and the
+three are a funnel: each set sits inside the one above.
+
   sourced          both source links are real, resolvable URLs.
   clean            the deterministic checker does not FAIL it.
+  publishable      a human has verified it. Verify is the only gate that puts a
+                   project in the published Tracker, so this is what gates the
+                   paper.
+
+THE FINDINGS are what the published projects say about the world, counted on the
+projects that cleared all three gates:
+
+  gestation lag    years from the announcement to first output.
+  slip             years between the promised first output and the actual one.
+
+They are counts, not scores, and they are not coloured. Both need a project to
+have produced, and most of these plants have not: reporting that as a failing
+percentage said the Tracker was broken when what it was reporting is how new
+this construction wave is. What IS a gap here is a project producing with no
+confirmed date, which a verifier can go and close, so those are named.
 
 Plus the open-flag split, which is the thing the raw flag count cannot tell you.
 """
@@ -33,7 +43,32 @@ import json
 import re
 import sqlite3
 
+from pipeline.dates import interpret_date
 from pipeline.schema_check import check_url
+
+# The two findings, defined once, because the dashboard and `tracker.py quality`
+# both state them and a reader comparing the two must not find two definitions.
+# `tip` is the hover note in the web panel and a printed line in the terminal:
+# what the number is measured from, which is the question the label cannot
+# answer on its own. A lag measured from the announcement is not the
+# time-to-build of the literature, and saying so is the honest part.
+FINDING_LABELS = {
+    "lag": {
+        "label": "Gestation lag",
+        "why": "announced → first output",
+        "tip": ("Years from the announcement to first output, to one decimal, on "
+                "projects where both dates are known. An imprecise date resolves "
+                "by convention first: 2024 becomes 1 July 2024. Measured from the "
+                "announcement, not from the start of construction."),
+    },
+    "slip": {
+        "label": "Slip",
+        "why": "promised → first output",
+        "tip": ("Years between the promised first output and the actual one, on "
+                "projects that promised a date and have produced. Negative means "
+                "early. Called schedule overrun or slippage in the literature."),
+    },
+}
 
 # A flag that says "I could not read the page" is a very different problem from
 # one that says "the page does not support the claim". The first is an access
@@ -62,7 +97,11 @@ def classify_flag(text: str | None) -> str | None:
 
 
 def measure(conn: sqlite3.Connection) -> dict:
-    """The five measures plus the flag split. Every value carries its rows."""
+    """The three gates, the findings behind them, and the flag split.
+
+    Every value carries the projects behind it, because the panel's job is to
+    say which ones to go and fix.
+    """
     rows = conn.execute("SELECT * FROM screen_extracted").fetchall()
     total = len(rows)
 
@@ -74,13 +113,64 @@ def measure(conn: sqlite3.Connection) -> dict:
                           "FROM screen_check ORDER BY id"):
         latest[r["screen_extracted_id"]] = r["result_status"]
 
-    bars, flags = [], {"provenance": [], "substantive": [], "none": []}
-    hits = {k: [] for k in ("publishable", "slip", "lag", "sourced", "clean")}
+    flags = {"provenance": [], "substantive": [], "none": []}
+    hits = {k: [] for k in ("sourced", "clean", "publishable")}
 
     for r in rows:
         rid = r["id"]
+        # promised_date_source is optional, but a row that supplies one is
+        # making a citation and it has to be a real link. #18 supplied the four
+        # characters "None", which is exactly the case this must not wave past.
+        pds = (r["promised_date_source"] or "").strip()
+        if (_has_url(r["promise_source"]) and _has_url(r["status_source"])
+                and (not pds or _has_url(pds))):
+            hits["sourced"].append(rid)
+        if latest.get(rid) != "FAIL":
+            hits["clean"].append(rid)
         if r["project"] in published:
             hits["publishable"].append(rid)
+        kind = classify_flag(r["flag"])
+        flags[kind or "none"].append(rid)
+
+    # In pipeline order, and each set sits inside the one above: a project is
+    # not verified before it is checked, and not checked usefully before it
+    # cites two real pages. Read down, the three say where the work is.
+    gates = []
+    for key, label, why in (
+        ("sourced", "Sourced", "both source links are real URLs"),
+        ("clean", "Structurally clean", "the deterministic check does not FAIL"),
+        ("publishable", "Publishable", "a human has verified it"),
+    ):
+        ids = hits[key]
+        gates.append({
+            "key": key, "label": label, "why": why,
+            "n": len(ids), "total": total,
+            "pct": (100.0 * len(ids) / total) if total else 0.0,
+            "missing": [r["id"] for r in rows if r["id"] not in set(ids)],
+        })
+
+    return {"total": total, "gates": gates, "findings": findings(conn), "flags": flags}
+
+
+def findings(conn: sqlite3.Connection) -> dict:
+    """What the published projects say about the world.
+
+    Counted on Verify and not on Screen, because the published record is the
+    claim a reader gets: a project nobody has verified is not a finding yet.
+    The two counts sit under the gates that produced them, so the 135 that
+    cleared every gate are exactly the projects counted here.
+
+    Both counts need a project to have produced, so the rest are returned
+    beside them -- still building, cancelled, and producing with no confirmed
+    date. The last is the only gap here a person can close, which is why it
+    carries its projects.
+    """
+    rows = conn.execute("SELECT * FROM verify_verified").fetchall()
+    produced, undated, cancelled, pending = [], [], [], []
+    lag, slip, no_promise = [], [], []
+
+    for r in rows:
+        rid = r["id"]
         # Ask the resolved dates, not the sign of lag/slip.
         #
         # "slip_years >= 0" was the obvious test and it is wrong twice over. A
@@ -92,38 +182,24 @@ def measure(conn: sqlite3.Connection) -> dict:
         #
         # Both dates being resolved is what actually decides whether the
         # quantity exists, so ask that instead and the sign never comes into it.
-        if r["promised_first_output_dt"] and r["actual_first_output_dt"]:
-            hits["slip"].append(rid)
-        if r["announced_dt"] and r["actual_first_output_dt"]:
-            hits["lag"].append(rid)
-        # promised_date_source is optional, but a row that supplies one is
-        # making a citation and it has to be a real link. #18 supplied the four
-        # characters "None", which is exactly the case this must not wave past.
-        pds = (r["promised_date_source"] or "").strip()
-        if (_has_url(r["promise_source"]) and _has_url(r["status_source"])
-                and (not pds or _has_url(pds))):
-            hits["sourced"].append(rid)
-        if latest.get(rid) != "FAIL":
-            hits["clean"].append(rid)
-        kind = classify_flag(r["flag"])
-        flags[kind or "none"].append(rid)
+        if r["actual_first_output_dt"]:
+            produced.append(rid)
+            if r["announced_dt"]:
+                lag.append(rid)
+            if r["promised_first_output_dt"]:
+                slip.append(rid)
+            else:
+                no_promise.append(rid)
+            continue
+        _iso, kind = interpret_date(r["actual_first_output"])
+        (undated if kind == "produced_undated"
+         else cancelled if kind == "cancelled" else pending).append(rid)
 
-    for key, label, why in (
-        ("publishable", "Publishable",     "a human has verified it"),
-        ("slip",        "Can measure slip", "promised AND actual dates known"),
-        ("lag",         "Can measure lag",  "announced AND actual dates known"),
-        ("sourced",     "Sourced",          "both source links are real URLs"),
-        ("clean",       "Structurally clean", "the deterministic check does not FAIL"),
-    ):
-        ids = hits[key]
-        bars.append({
-            "key": key, "label": label, "why": why,
-            "n": len(ids), "total": total,
-            "pct": (100.0 * len(ids) / total) if total else 0.0,
-            "missing": [r["id"] for r in rows if r["id"] not in set(ids)],
-        })
-
-    return {"total": total, "bars": bars, "flags": flags}
+    out = {"published": len(rows), "produced": produced, "pending": pending,
+           "cancelled": cancelled, "undated": undated, "no_promise": no_promise}
+    for key, ids in (("lag", lag), ("slip", slip)):
+        out[key] = dict(FINDING_LABELS[key], key=key, n=len(ids), ids=ids)
+    return out
 
 
 def render_bar(pct: float, width: int = 22) -> str:

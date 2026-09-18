@@ -58,7 +58,7 @@ Fifteen files, six jobs. Read them by job, not by name.
 
 | File | What it does |
 |---|---|
-| `quality.py` | five measures of whether the Tracker can carry the claim (`quality`) |
+| `quality.py` | whether the Tracker can carry the claim: the three gates, then the findings (`quality`) |
 | `coverage.py` | recall against a reference list of projects (`coverage`). Runs standalone too. |
 | `export_tables.py` | database to CSV (`export`). Runs standalone too, and on every write via `db.py`. |
 

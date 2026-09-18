@@ -26,6 +26,7 @@ import re
 import subprocess
 import shutil
 import sys
+import textwrap
 
 # --- Allow both `python -m pipeline.cli` and `python pipeline/cli.py` -------- #
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -670,11 +671,14 @@ def cmd_screen_date(conn, args):
 
 
 def cmd_quality(conn, args):
-    """Five measures of whether this Tracker can carry the claim.
+    """Whether this Tracker can carry the claim: the gates, then the findings.
 
-    Deliberately five numbers and not one. A blended score invites an argument
-    about the weights, and a referee will ask what is in it; five bars with the
-    rows behind them say which rows to go fix.
+    Deliberately several numbers and not one. A blended score invites an
+    argument about the weights, and a referee will ask what is in it; measures
+    with the projects behind them say which ones to go fix.
+
+    The findings print as counts and without a bar, for the reason in
+    quality.py: they are the world, and a count cannot be failed.
     """
     m = quality.measure(conn)
     if not m["total"]:
@@ -684,9 +688,13 @@ def cmd_quality(conn, args):
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     cyan = (lambda t: f"{_ANSI['cyan']}{t}{_ANSI['off']}") if colour else (lambda t: t)
 
-    print(bold(f"Tracker quality — {m['total']} Screen rows"))
+    print(bold(f"Tracker quality — {m['total']} Screen projects"))
     print("=" * 66)
-    for b in m["bars"]:
+    print(bold("Is the record sound?"))
+    print("  Each project passes three gates in order, and each set sits inside")
+    print("  the one above.")
+    print()
+    for b in m["gates"]:
         print(f"  {b['label']:<20}{b['n']:>3}/{b['total']:<4}{b['pct']:>4.0f}%  "
               f"{quality.render_bar(b['pct'])}")
         print(f"  {'':<20}{'':>8}      {b['why']}")
@@ -696,9 +704,34 @@ def cmd_quality(conn, args):
             print(f"  {'':<20}{'':>8}      missing: {ids}{more}")
         print()
 
+    fi = m["findings"]
+    print(bold("The findings"))
+    print(f"  The {fi['published']} projects that cleared all three gates. "
+          f"{len(fi['pending'])} are still")
+    print(f"  building and {len(fi['cancelled'])} were cancelled, so neither figure "
+          "exists for them yet.")
+    print()
+    for key in ("lag", "slip"):
+        b = fi[key]
+        print(f"  {b['label']:<20}{b['n']:>3} projects   {b['why']}")
+        # The definition is printed, not hidden behind a hover as in the web
+        # panel: what a figure is measured FROM is what decides whether two
+        # people mean the same quantity.
+        for line in textwrap.wrap(b["tip"], 52):
+            print(f"  {'':<20}    {line}")
+        print()
+    if fi["undated"]:
+        ids = ", ".join(f"#{i}" for i in fi["undated"][:20])
+        print(f"  {len(fi['undated'])} are producing with no confirmed date — the one "
+              f"gap here a\n  verifier can close: {ids}")
+    if fi["no_promise"]:
+        print(f"  {len(fi['no_promise'])} of the {len(fi['produced'])} that have "
+              f"produced never promised a date, which is\n  why slip counts fewer.")
+    print()
+
     f = m["flags"]
     print(bold("Open questions"))
-    print(f"  {len(f['provenance']) + len(f['substantive'])} of {m['total']} rows "
+    print(f"  {len(f['provenance']) + len(f['substantive'])} of {m['total']} projects "
           "carry an unresolved flag, in two very different kinds:")
     print(f"    {len(f['provenance']):>3}  a cited page could not be read "
           "(403, 404, timeout, video-only)")
@@ -706,10 +739,10 @@ def cmd_quality(conn, args):
     print()
     print("  The first kind is an access failure — fetch it better and it goes")
     print("  away. The second is a fact about the world and only a person can")
-    print("  settle it. Counting them together is why every row looked flagged.")
+    print("  settle it. Counting them together is why every project looked flagged.")
     if not args.rows:
         print()
-        print(f"  {cyan('--rows')} lists the row ids behind each measure.")
+        print(f"  {cyan('--rows')} lists the projects behind each gate.")
 
 
 def cmd_models(conn, args):
@@ -1775,7 +1808,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_screen_date)
 
     s = sub.add_parser("quality",
-                       help="five measures of whether the Tracker can carry the claim")
+                       help="the three gates, then the findings: can the Tracker carry the claim")
     s.add_argument("--rows", action="store_true",
                    help="list the row ids each measure is missing")
     s.set_defaults(fn=cmd_quality)
