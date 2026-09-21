@@ -50,6 +50,7 @@ the originating Source row's id, include it as `source_collected_id` for lineage
 | `flag` | Extraction problems / discrepancies (see below). Omit the key if the row extracted cleanly — never the word `None`. |
 | `promised_date_source` | Optional URL specifically supporting the promised date, if provided by the lead. |
 | `actual_date_source` | Optional URL specifically supporting the **actual** first-output date. Use it when `status_source` proves the plant is running today but does not say when it started — a 2025 earnings release cannot date a 2021 first coil. Leave it out when `status_source` carries both facts. |
+| `size_source` | Optional URL specifically supporting `promised_capital_usd` or `promised_jobs`. Use it when neither cited source prints a size figure and you found one elsewhere (see *When the two sources do not state capital or jobs* below). Leave it out when `promise_source` carries the figure — which is the ordinary case. |
 
 ## Date interpretation — the `*_raw` → token → `*_dt` chain, and how lag/slip are standardized
 
@@ -147,7 +148,10 @@ Three traps, each of which has caught a real row:
   it is exit (c).
 
 Everything else on the row still comes from the lead's own sources. Do **not** search for
-capital, jobs, the announcement date, or the promised date.
+the announcement date or the promised date. Capital and jobs have their own narrow
+exception, under *When the two sources do not state capital or jobs* below, and it is
+narrow in the same way: you may look for the figure, and you must cite where you found
+it.
 
 ## The size floor still applies
 
@@ -159,9 +163,61 @@ clears neither, put that in `flag` — the row will fail the check. (Apply the s
 
 **Either figure alone settles it, so leave the other empty if no source states it.** A
 project with 3,000 promised jobs is in scope whether or not anyone published a dollar
-figure, and the checker now reads it that way. Never reach for a number the sources do
-not give in order to fill the cell — an empty `promised_capital_usd` is a fact about the
-reporting, and an invented one is a defect in the data.
+figure, and the checker reads it that way.
+
+## When the two sources do not state capital or jobs
+
+This is the second and last place you go **beyond the lead's links**, and again for one
+thing only — the figure that decides whether the project belongs in the Tracker at all.
+
+The floor is an OR, but capital carries it almost alone: 2,000 **direct** manufacturing
+jobs is a bar that almost nothing meets, so of the first 162 published projects, 159 are
+in scope on capital and 3 on jobs. The practical effect is that a row whose two links
+never print a dollar figure cannot be shown to be in scope however obviously large the
+plant is. Seven rows sat blocked exactly that way — an ExxonMobil-SABIC ethane cracker,
+a 1 bcf/day hydrogen plant, a world-scale ammonia plant. The number existed. It was not
+on the two pages the lead happened to cite.
+
+So when, and only when, the cited sources leave `promised_capital_usd` empty **and** the
+jobs figure they give does not clear the floor on its own: **search for a source that
+states the project's promised capital (or its direct jobs), and cite that source in
+`size_source`.** Take exactly one of three exits.
+
+**(a) You found a figure.** Put the integer in `promised_capital_usd` (or
+`promised_jobs`), the URL in `size_source`, and in `flag` the sentence you read it from
+plus which cell it settled. The **re-announcement discipline below still governs**: it is
+the *original* announcement's figure you want, not whatever a 2026 article quotes after
+three expansions.
+
+**(b) You searched and no source states it.** Leave the cell empty and say in `flag`
+what you searched and what you found instead. The row will fail the size check, and that
+is the right outcome — but it now fails *having been looked for*, which is a different
+fact from nobody having looked, and the next person can stop rather than repeat you.
+
+**(c) The figures you can find are not this project's.** Leave the cell empty and say in
+`flag` **which** kind of wrong number you found. This is the common exit, not the rare
+one, and the four traps below are each a real blocked row.
+
+Four traps:
+
+- **A combined figure is not this project's capital.** "A $1 billion investment being
+  made into two facilities — one in Perry County, Mississippi, and the other in
+  Middletown, Ohio" cannot be attributed to either one. Exit (c).
+- **Financing is not capital.** A DOE loan of up to $754.8M, described in its own release
+  as *partially* financing the plant, is a loan against the cost, not the cost. The same
+  goes for a grant, a tax credit and a state incentive package. Exit (c).
+- **A transaction price is not capital.** A plant later sold to another company for
+  ~$2.35B tells you what a buyer paid years afterwards, not what was promised at
+  announcement. Exit (c).
+- **Group guidance is not project capital.** "Up to $450 million of growth capex" for the
+  whole company in one year is not this facility's cost, even in the release announcing
+  the facility. Exit (c).
+
+Never reach for a number the sources do not give in order to fill the cell. An empty
+`promised_capital_usd` is a fact about the reporting; an invented one, or a nearby one
+wearing this project's name, is a defect in the data — and because this is the cell the
+inclusion rule reads, it is the one place a wrong number admits a project that does not
+belong.
 
 ## Re-announcement discipline (one site = one project)
 
@@ -195,10 +251,11 @@ just recorded:
 ## Principles
 
 - **Extract, don't infer.** Record what the sources state. Don't fill gaps with outside
-  knowledge or characterize outcomes beyond what's cited. Searching for a first-output
-  date (above) is not an exception to this: you are finding a source and citing it, not
-  supplying the date yourself. A date you cannot cite in `actual_date_source` does not
-  go in the row.
+  knowledge or characterize outcomes beyond what's cited. The two searches above — for a
+  first-output date, and for a size figure — are not exceptions to this: you are finding
+  a source and citing it, not supplying the value yourself. A date you cannot cite in
+  `actual_date_source`, and a figure you cannot cite in `size_source`, do not go in the
+  row.
 - **Prefer honest over complete.** Being explicit about what is shaky (via `flag`) is worth
   more than a row that looks finished.
 
@@ -231,7 +288,8 @@ tier to `P`. Example shape:
   "status_source": "https://…",
   "flag": "promise_source 403s to WebFetch; read via web.archive.org snapshot",
   "promised_date_source": "https://…",
-  "actual_date_source": "https://…"
+  "actual_date_source": "https://…",
+  "size_source": "https://…"
 }
 ```
 

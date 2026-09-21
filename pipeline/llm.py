@@ -534,14 +534,14 @@ def _looks_like_no_result(text: str) -> bool:
 # --------------------------------------------------------------------------- #
 
 # Which source column(s) should hold the evidence for each checkable cell, most
-# specific first. `promised_date_source` and `actual_date_source` lead where they
-# apply: they exist precisely for when a date came from somewhere other than the
-# main announcement or status page.
+# specific first. `promised_date_source`, `actual_date_source` and `size_source`
+# lead where they apply: they exist precisely for when a value came from
+# somewhere other than the main announcement or status page.
 VERIFY_TARGETS: dict[str, tuple[str, ...]] = {
     "announced": ("promise_source", "promised_date_source"),
     "promised_first_output": ("promised_date_source", "promise_source"),
-    "promised_capital_usd": ("promise_source",),
-    "promised_jobs": ("promise_source",),
+    "promised_capital_usd": ("size_source", "promise_source"),
+    "promised_jobs": ("size_source", "promise_source"),
     "actual_first_output": ("actual_date_source", "status_source"),
     "current_status": ("status_source",),
 }
@@ -612,7 +612,7 @@ def render_verify_prompt(row, fields: list[str]) -> str:
         f"- promise_source (the announcement): {_cellval(row, 'promise_source') or '(none)'}",
         f"- status_source (where it stands now): {_cellval(row, 'status_source') or '(none)'}",
     ]
-    for extra in ("promised_date_source", "actual_date_source"):
+    for extra in ("promised_date_source", "actual_date_source", "size_source"):
         if _cellval(row, extra):
             lines.append(f"- {extra}: {_cellval(row, extra)}")
     lines += [

@@ -70,9 +70,14 @@ router = APIRouter()
 # announcement is the half of the row that fixes `announced`, the capital, the
 # jobs and the original promised date. The status side follows, because "what
 # was promised" has to be settled before "did it happen" means anything.
+# `size_source` sits with the promise side rather than at the end, because the
+# figure it cites is part of what was promised. A reviewer reading down the tabs
+# settles the whole promise -- date, capital, jobs -- before moving to what
+# happened.
 SOURCE_FIELDS = (
     "promise_source",
     "promised_date_source",
+    "size_source",
     "status_source",
     "actual_date_source",
 )
@@ -85,6 +90,7 @@ HIGHLIGHT_FOR: dict[str, tuple[str, ...]] = {
     "promise_source": ("announced", "promised_first_output",
                        "promised_capital_usd", "promised_jobs"),
     "promised_date_source": ("promised_first_output", "announced"),
+    "size_source": ("promised_capital_usd", "promised_jobs"),
     "status_source": ("actual_first_output", "current_status"),
     "actual_date_source": ("actual_first_output", "current_status"),
 }
@@ -112,6 +118,7 @@ FIELD_LABELS = {
 SHORT_SOURCE_LABEL = {
     "promise_source": "Promised",
     "promised_date_source": "Promised date",
+    "size_source": "Size",
     "status_source": "Produced",
     "actual_date_source": "Produced date",
 }

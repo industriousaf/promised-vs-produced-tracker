@@ -520,8 +520,207 @@ class TestFirstOutputBackfill(Base):
         blank = sc.check_row(a_row(actual_date_source=""))
         self.assertNotEqual(blank["result_status"], "FAIL")
 
+    def test_size_source_is_provenance_and_url_checked(self):
+        """The same contract, for the column that cites a size figure found
+        outside the lead's own links. It matters more here than anywhere else
+        on the row: this is the cell the inclusion rule reads, so a value it
+        carries is what admits a project to the Tracker."""
+        self.assertIn("size_source", sc.PROVENANCE_COLUMNS)
+        self.assertIn("size_source", sc.V0_COLUMNS)
+        bad = sc.check_row(a_row(size_source="the trade press"))
+        self.assertEqual(bad["result_status"], "FAIL")
+        ok = sc.check_row(a_row(size_source="https://example.com/x"))
+        self.assertNotEqual(ok["result_status"], "FAIL")
+        # Empty is the ordinary row: the figure is usually on promise_source.
+        blank = sc.check_row(a_row(size_source=""))
+        self.assertNotEqual(blank["result_status"], "FAIL")
+
 
 # --------------------------------------------------------------------------- #
+class TestSizeBackfill(Base):
+    """screen-size -- the narrow writer for the rows whose size floor cannot be
+    established.
+
+    The floor is an OR over capital and jobs, but 2,000 DIRECT manufacturing
+    jobs is a bar almost nothing meets, so capital decides in practice: of the
+    first 162 published rows, 159 cleared on capital and 3 on jobs. A lead whose
+    two links never print a dollar figure therefore produces a row that cannot
+    be shown to be in scope however large the plant is, and seven sat blocked
+    exactly that way. The risk under test is the one `screen-date` was built
+    against -- a writer that repairs one cell and quietly moves another -- plus
+    one this writer has and that one does not: this is the cell the inclusion
+    rule reads, so a figure written here without a citation admits a project to
+    the Tracker on faith.
+    """
+
+    def unestablished(self, **over) -> int:
+        """A row in the size-backfill population: jobs below the floor, no
+        capital figure, so the floor cannot be established either way."""
+        sid = self.lead()
+        cells = {"promised_capital_usd": None, "promised_jobs": 600,
+                 "flag": "no cited source states a capital figure."}
+        cells.update(over)
+        rid = screen.insert_extracted(self.conn, a_row(**cells),
+                                      source_collected_id=sid)
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+        return rid
+
+    def test_a_found_figure_clears_the_check(self):
+        rid = self.unestablished()
+        screen.set_size(self.conn, rid, source="https://example.com/capital",
+                        capital=10_000_000_000,
+                        raw="a $10 billion petrochemical complex")
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["promised_capital_usd"], 10_000_000_000)
+        self.assertEqual(row["size_source"], "https://example.com/capital")
+        self.assertNotEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+
+    def test_jobs_can_settle_it_too(self):
+        """The column is `size_source`, not `capital_source`, because either
+        leg of the OR can be the figure that was missing."""
+        rid = self.unestablished(promised_jobs=None)
+        screen.set_size(self.conn, rid, source="https://example.com/jobs", jobs=3000)
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["promised_jobs"], 3000)
+        self.assertIsNone(row["promised_capital_usd"], "capital must stay empty")
+        self.assertNotEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+
+    def test_no_other_cell_moves(self):
+        """The whole argument for a narrow writer. In particular lag/slip and
+        the *_dt cells must not move: they are derived from dates, and nothing
+        derived reads capital or jobs, so putting this through `enrich` would
+        risk rewriting a date nobody asked to change."""
+        rid = self.unestablished()
+        before = dict(screen.get_extracted(self.conn, rid))
+        screen.set_size(self.conn, rid, source="https://example.com/c",
+                        capital=2_500_000_000)
+        after = dict(screen.get_extracted(self.conn, rid))
+        moved = {k for k in before if before[k] != after[k]}
+        self.assertEqual(moved, {"promised_capital_usd", "size_source", "flag"},
+                         f"unexpected cells changed: {moved}")
+
+    def test_the_old_flag_survives(self):
+        """The extractor's note says WHY the cell is empty -- and for this rule
+        it often says which wrong number it refused. Overwriting it to record
+        the fix would delete the reasoning the fix rests on."""
+        rid = self.unestablished(
+            flag="the only dollar figure covers two facilities, so it is not this one's.")
+        before = screen.get_extracted(self.conn, rid)["flag"]
+        screen.set_size(self.conn, rid, source="https://e.com/c", capital=3_000_000_000)
+        after = screen.get_extracted(self.conn, rid)["flag"]
+        self.assertIn(before, after)
+        self.assertIn("Resolved", after)
+
+    def test_a_figure_needs_a_url(self):
+        """This is the cell the inclusion rule reads. An uncited figure here
+        does not merely weaken a row -- it admits a project to the Tracker."""
+        rid = self.unestablished()
+        for bad in ("", "the company press release", "   "):
+            with self.assertRaises(ValueError):
+                screen.set_size(self.conn, rid, source=bad, capital=2_000_000_000)
+        self.assertIsNone(screen.get_extracted(self.conn, rid)["promised_capital_usd"])
+
+    def test_a_figure_must_be_a_positive_whole_number(self):
+        rid = self.unestablished()
+        for bad in ("2.5 billion", "$2500000000", -5, 0, "lots"):
+            with self.assertRaises(ValueError):
+                screen.set_size(self.conn, rid, source="https://e.com/c", capital=bad)
+
+    def test_nothing_to_cite_is_refused(self):
+        rid = self.unestablished()
+        with self.assertRaises(ValueError):
+            screen.set_size(self.conn, rid, source="https://e.com/c")
+
+    def test_an_existing_figure_is_protected(self):
+        """Every row in the queue has the cell empty, so landing on a filled
+        one means the id is wrong -- and the stored figure is real research."""
+        sid = self.lead()
+        rid = screen.insert_extracted(self.conn, a_row(promised_capital_usd=5_000_000_000),
+                                      source_collected_id=sid)
+        with self.assertRaises(screen.SizeOverwriteBlocked):
+            screen.set_size(self.conn, rid, source="https://e.com/c", capital=9)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["promised_capital_usd"],
+                         5_000_000_000)
+        screen.set_size(self.conn, rid, source="https://e.com/c",
+                        capital=6_000_000_000, force=True)
+        self.assertEqual(screen.get_extracted(self.conn, rid)["promised_capital_usd"],
+                         6_000_000_000)
+
+    def test_unresolved_leaves_the_figures_alone_and_the_row_failing(self):
+        """Exit (b). The floor still cannot be established, so the row must keep
+        failing -- what changes is that it now fails having been looked for."""
+        rid = self.unestablished()
+        screen.mark_size_unresolved(self.conn, rid, "searched the IR release and three trade reports")
+        row = screen.get_extracted(self.conn, rid)
+        self.assertIsNone(row["promised_capital_usd"])
+        self.assertEqual(row["promised_jobs"], 600)
+        self.assertIn(screen.SIZE_UNRESOLVED_MARKER, row["flag"])
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+
+    def test_unresolved_needs_a_reason(self):
+        rid = self.unestablished()
+        for bad in ("", "   ", None):
+            with self.assertRaises(ValueError):
+                screen.mark_size_unresolved(self.conn, rid, bad)
+
+    def test_the_queue_excludes_a_row_that_was_measured_out_of_scope(self):
+        """The distinction the whole rule rests on. A row stating $700M and 400
+        jobs has been measured and is out of scope; offering it here would be
+        inviting someone to go find a number that lets it in. Only a row with an
+        EMPTY deciding cell is unestablished."""
+        measured = screen.insert_extracted(
+            self.conn, a_row(project="Measured Fab", promised_capital_usd=700_000_000,
+                             promised_jobs=400), source_collected_id=self.lead())
+        self.assertEqual(screen.run_check(self.conn, measured)["result_status"], "FAIL")
+        unestablished = self.unestablished(project="Unestablished Fab")
+        self.assertEqual([r["id"] for r in screen.unestablished_size(self.conn)],
+                         [unestablished])
+
+    def test_the_queue_drops_what_is_done(self):
+        """Both exits must remove a row, or the loop pays for the same dead end
+        on every run. Only --all brings the searched ones back."""
+        resolved = self.unestablished(project="Resolved Fab")
+        searched = self.unestablished(project="Searched Fab")
+        untouched = self.unestablished(project="Untouched Fab")
+        screen.set_size(self.conn, resolved, source="https://e.com/c", capital=4_000_000_000)
+        screen.mark_size_unresolved(self.conn, searched, "nothing states it")
+
+        self.assertEqual([r["id"] for r in screen.unestablished_size(self.conn)],
+                         [untouched])
+        self.assertCountEqual(
+            [r["id"] for r in screen.unestablished_size(self.conn, include_searched=True)],
+            [searched, untouched])
+
+    def test_a_published_row_is_frozen(self):
+        """verify_verified holds a COPY of the cells, so a Screen write under a
+        published row fixes the staging table and leaves the published one
+        unchanged. Both exits must refuse, and the refusal must name the size
+        cells rather than the date ones it was originally written for."""
+        rid = self.unestablished()
+        screen.set_size(self.conn, rid, source="https://e.com/c", capital=4_000_000_000)
+        screen.run_check(self.conn, rid)
+        verify.promote(self.conn, rid, verification_tier="V1", flag="Resolved: checked.")
+        with self.assertRaises(screen.RemovalBlocked) as caught:
+            screen.set_size(self.conn, rid, source="https://e.com/d",
+                            capital=9_000_000_000, force=True)
+        self.assertIn("size_source", str(caught.exception))
+        self.assertNotIn("actual_first_output", str(caught.exception))
+        with self.assertRaises(screen.RemovalBlocked):
+            screen.mark_size_unresolved(self.conn, rid, "nothing states it")
+        self.assertEqual(screen.get_extracted(self.conn, rid)["promised_capital_usd"],
+                         4_000_000_000)
+
+    def test_the_queue_leaves_published_rows_out(self):
+        """A row can only be in this queue AND published if someone forced the
+        promotion past the failing check -- which is exactly when the queue must
+        stay quiet, because the Screen write it would invite is refused."""
+        rid = self.unestablished(project="Published Fab")
+        screen.run_check(self.conn, rid)
+        verify.promote(self.conn, rid, verification_tier="V1",
+                       flag="Resolved: checked.", force=True)
+        self.assertEqual(screen.unestablished_size(self.conn), [])
+
+
 class TestSizeFloor(Base):
     """The inclusion rule is an OR, and the checker used to enforce an AND.
 
@@ -640,6 +839,34 @@ class TestScreenPromptContract(unittest.TestCase):
 
     def test_the_search_is_scoped_to_one_cell(self):
         self.assertIn("Do **not** search for", self.prompt)
+
+    def test_it_carries_the_size_search_rule(self):
+        """The second and last search past the lead's links. Without it a row
+        whose two pages never print a dollar figure cannot be shown to be in
+        scope at all -- seven were blocked that way, including an
+        ExxonMobil-SABIC cracker and a 1 bcf/day hydrogen plant."""
+        self.assertIn("When the two sources do not state capital or jobs", self.prompt)
+        self.assertIn("size_source", self.prompt)
+
+    def test_the_size_search_carries_its_exits_and_traps(self):
+        """Exit (c) is the common one, and each trap below is a real blocked
+        row. Dropping them is how the search stops being a search for THIS
+        project's capital and becomes a search for any nearby large number."""
+        for exit_text in ("You found a figure",
+                          "You searched and no source states it",
+                          "The figures you can find are not this project's"):
+            self.assertIn(exit_text, self.prompt)
+        for trap in ("A combined figure is not this project's capital",
+                     "Financing is not capital",
+                     "A transaction price is not capital",
+                     "Group guidance is not project capital"):
+            self.assertIn(trap, self.prompt)
+
+    def test_the_size_search_still_defers_to_re_announcement_discipline(self):
+        """A figure found in 2026 is often the third re-announcement. The row's
+        anchor is the ORIGINAL promise, and a search that ignores that swaps a
+        missing number for a wrong one."""
+        self.assertIn("re-announcement discipline below still governs", self.prompt)
 
 
 # --------------------------------------------------------------------------- #

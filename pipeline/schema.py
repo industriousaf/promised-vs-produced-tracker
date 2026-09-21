@@ -24,9 +24,9 @@ Design notes
   the CLI gives them no way to do. --strict is for validating a CSV by hand
   before it is loaded, where fixing the file is the workflow.
 - The schema mirrors promised_vs_produced_v0_out.csv (the enriched/"screen"
-  shape with provenance columns), plus `actual_date_source`. The five provenance
-  columns are OPTIONAL as columns, but their absence downgrades what
-  verifiability the checker can prove.
+  shape with provenance columns), plus `actual_date_source` and `size_source`.
+  The provenance columns are OPTIONAL as columns, but their absence downgrades
+  what verifiability the checker can prove.
 
 Usage
 -----
@@ -93,12 +93,25 @@ REQUIRED_COLUMNS = [
 # that split -- a 2025 earnings release proves a mill is at volume and can never
 # also date its 2021 first coil -- and without the second column the only way to
 # record the date was to overwrite the evidence of current operation.
+# `size_source` is the third of these splits, and the one that decides whether a
+# project is in the Tracker at all. The size floor is an OR over capital and
+# jobs, and capital carries it almost alone -- of the first 162 published rows
+# 159 clear on capital and 3 on jobs, because 2,000 DIRECT manufacturing jobs is
+# a bar nearly nothing meets. So a lead whose two links never print a dollar
+# figure cannot be shown to be in scope, however large the plant obviously is,
+# and seven rows sat blocked that way: an ExxonMobil-SABIC cracker, a 1 bcf/day
+# hydrogen plant, a world-scale ammonia plant. The figure existed; it was not on
+# the two pages the lead happened to cite. This column is where the page that
+# does print it goes, so the number keeps a citation instead of arriving
+# unattributed -- and so that "nobody looked" stays distinguishable from "it is
+# not public".
 PROVENANCE_COLUMNS = [
     "promise_source",
     "status_source",
     "flag",
     "promised_date_source",
     "actual_date_source",
+    "size_source",
     # WHICH RULES ADMITTED THIS ROW. The Tracker is built by sweeping at a
     # high threshold and lowering it later, and without this stamp a later,
     # looser sweep is indistinguishable from the earlier one -- "no $300M plants
@@ -583,7 +596,7 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
 
     # provenance URL shape (only if the columns exist at all)
     for col in ("promise_source", "status_source",
-                "promised_date_source", "actual_date_source"):
+                "promised_date_source", "actual_date_source", "size_source"):
         if has_prov[col] and (m := check_url(row.get(col, ""))):
             add(col, ERROR, m)
 

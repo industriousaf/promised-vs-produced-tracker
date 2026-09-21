@@ -75,7 +75,7 @@ KEEP_FILES = 400
 # shows the model all of them every time (a promised date missing from one
 # document is often in the other), so all of them are part of the question.
 _SOURCE_COLUMNS = ("promise_source", "status_source",
-                   "promised_date_source", "actual_date_source")
+                   "promised_date_source", "actual_date_source", "size_source")
 
 _RAW_PARTNERS = {
     "announced": "announced_raw",

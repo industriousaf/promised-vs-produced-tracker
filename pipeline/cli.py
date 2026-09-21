@@ -670,6 +670,80 @@ def cmd_screen_date(conn, args):
     print(f"  slip_years           {lag_label(b['slip_years'])} -> {lag_label(a['slip_years'])}")
 
 
+def _fmt_size(col: str, value) -> str:
+    """A capital or jobs cell as a person reads it."""
+    if value in (None, ""):
+        return "(empty)"
+    n = int(value)
+    return f"${n:,}" if col == "promised_capital_usd" else f"{n:,}"
+
+
+def cmd_screen_size(conn, args):
+    """Record the promised capital/jobs for one Screen row -- or that no source
+    states it.
+
+    The size backfill's only writer, and the counterpart to `screen-date`. It
+    changes the two size cells, their citation and `flag`, and nothing else --
+    because a row in this queue is right everywhere except the one cell that
+    decides whether the project is in the Tracker at all.
+    """
+    gave_figure = args.capital is not None or args.jobs is not None
+    if bool(args.unresolved) == gave_figure:
+        raise SystemExit(
+            "screen-size records one of two outcomes: a figure that was found "
+            "(--capital and/or --jobs, with --source), or that none is stated "
+            "anywhere (--unresolved REASON). Give exactly one."
+        )
+    if gave_figure and not args.source:
+        raise SystemExit(
+            "--capital/--jobs need --source: this is the cell the inclusion "
+            "rule reads, and an uncited figure admits a project on faith."
+        )
+    try:
+        if args.unresolved:
+            r = screen.mark_size_unresolved(conn, args.id, args.unresolved)
+            print(f"screen #{r['id']} ({r['project']}): recorded as unresolved -- "
+                  f"{screen.SIZE_UNRESOLVED_MARKER}")
+            print("  the row still fails the size check, now having been searched.")
+            return
+        r = screen.set_size(conn, args.id, source=args.source, capital=args.capital,
+                            jobs=args.jobs, raw=args.raw, force=args.force)
+    except (screen.SizeOverwriteBlocked, screen.RemovalBlocked) as e:
+        raise SystemExit(f"refused: {e}")
+    except ValueError as e:
+        raise SystemExit(str(e))
+    b, a = r["before"], r["after"]
+    print(f"screen #{r['id']} ({r['project']})")
+    for col, label in (("promised_capital_usd", "promised_capital_usd"),
+                       ("promised_jobs", "promised_jobs      ")):
+        if b[col] != a[col]:
+            print(f"  {label} {_fmt_size(col, b[col])} -> {_fmt_size(col, a[col])}")
+    print(f"  re-run the check to see the verdict:  "
+          f"tracker.py screen-check --id {r['id']}")
+
+
+def cmd_screen_size_queue(conn, args):
+    """The rows whose size floor cannot be established -- the work this rule
+    exists to make possible.
+
+    Not the rows that fail the floor. A row measured at $700M and 400 jobs is
+    out of scope and settled; offering it here would be inviting someone to go
+    find a number that lets it in.
+    """
+    rows = screen.unestablished_size(conn, include_searched=args.all)
+    if not rows:
+        print("Nothing waiting: every Screen row either clears the size floor "
+              "or has both figures and is measured out of scope.")
+        return
+    print(f"{len(rows)} row(s) whose size floor cannot be established:")
+    for r in rows:
+        searched = screen.SIZE_UNRESOLVED_MARKER in (r["flag"] or "")
+        mark = "  (searched)" if searched else ""
+        print(f"  #{r['id']:>4}  capital {_fmt_size('promised_capital_usd', r['promised_capital_usd']):>16}"
+              f"   jobs {_fmt_size('promised_jobs', r['promised_jobs']):>8}   "
+              f"{(r['project'] or '')[:48]}{mark}")
+
+
 def cmd_quality(conn, args):
     """Whether this Tracker can carry the claim: the gates, then the findings.
 
@@ -1806,6 +1880,25 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force", action="store_true",
                    help="overwrite a date the row already has (it is probably wrong)")
     s.set_defaults(fn=cmd_screen_date)
+
+    s = sub.add_parser("screen-size",
+                       help="record the promised capital/jobs on a Screen row")
+    s.add_argument("--id", type=int, required=True, help="the screen_extracted id")
+    s.add_argument("--capital", type=int, help="promised capital in whole USD, digits only")
+    s.add_argument("--jobs", type=int, help="promised DIRECT jobs, digits only")
+    s.add_argument("--source", help="URL that states the figure (size_source)")
+    s.add_argument("--raw", help="the verbatim sentence the figure was read from")
+    s.add_argument("--unresolved", metavar="REASON",
+                   help="no source states it: record that it was searched for")
+    s.add_argument("--force", action="store_true",
+                   help="overwrite a figure the row already has (it is probably wrong)")
+    s.set_defaults(fn=cmd_screen_size)
+
+    s = sub.add_parser("screen-size-queue",
+                       help="Screen rows whose size floor cannot be established")
+    s.add_argument("--all", action="store_true",
+                   help="include rows already searched without success")
+    s.set_defaults(fn=cmd_screen_size_queue)
 
     s = sub.add_parser("quality",
                        help="the three gates, then the findings: can the Tracker carry the claim")

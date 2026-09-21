@@ -101,6 +101,45 @@ class TestTabs(unittest.TestCase):
         self.assertIn("promised_first_output", tabs[0]["highlight"])
         self.assertIn("promised_capital_usd", tabs[0]["highlight"])
 
+    def test_a_size_source_gets_its_own_tab_on_the_promise_side(self):
+        """The page that states the capital figure is often not either of the
+        two the lead cites -- that is the whole reason the column exists. It
+        must reach the pane as a tab, or the reviewer settles a figure against
+        a document that does not contain it.
+
+        Its place in the order is the promise side, before the status page: the
+        figure is part of what was promised, and a reviewer reading down the
+        tabs settles the whole promise before moving to what happened."""
+        row = {"promise_source": "https://a.test/x",
+               "promised_date_source": None,
+               "size_source": "https://size.test/capital",
+               "status_source": "https://c.test/z", "actual_date_source": None}
+        tabs = ev.tabs_for(row)
+        self.assertEqual([t["url"] for t in tabs],
+                         ["https://a.test/x", "https://size.test/capital",
+                          "https://c.test/z"])
+        self.assertEqual(tabs[1]["fields"], ["size_source"])
+
+    def test_a_size_source_highlights_the_two_cells_it_is_cited_for(self):
+        """And only those two. Marking a date on the page that states the
+        capital would be marking a claim it was never cited for -- the same
+        rule that keeps the announcement from highlighting first output."""
+        row = {"promise_source": None, "promised_date_source": None,
+               "size_source": "https://size.test/capital",
+               "status_source": None, "actual_date_source": None}
+        tabs = ev.tabs_for(row)
+        self.assertEqual(len(tabs), 1)
+        self.assertCountEqual(tabs[0]["highlight"],
+                              ["promised_capital_usd", "promised_jobs"])
+
+    def test_a_capital_figure_may_rest_on_either_promise_page(self):
+        """SOURCES_FOR read the other way round: where a cell's proof may come
+        from. Capital may be proven by the announcement or by the page found
+        for it, and by nothing on the produced side."""
+        self.assertEqual(ev.SOURCES_FOR["promised_capital_usd"],
+                         ("promise_source", "size_source"))
+        self.assertNotIn("status_source", ev.SOURCES_FOR["promised_jobs"])
+
     def test_trailing_punctuation_is_not_part_of_the_url(self):
         row = {"promise_source": "see https://a.test/x, and more",
                "status_source": "", "promised_date_source": "",

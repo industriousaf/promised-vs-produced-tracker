@@ -24,6 +24,7 @@ from pipeline.dates import (
 from pipeline.schema_check import (
     V0_COLUMNS,
     INT_COLUMNS,
+    check_int,
     NULL_STRINGS,
     DATE_COLUMN_NULL_STRINGS,
     DERIVED_DATE_COLUMNS,
@@ -225,23 +226,32 @@ def published_as(conn: sqlite3.Connection, screen_id: int) -> list[int]:
     ).fetchall()]
 
 
-def _refuse_if_published(conn: sqlite3.Connection, screen_id: int, project: str) -> None:
+def _refuse_if_published(conn: sqlite3.Connection, screen_id: int, project: str,
+                         what: str = "the date",
+                         leaves: str = "reading 'unconfirmed'",
+                         sets: str = ("--set actual_first_output=YYYY-MM "
+                                      "--set actual_date_source=URL"),
+                         desc: str = "first output dated from <source>") -> None:
     """A published row is frozen at Screen. `remove_extracted` already refuses
     on the same ground: `verify_verified` holds a COPY of the cells, not a live
     reference, so a Screen write under a published row silently leaves the
     published copy saying something else. Verify is a human-only gate, so the
-    fix is a person running `verify-edit`, not this command reaching past it."""
+    fix is a person running `verify-edit`, not this command reaching past it.
+
+    `what`/`leaves`/`sets`/`desc` only shape the message. The refusal is the same for
+    every Screen writer; what differs is the one command that IS allowed, and a
+    refusal that names the wrong cells is a refusal the reader has to translate.
+    """
     published = published_as(conn, screen_id)
     if not published:
         return
     ids = ", #".join(str(v) for v in published)
     raise RemovalBlocked(
         f"screen #{screen_id} ({project}) was published as verify #{ids}. "
-        f"Writing the date here would fix the Screen row and leave the "
-        f"published one reading 'unconfirmed'. Verify is a human gate:\n"
-        f"    tracker.py verify-edit --id {published[0]} "
-        f"--set actual_first_output=YYYY-MM --set actual_date_source=URL "
-        f"--desc \"first output dated from <source>\""
+        f"Writing {what} here would fix the Screen row and leave the "
+        f"published one {leaves}. Verify is a human gate:\n"
+        f"    tracker.py verify-edit --id {published[0]} {sets} "
+        f"--desc \"{desc}\""
     )
 
 
@@ -366,6 +376,170 @@ def mark_first_output_unresolved(conn: sqlite3.Connection, screen_id: int,
     return _first_output_update(conn, screen_id, {
         "flag": _append_flag(row["flag"], f"{UNRESOLVED_MARKER}: {note.strip()}"),
     })
+
+
+# --------------------------------------------------------------------------- #
+# The size floor: recording a figure found outside the lead's own links        #
+# --------------------------------------------------------------------------- #
+
+SIZE_UNRESOLVED_MARKER = "no source found for the size floor"
+
+
+class SizeOverwriteBlocked(Exception):
+    """The Screen row already carries the size figure being written."""
+
+
+def _size_update(conn: sqlite3.Connection, screen_id: int, changes: dict) -> dict:
+    """Apply `changes` to the size cells of one Screen row.
+
+    Unlike the date writer this re-derives nothing. lag/slip and the *_dt cells
+    are computed from dates alone, and no derived cell reads capital or jobs --
+    so putting this through `enrich` would only risk rewriting date cells that
+    are not being corrected.
+    """
+    row = get_extracted(conn, screen_id)
+    if row is None:
+        raise ValueError(f"no screen_extracted row with id {screen_id}")
+
+    before = {"promised_capital_usd": row["promised_capital_usd"],
+              "promised_jobs": row["promised_jobs"]}
+    cols = list(changes)
+    conn.execute(
+        f"UPDATE screen_extracted SET {', '.join(c + ' = ?' for c in cols)} WHERE id = ?",
+        [_coerce(c, changes[c]) for c in cols] + [screen_id],
+    )
+    conn.commit()
+    after = {k: _coerce(k, changes.get(k, before[k])) for k in before}
+    return {"id": screen_id, "project": row["project"],
+            "before": before, "after": after}
+
+
+def set_size(conn: sqlite3.Connection, screen_id: int, source: str,
+             capital: object = None, jobs: object = None,
+             raw: str | None = None, force: bool = False) -> dict:
+    """Put a promised capital and/or jobs figure, and the page that states it,
+    on one Screen row.
+
+    Touches at most four cells: `promised_capital_usd`, `promised_jobs`,
+    `size_source` and `flag`. It exists for the same reason `set_first_output`
+    does -- the alternative is `screen-add --replace`, which takes the whole
+    row, and a row here is already right in twenty cells and empty in one.
+
+    The refusals are this backfill's own failure modes:
+      * neither figure given -- there is nothing to cite,
+      * a figure that is not a positive integer -- capital is dollars and jobs
+        are people; a float, a string or a negative is a parse that went wrong,
+      * a `source` that is not URL-shaped, or absent. The citation is the whole
+        point: an uncited figure in THIS cell admits a project to the Tracker,
+        which is worse than an uncited figure anywhere else on the row,
+      * a cell that is already filled, unless `force`. Every row in the queue
+        has the cell empty, so landing on a filled one means the id is wrong.
+    """
+    if capital is None and jobs is None:
+        raise ValueError("give --capital, --jobs, or both: there is nothing to cite otherwise.")
+    if not (source or "").strip():
+        raise ValueError("--source is required: an uncited size figure admits a project on faith.")
+    if msg := check_url(source or ""):
+        raise ValueError(f"--source: {msg}")
+
+    figures = {"promised_capital_usd": capital, "promised_jobs": jobs}
+    for col, val in figures.items():
+        if val is None:
+            continue
+        try:
+            n = int(str(val).strip())
+        except (TypeError, ValueError):
+            raise ValueError(f"--{col.split('_')[1]} {val!r} is not a whole number.")
+        if n <= 0:
+            raise ValueError(f"--{col.split('_')[1]} must be positive, got {n}.")
+        figures[col] = n
+
+    row = get_extracted(conn, screen_id)
+    if row is None:
+        raise ValueError(f"no screen_extracted row with id {screen_id}")
+    _refuse_if_published(
+        conn, screen_id, row["project"], what="a size figure",
+        leaves="without one, and still blocked",
+        sets="--set promised_capital_usd=N --set size_source=URL",
+        desc="promised capital sourced from <source>")
+    if not force:
+        for col, val in figures.items():
+            if val is not None and row[col] not in (None, ""):
+                raise SizeOverwriteBlocked(
+                    f"screen #{screen_id} ({row['project']}) already has "
+                    f"{col}={row[col]!r}. Pass --force only if that stored "
+                    f"figure is wrong."
+                )
+
+    said = " and ".join(
+        f"{col} {val:,}" for col, val in figures.items() if val is not None)
+    note = f"Resolved: {said} from size_source."
+    if raw:
+        note += f' Source text: "{raw.strip()}"'
+    changes = {c: v for c, v in figures.items() if v is not None}
+    changes["size_source"] = source.strip()
+    changes["flag"] = _append_flag(row["flag"], note)
+    return _size_update(conn, screen_id, changes)
+
+
+def mark_size_unresolved(conn: sqlite3.Connection, screen_id: int, note: str) -> dict:
+    """Record that a size figure was searched for and not found.
+
+    The figure cells are left exactly as they are, and the row keeps failing the
+    check -- correctly, because the floor still cannot be established. What
+    changes is that it now fails having been looked for. That is exit (b) of the
+    prompt's rule, and it is the difference between a row worth another search
+    and a row that needs a person to decide whether the project is in scope at
+    all.
+    """
+    row = get_extracted(conn, screen_id)
+    if row is None:
+        raise ValueError(f"no screen_extracted row with id {screen_id}")
+    _refuse_if_published(
+        conn, screen_id, row["project"], what="a size figure",
+        leaves="without one, and still blocked",
+        sets="--set promised_capital_usd=N --set size_source=URL",
+        desc="promised capital sourced from <source>")
+    if not (note or "").strip():
+        raise ValueError("--unresolved needs a reason: what was searched, and what was found instead.")
+    return _size_update(conn, screen_id, {
+        "flag": _append_flag(row["flag"], f"{SIZE_UNRESOLVED_MARKER}: {note.strip()}"),
+    })
+
+
+def unestablished_size(conn: sqlite3.Connection,
+                       include_searched: bool = False) -> list[sqlite3.Row]:
+    """Rows the size floor cannot be established for -- the size backfill queue.
+
+    Deliberately NOT every row that fails the floor. A row stating $700M and 400
+    jobs has been measured and is out of scope; searching for another number
+    would be shopping for one that admits it. This queue is only the rows where
+    a cell the floor depends on is EMPTY, which is the checker's own
+    "size floor cannot be established" branch, asked the same way it asks it.
+
+    Published rows are excluded (frozen at Screen), and so, by default, are rows
+    already carrying the marker -- re-offering a dead end costs exactly what the
+    first search cost, to learn the same thing.
+    """
+    crit = criteria.active()
+    out = []
+    for r in conn.execute("SELECT * FROM screen_extracted ORDER BY id").fetchall():
+        # `check_int`, not a local parse: the queue must answer the floor
+        # question exactly as the checker asks it, or a cell the two read
+        # differently is a row that appears here and does not fail, or fails
+        # and never appears.
+        cap, _ = check_int(str(r["promised_capital_usd"] or ""))
+        jobs, _ = check_int(str(r["promised_jobs"] or ""))
+        if crit.clears(cap, jobs):
+            continue
+        if cap is not None and jobs is not None:
+            continue                       # measured, and out of scope
+        if published_as(conn, r["id"]):
+            continue
+        if not include_searched and SIZE_UNRESOLVED_MARKER in (r["flag"] or ""):
+            continue
+        out.append(r)
+    return out
 
 
 def undated_produced(conn: sqlite3.Connection,

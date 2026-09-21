@@ -439,6 +439,10 @@ FIELD_HINTS = {
         "only if status_source proves the plant runs today but does not say "
         "when it started. Leave empty otherwise."
     ),
+    "size_source": (
+        "only if the capital or jobs figure came from a page outside the "
+        "lead's own links. Leave empty otherwise — it usually is."
+    ),
 }
 
 
@@ -479,7 +483,7 @@ CHECK_RULES: list[tuple[tuple[str, ...], str]] = [
     (("lag_years",), "the derived lag parses as a number or a sentinel"),
     (("verification_tier",), "the tier is a valid token (P / V1 / V2, or a pair)"),
     (("promise_source", "status_source", "promised_date_source",
-      "actual_date_source"),
+      "actual_date_source", "size_source"),
      "every source cell that holds anything is URL-shaped"),
     (("flag",), "an unresolved flag is surfaced as a warning"),
 ]

@@ -66,6 +66,9 @@ python3 tracker.py screen-list [--by-capital]
 python3 tracker.py screen-show --id N
 python3 tracker.py screen-date --id N --date "2021-12" --source URL [--raw "..."] [--note "..."]
 python3 tracker.py screen-date --id N --unresolved "what was searched, and what was found"
+python3 tracker.py screen-size --id N --capital 2500000000 --source URL [--jobs N] [--raw "..."]
+python3 tracker.py screen-size --id N --unresolved "what was searched, and what was found"
+python3 tracker.py screen-size-queue [--all]    # rows the size floor can't be established for
 python3 tracker.py screen-remove --id N --yes   # human only; no undo
 
 # Verify  (the human gate)

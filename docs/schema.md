@@ -256,6 +256,21 @@ guessing.
   rows needed the actual-side one: a Q4-2025 earnings release proves a mill is at
   volume and can never also date its 2021 first coil, so recording the date meant
   overwriting the evidence of operation. `screen-date` is the writer.
+- **`size_source`, because the figure that decides inclusion is often not on
+  either cited page.** The size floor is an OR over capital and jobs, but capital
+  carries it almost alone — of the first 162 published rows, 159 clear on capital
+  and 3 on jobs, because 2,000 *direct* manufacturing jobs is a bar almost nothing
+  meets. So a lead whose two links never print a dollar figure produces a row that
+  cannot be shown to be in scope however large the plant is, and seven sat blocked
+  that way: an ExxonMobil-SABIC ethane cracker, a 1 bcf/day hydrogen plant, a
+  world-scale ammonia plant. `size_source` is where the page that does print the
+  figure goes, so the number arrives with a citation rather than on faith — this
+  being the one cell where an uncited value admits a project to the Tracker
+  outright. Optional, and empty on the ordinary row. `screen-size` is the writer,
+  and `screen-size-queue` lists the rows waiting for one. The extraction prompt's
+  rule is *When the two sources do not state capital or jobs*, and its four traps
+  — a combined two-site figure, a loan or grant, a later sale price, company-wide
+  capex guidance — are each a real blocked row.
 - **Sectors are a closed vocabulary:** the checker ERRORs on a sector outside it. Add a
   genuinely new manufacturing sector by editing `SECTORS` in `pipeline/settings.py` — a
   code change on purpose, so what counts as in scope cannot move at runtime without a

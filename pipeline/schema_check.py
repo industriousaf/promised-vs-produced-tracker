@@ -33,7 +33,7 @@ _spec.loader.exec_module(pvp_schema)
 
 # Re-export the pieces the rest of the package needs from the ONE source of truth.
 REQUIRED_COLUMNS: list[str] = pvp_schema.REQUIRED_COLUMNS      # 15 core columns
-PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # 6 provenance columns
+PROVENANCE_COLUMNS: list[str] = pvp_schema.PROVENANCE_COLUMNS  # the provenance columns
 ERROR = pvp_schema.ERROR
 WARN = pvp_schema.WARN
 
@@ -54,6 +54,10 @@ NULL_STRINGS = pvp_schema.NULL_STRINGS
 # Re-exported so the quality report can ask the same question the checker
 # asks, rather than growing its own idea of what a source link looks like.
 check_url = pvp_schema.check_url
+# Does a numeric cell hold a whole number, and which? Re-exported for the same
+# reason as check_url: the size-backfill queue asks the floor question the
+# checker's way, so a cell the two read differently cannot exist.
+check_int = pvp_schema.check_int
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
 # The promised-date sentinel set. Re-exported so the attestation rule tells an
 # absence from a value in the checker's own vocabulary, not a copy of it.

@@ -67,10 +67,16 @@ you name the candidate in `flag` — never a sector name you coined, never an ed
 
 1. `web_fetch` the lead's `promise_source` / `status_source` (and
    `promised_date_source`, if present) and read them.
-   If between them they establish that the plant **has produced** but neither gives a
-   date for it, follow the printed prompt's "When the two sources do not date first
-   output" section — search for a source that dates it and cite that in
-   `actual_date_source`. That section is the whole rule, including when NOT to.
+   Two gaps, and only these two, send you past the lead's own links. Each has a
+   section in the printed prompt that is the whole rule, including when NOT to:
+   - They establish that the plant **has produced** but neither gives a date for it →
+     "When the two sources do not date first output". Search for a source that dates
+     it and cite that in `actual_date_source`.
+   - Neither prints a capital figure and the jobs figure they give does not clear the
+     size floor → "When the two sources do not state capital or jobs". Search for the
+     project's promised capital and cite that in `size_source`. Watch the four traps
+     there: a combined two-site figure, a loan or grant, a later sale price and
+     company-wide capex guidance are each **not** this project's capital.
 2. Produce the one JSON row in the shape the printed prompt specifies — each date as
    both a normalized **token** and its verbatim **`*_raw`** partner; digits only for
    `promised_capital_usd` / `promised_jobs`; surface any problem in `flag`. A clean
