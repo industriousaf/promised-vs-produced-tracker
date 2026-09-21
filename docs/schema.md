@@ -271,6 +271,26 @@ guessing.
   rule is *When the two sources do not state capital or jobs*, and its four traps
   — a combined two-site figure, a loan or grant, a later sale price, company-wide
   capex guidance — are each a real blocked row.
+- **The size floor screens the PROMISE, not the project as it stands today.**
+  `promised_capital_usd` is anchored on the first announcement (see the
+  re-announcement rule), and the floor tests that anchor. A project announced
+  below the floor is therefore out of scope even if it later expands above it.
+  Three projects are excluded this way: Corning Richland Township ($900M in Feb
+  2024, $1.5B by May 2025, **producing**), Philip Morris Aurora ($600M in Jul
+  2024, ~$1.2B by 2028, **producing**) and Genentech Holly Springs ($700M in May
+  2025, ~$2B by Jan 2026, under construction).
+
+  This is a selection effect and it runs one way. A project that promised over
+  $1B and built nothing stays in the Tracker — 24 of the published 162 are
+  cancelled or paused — while a project that promised modestly and delivered is
+  screened out. Corning came in 0.1 years *early* against its promised date. Any
+  claim the Tracker makes about the gap between promised and produced has to be
+  read against that, so it is stated here rather than left to be discovered.
+
+  The checker reports these as `inclusion rule fails`, which `status`, the
+  dashboard and the Screen list separate from the ordinary blocked rows: both
+  are unverifiable, but a blocked row is work and an out-of-scope row is a
+  decision already made.
 - **Sectors are a closed vocabulary:** the checker ERRORs on a sector outside it. Add a
   genuinely new manufacturing sector by editing `SECTORS` in `pipeline/settings.py` — a
   code change on purpose, so what counts as in scope cannot move at runtime without a

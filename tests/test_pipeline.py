@@ -308,6 +308,66 @@ class TestQualityAndQueue(Base):
         self.assertEqual([r["id"] for r in q["blocked"]], [bad])
         self.assertIn(ok, [r["id"] for r in q["ready"]])
 
+    def test_out_of_scope_is_separated_from_blocked(self):
+        """Both FAIL and neither can be verified, but only one is work.
+
+        A malformed row can be corrected. A row whose two size figures are both
+        known and both under the floor is correctly reporting a project that
+        does not belong in this phase, and no edit resolves it. Eleven rows were
+        listed as blocked when three of them could never be unblocked, which
+        sent a person looking for a defect that was not there."""
+        malformed = screen.insert_extracted(
+            self.conn, a_row(project="Malformed", promised_date_source="not-a-url"),
+            source_collected_id=self.lead())
+        small = screen.insert_extracted(
+            self.conn, a_row(project="Small", promised_capital_usd=900_000_000,
+                             promised_jobs=1100),
+            source_collected_id=self.lead())
+        for rid in (malformed, small):
+            self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+
+        q = screen.review_queue(self.conn)
+        self.assertEqual([r["id"] for r in q["blocked"]], [malformed])
+        self.assertEqual([r["id"] for r in q["out_of_scope"]], [small])
+
+    def test_an_unestablished_floor_is_work_not_an_exclusion(self):
+        """The other half of the same distinction. A row whose capital cell is
+        EMPTY has not been measured, so it is blocked -- someone can go and find
+        the figure (that is what size_source is for). Only a row where both
+        figures are known is out of scope."""
+        unknown = screen.insert_extracted(
+            self.conn, a_row(project="Unknown", promised_capital_usd=None,
+                             promised_jobs=600),
+            source_collected_id=self.lead())
+        self.assertEqual(screen.run_check(self.conn, unknown)["result_status"], "FAIL")
+        q = screen.review_queue(self.conn)
+        self.assertEqual([r["id"] for r in q["blocked"]], [unknown])
+        self.assertEqual(q["out_of_scope"], [])
+
+    def test_an_out_of_scope_row_still_cannot_be_published(self):
+        """Separating it from `blocked` is a reporting change and must not
+        become a way in. The gate is unchanged: it is a FAIL, so promote
+        refuses it."""
+        small = screen.insert_extracted(
+            self.conn, a_row(project="Small", promised_capital_usd=900_000_000,
+                             promised_jobs=1100),
+            source_collected_id=self.lead())
+        screen.run_check(self.conn, small)
+        with self.assertRaises(verify.PromotionBlocked):
+            verify.promote(self.conn, small, verification_tier="V1")
+
+    def test_the_reader_asks_the_stored_report_not_the_live_rule(self):
+        """sc.is_out_of_scope reads the verdict the checker recorded. Deciding
+        it again later would re-grade old rows against a threshold that has
+        since moved -- the thing criteria_id exists to prevent."""
+        self.assertTrue(sc.is_out_of_scope(
+            [{"level": "ERROR", "message": f"{sc.OUT_OF_SCOPE}: phase 'x' requires ..."}]))
+        self.assertFalse(sc.is_out_of_scope(
+            [{"level": "ERROR", "message": "size floor cannot be established: ..."}]))
+        self.assertFalse(sc.is_out_of_scope(
+            [{"level": "WARN", "message": f"{sc.OUT_OF_SCOPE}: ..."}]))
+        self.assertFalse(sc.is_out_of_scope([]))
+
     def test_ready_is_largest_capital_first_with_no_figure_last(self):
         """The order the Tracker's completeness claim rests on. The dashboard
         says "largest capital first, so wherever you stop, the Tracker above

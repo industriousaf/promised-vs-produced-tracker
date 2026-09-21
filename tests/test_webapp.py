@@ -595,6 +595,32 @@ class TestDashboardIsAPipeline(unittest.TestCase):
         from webapp.main import app
         return TestClient(app).get("/").text
 
+    def test_an_out_of_scope_project_is_not_called_a_failing_check(self):
+        """The funnel caption said "N blocked by a failing check" and counted
+        projects no check will ever pass. A project whose two size figures are
+        both known and both under the floor is not a defect in the data; it is
+        the screen working. Calling it blocked sends a reviewer to look for a
+        fault that is not there, permanently."""
+        from pipeline import db as pdb, screen as pscreen, source as psource
+        conn = pdb.connect(self.path)
+        lead = psource.insert_lead(conn, promise_source="https://example.com/b",
+                                   status_source="https://example.com/s", summary="y")
+        small = pscreen.insert_extracted(conn, {
+            "project": "Small Fab", "sector": "Solar", "state": "MI",
+            "announced": "2024-02", "promised_capital_usd": 900_000_000,
+            "promised_jobs": 1100, "promised_first_output": "2025",
+            "actual_first_output": "pending", "current_status": "UNDER CONSTRUCTION",
+            "status": "under construction", "promise_source": "https://example.com/p",
+            "status_source": "https://example.com/s", "verification_tier": "P",
+        }, source_collected_id=lead)
+        self.assertEqual(pscreen.run_check(conn, small)["result_status"], "FAIL")
+        conn.commit(); conn.close()
+
+        b = self._body()
+        self.assertIn("out of scope", b)
+        self.assertNotIn("1 blocked by a failing check", b)
+        self.assertIn("nothing to fix", b.lower())
+
     def test_three_stages_named_not_five_tables(self):
         b = self._body()
         for stage in ("Source", "Screen", "Verify"):

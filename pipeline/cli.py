@@ -113,7 +113,7 @@ def _print_your_move(conn) -> None:
     table does not show. So say it.
     """
     q = screen.review_queue(conn)
-    ready, blocked = q["ready"], q["blocked"]
+    ready, blocked, out_of_scope = q["ready"], q["blocked"], q["out_of_scope"]
     colour = _use_colour()
     cyan = (lambda t: f"{_ANSI['cyan']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
@@ -148,6 +148,13 @@ def _print_your_move(conn) -> None:
         print(f"  {len(blocked)} row(s) cannot be published until a failing check is")
         print(f"  fixed -- {ids}{more}. See what is wrong with:")
         print(f"      {ENTRY} {cyan('screen-check')} --id {blocked[0]['id']}")
+    if out_of_scope:
+        ids = ", ".join(f"#{r['id']}" for r in out_of_scope[:5])
+        more = "" if len(out_of_scope) <= 5 else f" (+{len(out_of_scope) - 5} more)"
+        print()
+        print(f"  {len(out_of_scope)} row(s) are out of scope for this phase and will")
+        print(f"  not publish -- {ids}{more}. Nothing to fix: both size")
+        print(f"  figures are known and both are under the floor.")
 
 
 def cmd_webapp(conn, args):
@@ -383,17 +390,24 @@ def cmd_review(conn, args):
             raise SystemExit(f"screen row #{args.id} is not waiting for review "
                              "(already published, or no such row)")
 
-    # A FAIL blocks promotion, so those rows are not reviewable here.
-    blocked, ready = [], []
-    for row in queue:
-        chk = screen.latest_check(conn, row["id"])
-        (blocked if (chk and chk["result_status"] == "FAIL") else ready).append(row)
+    # A FAIL blocks promotion, so those rows are not reviewable here. Ask
+    # review_queue rather than re-deciding it: it is the one place that knows a
+    # FAIL for being malformed from a FAIL for being out of scope, and only the
+    # first is something a reviewer can act on.
+    full = screen.review_queue(conn)
+    ids = {r["id"] for r in queue}
+    ready = [r for r in full["ready"] if r["id"] in ids]
+    blocked = [r for r in full["blocked"] if r["id"] in ids]
+    out_of_scope = [r for r in full["out_of_scope"] if r["id"] in ids]
 
     if not ready:
         print("Nothing waiting for review.")
         if blocked:
             print(f"{len(blocked)} row(s) are blocked by a FAILing check. "
                   "See screen-check --id N.")
+        if out_of_scope:
+            print(f"{len(out_of_scope)} row(s) are out of scope for this phase "
+                  "and will not publish. Nothing to fix.")
         return
 
     colour = _use_colour()
@@ -403,6 +417,8 @@ def cmd_review(conn, args):
     print(bold(f"Review: {len(ready)} row(s) waiting, largest capital first"))
     if blocked:
         print(f"({len(blocked)} more blocked by a FAILing check, not shown)")
+    if out_of_scope:
+        print(f"({len(out_of_scope)} more out of scope for this phase, not shown)")
     print("Open each row's two links, then answer from what they say.")
     print("y = the source supports it, n = it does not, s = skip, q = stop.")
     print("Nothing is written until you confirm at the end of a row.")

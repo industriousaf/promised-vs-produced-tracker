@@ -227,6 +227,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
         conn.close()
 
     n_ready, n_blocked = len(q["ready"]), len(q["blocked"])
+    n_out = len(q["out_of_scope"])
 
     # Five tiles, one per TABLE, is not what the pipeline is. screen_check is
     # exactly one row per screen_extracted row by construction, so "173" next
@@ -275,7 +276,9 @@ def dashboard(request: Request, msg: Optional[str] = None):
     <a href="/screen" class="stage-link">inspect \u2192</a>
   </div>
 
-  {_gate(n_eligible, 'eligible to publish' + (f', {n_blocked} blocked by a failing check' if n_blocked else ''))}
+  {_gate(n_eligible, 'eligible to publish'
+         + (f', {n_blocked} blocked by a failing check' if n_blocked else '')
+         + (f', {n_out} out of scope' if n_out else ''))}
 
   <div class="stage stage-end">
     <div class="stage-name">Verify</div>
@@ -289,7 +292,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
 </div>
 """
 
-    if not n_ready and not n_blocked:
+    if not n_ready and not n_blocked and not n_out:
         if not c["verify_verified"]:
             body += """
 <div class="card"><h2>Nothing here yet</h2>
@@ -320,7 +323,16 @@ is complete. First up: <a href="/screen/{top['id']}/inspect"><b>{esc(top['projec
 <p><small>{n_blocked} project(s) cannot be published until a failing check is fixed:
 {links}.</small></p>"""
 
-    body += f'<div class="card">{ready_bit}{blocked_bit}</div>'
+    out_bit = ""
+    if n_out:
+        links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
+                          for r in q["out_of_scope"][:8])
+        out_bit = f"""
+<p><small>{n_out} project(s) are out of scope for this phase and will not
+publish: {links}. Both size figures are known and both are under the floor, so
+there is nothing to fix.</small></p>"""
+
+    body += f'<div class="card">{ready_bit}{blocked_bit}{out_bit}</div>'
     body += _quality_card(qual)
     return _page("Dashboard", body, msg)
 

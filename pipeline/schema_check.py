@@ -58,6 +58,12 @@ check_url = pvp_schema.check_url
 # reason as check_url: the size-backfill queue asks the floor question the
 # checker's way, so a cell the two read differently cannot exist.
 check_int = pvp_schema.check_int
+# "Both size figures are known and both are under the floor" -- the one error
+# that means the project does not belong, rather than that the row is broken.
+# Re-exported so the queues and the dashboard ask the checker what it decided
+# instead of pattern-matching its prose in four places.
+OUT_OF_SCOPE = pvp_schema.OUT_OF_SCOPE
+is_out_of_scope = pvp_schema.is_out_of_scope
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
 # The promised-date sentinel set. Re-exported so the attestation rule tells an
 # absence from a value in the checker's own vocabulary, not a copy of it.

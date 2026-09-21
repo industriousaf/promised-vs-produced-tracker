@@ -70,7 +70,9 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         # Blocked projects are left out. A failing check means they cannot be
         # verified, so re-settling one changes nothing a reader sees. Once a fix
         # makes one verifiable it leaves `blocked`, and its fields reappear here.
-        blocked = {b["id"] for b in queue["blocked"]}
+        # Out-of-scope projects are left out for the same reason and permanently:
+        # no fix returns them, because nothing about them is broken.
+        blocked = {b["id"] for b in queue["blocked"] + queue["out_of_scope"]}
         flagged = {sid: fields for sid, fields in screen.needs_resettle(conn).items()
                    if sid not in blocked}
         waiting = agent_pane.waiting_checks(conn, current_verifier(request))
@@ -184,13 +186,21 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
     # an unexplained 23.
     q = queue
     n_ready, n_blocked = len(q["ready"]), len(q["blocked"])
-    if n_ready or n_blocked:
+    n_out = len(q["out_of_scope"])
+    if n_ready or n_blocked or n_out:
         blocked_note = ""
         if n_blocked:
             links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
                               for r in q["blocked"][:8])
             blocked_note = (f" A further <b>{n_blocked}</b> cannot be verified until a "
                             f"failing check is fixed: {links}.")
+        # Kept apart from the blocked note on purpose. Both are unverifiable, but
+        # one is a queue of work and the other is a decision already made.
+        if n_out:
+            links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
+                              for r in q["out_of_scope"][:8])
+            blocked_note += (f" <b>{n_out}</b> more are out of scope for this phase "
+                             f"and will not publish: {links}.")
         lede = (f"<p><b>{n_ready} project(s) are waiting for you.</b> Open one, check "
                 "every field against the two sources, then verify it. Nothing "
                 "reaches the published Tracker until a person does this."

@@ -123,6 +123,41 @@ PROVENANCE_COLUMNS = [
 
 KNOWN_COLUMNS = set(REQUIRED_COLUMNS) | set(PROVENANCE_COLUMNS)
 
+# The one checker ERROR that does not mean "go and fix this row".
+#
+# Every other error says the row is malformed -- a date in the wrong shape, a
+# sector outside the vocabulary, a source cell that is not a URL. Someone can
+# correct those. This one says both size figures are known and both are under
+# the floor, which is not a defect in the row: it is the row correctly reporting
+# a project that does not belong in this phase. No edit can resolve it, so a
+# surface that lists it beside the fixable errors is sending a person to work
+# that does not exist.
+#
+# Three rows are in this state and all three grew past the floor after they were
+# announced -- Corning Richland Township ($900M -> $1.5B, now producing), PMI
+# Aurora ($600M -> $1.2B, producing) and Genentech Holly Springs ($700M -> $2B).
+# Rule 4 anchors capital on the original announcement and the floor tests that
+# anchor, so a project that promised modestly and then delivered is screened out
+# while one that promised big and built nothing is screened in. That is a real
+# selection effect, it runs toward the Tracker's own finding, and it is recorded
+# in docs/schema.md rather than left for a reader to discover.
+OUT_OF_SCOPE = "inclusion rule fails"
+
+
+def is_out_of_scope(report) -> bool:
+    """Does a stored `screen_check` report say the project does not belong?
+
+    Reads the persisted report rather than re-deciding the rule, for the same
+    reason the review pane does: a verdict must come from the checker that ran,
+    not from a second opinion computed later against a threshold that may since
+    have moved.
+    """
+    for issue in (report or []):
+        if (issue.get("level") == ERROR
+                and str(issue.get("message", "")).startswith(OUT_OF_SCOPE)):
+            return True
+    return False
+
 # Sector vocabulary, the country list and the size floor all live in
 # pipeline/settings.py now -- one place for every rule about what counts as a
 # project. These names are kept as thin pass-throughs because the rest of the
@@ -541,7 +576,7 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
         if capital is not None and jobs is not None:
             add(
                 "promised_capital_usd", ERROR,
-                f"inclusion rule fails: phase {crit.id!r} requires "
+                f"{OUT_OF_SCOPE}: phase {crit.id!r} requires "
                 f"{crit.describe()}; got capital ${capital:,} and jobs {jobs:,}",
             )
         else:
