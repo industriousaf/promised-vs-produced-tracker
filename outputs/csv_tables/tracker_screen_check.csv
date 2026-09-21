@@ -349,3 +349,5 @@ id,datetime,screen_extracted_id,result_status,n_errors,n_warnings,report
 353,2026-09-19T20:12:13Z,176,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: Date discrepancy: status_source (Detroit News, Aug 13 2026) says 'Ford announced""}]"
 354,2026-09-19T20:12:13Z,177,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: promised_jobs omitted: only figure is ~200 stated as regional ('could create app""}]"
 355,2026-09-19T20:12:13Z,178,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: Announcement date discrepancy: lead summary says April 21, 2022 but promise_sour""}]"
+356,2026-09-21T21:09:34Z,160,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: announced given only as year 2019 in status_source (leasing began 2019 with inte""}]"
+357,2026-09-21T21:10:22Z,160,PASS,0,1,"[{""column"": ""flag"", ""level"": ""WARN"", ""message"": ""unresolved flag: announced given only as year 2019 in status_source (leasing began 2019 with inte""}]"
