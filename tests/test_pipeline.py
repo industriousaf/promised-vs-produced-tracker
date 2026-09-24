@@ -597,6 +597,79 @@ class TestFirstOutputBackfill(Base):
 
 
 # --------------------------------------------------------------------------- #
+class TestSentinelsCollideWithRealValues(unittest.TestCase):
+    """A stored lag/slip number cannot say whether it is a measurement or a code.
+
+    slip is signed -- negative means the plant beat its promised date -- and the
+    codes are -1, -2, -3 and -4, so they sit inside the range of real answers.
+    Diamond Green Diesel Port Arthur promised the second half of 2023, produced in
+    late 2022, and is stored as -1.0, which is also "not produced yet". It was
+    reported as "to be completed" for months. Coarse dates resolve to the middle
+    of their period, so whole-year gaps are ordinary, not freakish.
+    """
+
+    def test_the_real_row_that_collides(self):
+        """The exact figures from the Tracker, so this stays a test about a
+        project rather than about arithmetic."""
+        _, _, _, lag, slip = dates.compute_lag_slip(
+            "2021-01", "2023 (second half)", "2022 (late)")
+        self.assertGreater(lag, 0, "the plant produced, so lag is a real span")
+        self.assertEqual(slip, dates.TO_BE_COMPLETED,
+                         "a real one-year-early slip lands exactly on the "
+                         "'not produced yet' code -- if this ever stops being "
+                         "true the codes have been moved and this test retires")
+
+    def test_the_resolved_dates_tell_them_apart(self):
+        measured = {"announced_dt": "2021-01-15",
+                    "promised_first_output_dt": "2023-10-01",
+                    "actual_first_output_dt": "2022-10-01"}
+        sentinel = {"announced_dt": "2021-01-15",
+                    "promised_first_output_dt": "2023-10-01",
+                    "actual_first_output_dt": None}
+        self.assertTrue(dates.measured_spans(measured)["slip_years"])
+        self.assertFalse(dates.measured_spans(sentinel)["slip_years"])
+
+    def test_the_label_stops_lying_when_it_is_told(self):
+        self.assertEqual(dates.lag_label(-1.0), "to be completed")
+        self.assertEqual(dates.lag_label(-1.0, True), "-1")
+        self.assertEqual(dates.lag_label(-1.0, False), "to be completed")
+        # A number that was never ambiguous is unaffected either way.
+        self.assertEqual(dates.lag_label(1.7), "1.7")
+        self.assertEqual(dates.lag_label(1.7, True), "1.7")
+
+    def test_a_row_missing_the_dt_columns_keeps_the_old_reading(self):
+        """Older databases predate the *_dt columns. Absent evidence must mean
+        "cannot tell", which is the conservative answer, not "measured"."""
+        self.assertFalse(dates.measured_spans({})["slip_years"])
+
+
+class TestAFlagBeginningWithNoneIsStillAFlag(unittest.TestCase):
+    """"None of the three cited sources states a capital figure..." is a flag.
+
+    The open-flag rule tested the null token as a PREFIX, so any sentence opening
+    with the word "none" was swallowed. Gulf Coast Growth Ventures carried a
+    paragraph of real caveats and reported CLEAN, the best verdict the checker
+    has. A literal null token in the cell is a different rule and already errors.
+    """
+
+    def test_a_sentence_beginning_with_none_warns(self):
+        r = sc.check_row(a_row(
+            flag="None of the three cited sources states a capital figure, so it is empty"))
+        warns = [i for i in r["report"] if i["level"] == "WARN" and i["column"] == "flag"]
+        self.assertEqual(len(warns), 1, "the flag must reach the reviewer")
+
+    def test_a_bare_null_token_is_still_not_a_flag(self):
+        for token in ("None", "none", "n/a", "-", "None."):
+            r = sc.check_row(a_row(flag=token))
+            warns = [i for i in r["report"] if i["level"] == "WARN" and i["column"] == "flag"]
+            self.assertEqual(warns, [], f"{token!r} is an absence, not a flag")
+
+    def test_a_resolution_record_is_still_not_an_open_flag(self):
+        r = sc.check_row(a_row(flag="Resolved: human-verified and promoted."))
+        warns = [i for i in r["report"] if i["level"] == "WARN" and i["column"] == "flag"]
+        self.assertEqual(warns, [])
+
+
 class TestSizeBackfill(Base):
     """screen-size -- the narrow writer for the rows whose size floor cannot be
     established.

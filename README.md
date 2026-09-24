@@ -57,6 +57,27 @@ the only place any of it is set.
 Direct jobs only. "Regional," "supported," "induced," and construction-phase job
 claims do not count toward the jobs threshold.
 
+**The size test reads the figure promised at the first announcement**, not the
+project as it stands today. A site announced once and then re-announced larger is
+one project, not several: the Tracker keeps the first announcement's date and
+capital, and records the later figures in `notes` rather than adding them up. The
+floor is applied to that first figure. So a project announced below the floor
+stays out even if it later grows above it. Four are excluded that way:
+
+| Project | Announced as | Later | Where it stands |
+|---|---|---|---|
+| Corning, Richland Township MI | $900M, Feb 2024 | $1.5B, May 2025 | **producing** |
+| Philip Morris, Aurora CO | $600M, Jul 2024 | ~$1.2B by 2028 | **producing** |
+| Genentech, Holly Springs NC | $700M, May 2025 | ~$2B, Jan 2026 | under construction |
+| NOVONIX, Chattanooga TN | $943.6M, Dec 2024 | — | announced |
+
+This is a selection effect, and it runs one way. A project that promised over $1B
+and then built nothing stays in the Tracker — 24 of the 162 published projects are
+cancelled or paused — while one that promised less and delivered is screened out.
+Corning started producing 0.1 years *ahead* of the date it promised. Any claim
+this Tracker makes about the gap between what was promised and what was produced
+has to be read with that in mind.
+
 These rules are enforced in code by
 [`pipeline/schema.py`](pipeline/schema.py).
 If this table and that file ever disagree, the file is correct.

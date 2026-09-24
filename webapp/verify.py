@@ -27,7 +27,7 @@ from pipeline.db import (  # noqa: E402
     table_counts,
 )
 from pipeline.settings import active as _crit  # noqa: E402
-from pipeline.dates import lag_label  # noqa: E402
+from pipeline.dates import lag_label, measured_spans  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
@@ -187,8 +187,9 @@ def verify_detail(verify_id: int, msg: Optional[str] = None):
     # rendered as words ("to be completed" / "cancelled").
     def _field(c: str) -> str:
         if c in verify.DERIVED_FIELDS:
+            # measured_spans, not the bare number -- see lag_label.
             return (f"""<div><label>{esc(c)} <small>(derived)</small></label>
-        <input type="text" value="{esc(lag_label(r[c]))}" disabled></div>""")
+        <input type="text" value="{esc(lag_label(r[c], measured_spans(r).get(c)))}" disabled></div>""")
         if c == "sector":
             # Manual sector entry is a dropdown of the live vocabulary (+ the
             # row's current value, in case it was registered elsewhere).

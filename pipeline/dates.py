@@ -256,14 +256,53 @@ def enrich(values: dict) -> dict:
     return out
 
 
-def lag_label(value) -> str:
-    """Human label for a stored lag/slip float (turns the sentinels back to words)."""
+def is_measured(start_dt, end_dt) -> bool:
+    """Was this lag/slip actually measured, or is the number a sentinel?
+
+    `enrich` computes a span only when BOTH ends resolved to a calendar date, and
+    writes a sentinel otherwise. So the two stored `*_dt` cells, not the number,
+    are what say which kind of value is in the column. For lag the pair is
+    (announced_dt, actual_first_output_dt); for slip it is
+    (promised_first_output_dt, actual_first_output_dt).
+    """
+    return bool(start_dt) and bool(end_dt)
+
+
+def measured_spans(row) -> dict:
+    """{"lag_years": bool, "slip_years": bool} for a stored row."""
+    def cell(col):
+        try:
+            return row[col]
+        except (IndexError, KeyError, TypeError):
+            return None
+    actual = cell("actual_first_output_dt")
+    return {"lag_years": is_measured(cell("announced_dt"), actual),
+            "slip_years": is_measured(cell("promised_first_output_dt"), actual)}
+
+
+def lag_label(value, measured: bool | None = None) -> str:
+    """Human label for a stored lag/slip float (turns the sentinels back to words).
+
+    `measured` exists because the sentinels sit inside the range of real values.
+    slip is SIGNED -- negative means the plant beat its promised date -- and the
+    sentinels are -1, -2, -3 and -4, so a project that delivered exactly one year
+    early is stored as -1.0 and is indistinguishable, by the number alone, from
+    one that has not delivered at all. Diamond Green Diesel Port Arthur is that
+    row: promised H2 2023, produced late 2022, slip -1.0, reported for months as
+    "to be completed". It is not a rare coincidence either -- coarse dates resolve
+    to period midpoints, so whole-year gaps are common.
+
+    Pass `measured=True` when the row's two resolved dates say a span was really
+    computed (see `is_measured` / `measured_spans`) and the number is printed as a
+    number. Left None the old behaviour stands, which is right for the callers
+    that hold a bare float and cannot know.
+    """
     if value is None:
         return "—"
     try:
         f = float(value)
     except (TypeError, ValueError):
         return str(value)
-    if f in SENTINEL_LABELS:
+    if measured is not True and f in SENTINEL_LABELS:
         return SENTINEL_LABELS[f]
     return f"{f:g}"

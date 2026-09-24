@@ -647,9 +647,21 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
                 f"tier {tier} claims verification but has no inline status_source")
 
     # --- open-flag surfacing ---
+    #
+    # Two things are not an open flag: a cell holding the null token a serializer
+    # emits when handed nothing ("None", "n/a", "-"), and a resolution record,
+    # which starts "Resolved:" by convention.
+    #
+    # The null test is an EXACT match, not a prefix. It used to be a prefix, and
+    # a flag reading "None of the three cited sources states a capital figure..."
+    # was swallowed whole: Gulf Coast Growth Ventures carried a paragraph of real
+    # caveats and reported CLEAN, the best verdict the checker has. Any sentence
+    # opening with the word "none" hit it, which is an ordinary way to begin one.
+    # "Resolved" stays a prefix, because that IS the convention there.
     if has_prov["flag"]:
         flag = (row.get("flag") or "").strip()
-        if flag and not flag.lower().startswith(("none", "resolved", "n/a")):
+        low = flag.lower().rstrip(".")
+        if flag and low not in NULL_STRINGS and not low.startswith("resolved"):
             add("flag", WARN, f"unresolved flag: {flag[:80]}")
 
     return issues

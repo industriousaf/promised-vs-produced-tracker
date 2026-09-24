@@ -291,6 +291,28 @@ guessing.
   dashboard and the Screen list separate from the ordinary blocked rows: both
   are unverifiable, but a blocked row is work and an out-of-scope row is a
   decision already made.
+- **A sentinel in `lag_years` / `slip_years` can look like a real measurement.**
+  The two columns hold a number of years, or one of four codes: `-1` not produced
+  yet, `-2` cancelled, `-3` no promise recorded, `-4` produced but undated. The
+  trouble is that `slip_years` is *signed* — negative means the plant beat the
+  date it promised — so the codes sit inside the range of real answers. A project
+  that delivered exactly one year early is stored as `-1.0` and, from the number
+  alone, is indistinguishable from one that has not delivered at all. Diamond
+  Green Diesel Port Arthur is that row: promised the second half of 2023, produced
+  in late 2022, stored as `-1.0`. Coarse dates resolve to the middle of their
+  period, so whole-year gaps are common rather than freakish.
+
+  **To tell them apart, read the resolved dates, not the number.** A span was
+  really measured when both of its ends resolved: `announced_dt` and
+  `actual_first_output_dt` for lag, `promised_first_output_dt` and
+  `actual_first_output_dt` for slip. If either end is empty the number is a code.
+  `dates.is_measured()` and `dates.measured_spans()` do this, `lag_label()` takes
+  the answer as its second argument, and `quality.py` already works this way.
+  Anything reading the exported CSVs has to do the same.
+
+  The real fix is to stop storing codes in a numeric column at all, now that
+  every row carries a `status` word that says the same thing in a cell of its
+  own. That is a migration of every stored row and has not been done.
 - **Sectors are a closed vocabulary:** the checker ERRORs on a sector outside it. Add a
   genuinely new manufacturing sector by editing `SECTORS` in `pipeline/settings.py` — a
   code change on purpose, so what counts as in scope cannot move at runtime without a

@@ -28,7 +28,7 @@ from pipeline.db import (  # noqa: E402
     set_active_db, table_counts,
 )
 from pipeline.settings import active as _crit  # noqa: E402
-from pipeline.dates import lag_label  # noqa: E402
+from pipeline.dates import lag_label, measured_spans  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
@@ -1096,9 +1096,12 @@ def screen_inspect(request: Request, screen_id: int, msg: Optional[str] = None,
 
     ftabs = evidence.field_tabs(r)
     fields = "".join(_field(c) for c in INSPECT_COLUMNS)
+    # measured_spans, not the bare number: a slip of exactly -1.0 is both a real
+    # measurement (one year early) and the "to be completed" sentinel.
+    spans = measured_spans(r)
     derived = "".join(
         f"""<div><label>{esc(c)} <small>(derived)</small></label>
-        <input type="text" value="{esc(lag_label(r[c]))}" disabled></div>"""
+        <input type="text" value="{esc(lag_label(r[c], spans[c]))}" disabled></div>"""
         for c in ("lag_years", "slip_years")
     )
     dt_display = "".join(
