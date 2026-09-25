@@ -75,6 +75,131 @@ class TestFlagOnlyReason(unittest.TestCase):
         self.assertIsNone(flag_only_reason({}, "x"))
 
 
+# Deliberately NOT skipped without FastAPI: webapp/charts.py imports only the
+# standard library, so the figure's correctness is checkable in a bare venv. If
+# this class ever needs a skip, the chart has grown a dependency it should not
+# have.
+class TestLagBySectorFigure(unittest.TestCase):
+    """The dashboard's one figure. Every check here is about honesty, not looks.
+
+    52 observations spread over 11 sectors, five of them with three or fewer, is
+    thin. A bar of means would put a confident number on top of one plant and a
+    box plot of n=1 would draw a box around a point, so the figure draws every
+    observation and withholds the median where nothing supports one.
+    """
+
+    ROWS = [
+        {"sector": "Battery", "n": 4, "median": 3.0, "min": 1.1, "max": 4.6,
+         "observations": [(1.1, "A"), (2.9, "B"), (3.1, "C"), (4.6, "D")]},
+        {"sector": "Chemicals and Plastics", "n": 3, "median": 3.8, "min": 1.7, "max": 5.0,
+         "observations": [(1.7, "E"), (3.8, "F"), (5.0, "G")]},
+        {"sector": "Pharmaceuticals", "n": 1, "median": None, "min": 2.7, "max": 2.7,
+         "observations": [(2.7, "H")]},
+        {"sector": "Machinery", "n": 0, "median": None, "min": None, "max": None,
+         "observations": []},
+    ]
+
+    def svg(self, rows=None):
+        from webapp import charts
+        return charts.lag_by_sector_svg(rows if rows is not None else self.ROWS)
+
+    def test_every_observation_is_drawn(self):
+        """Not a summary of them. With n=1 sectors in the set, any aggregate
+        mark would be a statistic standing on a single project."""
+        self.assertEqual(self.svg().count("<circle"), 8)
+
+    def test_the_median_is_withheld_where_nothing_supports_it(self):
+        """The absence of the statistic IS the small-n warning, and it cannot be
+        overlooked the way a footnote can."""
+        from webapp import charts
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(self.svg())
+        ticks = [e for e in root.iter("{http://www.w3.org/2000/svg}line")
+                 if e.get("stroke-width") == "2"]
+        self.assertEqual(len(ticks), 2, "only Battery and Chemicals carry a median")
+
+    def test_a_sector_with_nothing_produced_still_gets_a_row(self):
+        """Missing from the figure and nothing produced yet are different facts,
+        and only one of them is about the world."""
+        s = self.svg()
+        self.assertIn("Machinery", s)
+        self.assertIn("no data", s)
+
+    def test_the_saved_file_stands_alone(self):
+        """The save button hands someone a file with no stylesheet behind it. A
+        var(--teal) in there renders as black everywhere it is opened."""
+        s = self.svg()
+        for leak in ("var(--", "<style", "url("):
+            self.assertNotIn(leak, s, f"{leak} needs the page to render")
+        self.assertIn('xmlns="http://www.w3.org/2000/svg"', s)
+
+    def test_nothing_collides_or_overflows(self):
+        """The regression this figure was born with: at a hardcoded gutter,
+        "Chemicals and Plastics" hung off the left edge by 2.7px and the widest
+        badge overlapped the longest name by 2px. Neither was visible; both were
+        certain. The gutter is measured now, so this holds for any vocabulary."""
+        from webapp import charts
+        import xml.etree.ElementTree as ET
+        long_name = dict(self.ROWS[0], sector="Aerospace and Defence and Shipbuilding")
+        for rows in (self.ROWS, [long_name] + self.ROWS[1:], [self.ROWS[0]]):
+            root = ET.fromstring(charts.lag_by_sector_svg(rows))
+            NS = "{http://www.w3.org/2000/svg}"
+            W, H = [float(v) for v in root.get("viewBox").split()[2:]]
+            pad_l, label_right = charts._gutter(rows)
+            badge_left = W
+            for el in root.iter(f"{NS}text"):
+                w = charts._text_w(el.text or "", float(el.get("font-size")),
+                                   "Mono" in (el.get("font-family") or ""))
+                x, anchor = float(el.get("x")), el.get("text-anchor", "start")
+                left = x - w if anchor == "end" else (x - w / 2 if anchor == "middle" else x)
+                self.assertGreaterEqual(left, -0.5, f"{el.text!r} off the left edge")
+                self.assertLessEqual(left + w, W + 0.5, f"{el.text!r} off the right edge")
+                self.assertLessEqual(float(el.get("y")), H, f"{el.text!r} below the canvas")
+                if anchor == "end" and abs(x - (pad_l - charts.GAP_PLOT)) < 0.1:
+                    badge_left = min(badge_left, left)
+            self.assertGreaterEqual(badge_left, label_right,
+                                    "the n badge overlaps the sector name")
+            for el in root.iter(f"{NS}circle"):
+                pad = float(el.get("r")) + float(el.get("stroke-width"))
+                self.assertGreaterEqual(float(el.get("cx")) - pad, pad_l - 0.5)
+                self.assertLessEqual(float(el.get("cx")) + pad, W)
+
+    def test_the_axis_band_is_inside_the_canvas(self):
+        """A height that excludes the axis labels gives the card a tiny nested
+        scrollbar instead of a chart."""
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(self.svg())
+        H = float(root.get("viewBox").split()[3])
+        ys = [float(e.get("y")) for e in root.iter("{http://www.w3.org/2000/svg}text")]
+        self.assertLess(max(ys), H, "the axis label sits below the canvas")
+
+    def test_a_value_is_readable_without_hovering(self):
+        """A tooltip cannot be the only way to read a number."""
+        from webapp import charts
+        table = charts.lag_by_sector_table(self.ROWS)
+        self.assertIn("Machinery", table)
+        self.assertIn("3.8", table)
+        self.assertIn("<th>n</th>", table)
+
+    def test_ranked_sectors_come_before_the_thin_ones(self):
+        """Ranking a sector on one project is the reading to avoid, so the ones
+        that cannot be ranked sit below the ones that can."""
+        import sqlite3, tempfile
+        from pipeline import db as pdb, quality, screen as pscreen, source as psource
+        d = tempfile.TemporaryDirectory(**_TMPDIR_KW)
+        path = Path(d.name) / "t.db"
+        conn = pdb.connect(path); pdb.init_db(conn)
+        rows = quality.lag_by_sector(conn)
+        medians = [r["median"] for r in rows]
+        seen_none = False
+        for m in medians:
+            if m is None:
+                seen_none = True
+            else:
+                self.assertFalse(seen_none, "a ranked sector appears below a thin one")
+        conn.close(); d.cleanup()
+
+
 @unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
 class TestTabs(unittest.TestCase):
     def test_a_second_link_in_one_cell_gets_its_own_tab(self):

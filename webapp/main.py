@@ -48,6 +48,7 @@ from pipeline.db import (  # noqa: E402
 
 from webapp import (  # noqa: E402
     agent as agent_pane,
+    charts,
     evidence as evidence_pane,
     page_cache,
     screen as screen_pages,
@@ -337,6 +338,48 @@ there is nothing to fix.</small></p>"""
     return _page("Dashboard", body, msg)
 
 
+_LAGFIG_JS = """
+(function () {
+  function save(kind) {
+    var svg = document.getElementById('lagfig');
+    if (!svg) return;
+    var s = new XMLSerializer().serializeToString(svg);
+    if (s.indexOf('xmlns=') === -1) {
+      s = s.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    var name = 'gestation-lag-by-sector';
+    if (kind === 'svg') {
+      var blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + s],
+                          {type: 'image/svg+xml;charset=utf-8'});
+      return grab(URL.createObjectURL(blob), name + '.svg', true);
+    }
+    // PNG at 2x, for pasting into something that will not take an SVG.
+    var box = svg.viewBox.baseVal, scale = 2;
+    var cv = document.createElement('canvas');
+    cv.width = box.width * scale; cv.height = box.height * scale;
+    var img = new Image();
+    img.onload = function () {
+      var ctx = cv.getContext('2d');
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(img, 0, 0);
+      grab(cv.toDataURL('image/png'), name + '.png', false);
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+  }
+  function grab(href, name, revoke) {
+    var a = document.createElement('a');
+    a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if (revoke) setTimeout(function () { URL.revokeObjectURL(href); }, 0);
+  }
+  var s = document.getElementById('lagsave-svg');
+  var p = document.getElementById('lagsave-png');
+  if (s) s.addEventListener('click', function () { save('svg'); });
+  if (p) p.addEventListener('click', function () { save('png'); });
+})();
+"""
+
+
 def _quality_card(m: dict) -> str:
     """The gates, then the findings, and no blended score.
 
@@ -390,6 +433,37 @@ def _quality_card(m: dict) -> str:
              f"promised a date, which is why slip counts fewer."
              if no_promise else "")
 
+    # The figure sits under the two counts it decomposes. Its own caption says
+    # what the reader must not do with it, because five of the eleven sectors
+    # have three observations or fewer and the ranking is only meaningful for
+    # the ones that carry a median.
+    fig_rows = m["lag_by_sector"]
+    thin = [d["sector"] for d in fig_rows if d["median"] is None and d["n"]]
+    none_yet = [d["sector"] for d in fig_rows if not d["n"]]
+    caveat = ""
+    if thin:
+        caveat = (f" {len(thin)} sector(s) have fewer than {quality.MEDIAN_MIN_N} "
+                  f"and carry no median, so they are listed below the ranked ones "
+                  f"and should not be read as faster or slower: "
+                  f"{esc(', '.join(thin))}.")
+    if none_yet:
+        caveat += (f" {esc(', '.join(none_yet))} has no produced project yet.")
+    figure = f"""
+<figure class="fig">
+  <figcaption>
+    <b>Gestation lag by sector</b> — one dot per project, a tick at the median.
+    <small>{caveat}</small>
+  </figcaption>
+  {charts.lag_by_sector_svg(fig_rows)}
+  <div class="figbar">
+    <button type="button" id="lagsave-svg" class="figsave">save svg</button>
+    <button type="button" id="lagsave-png" class="figsave">save png</button>
+  </div>
+  <details class="figdetails"><summary>the same figure as a table</summary>
+  {charts.lag_by_sector_table(fig_rows)}</details>
+</figure>
+<script>{_LAGFIG_JS}</script>"""
+
     f = m["flags"]
     n_prov, n_subst = len(f["provenance"]), len(f["substantive"])
     return f"""
@@ -404,6 +478,7 @@ inside the one above.</p>
 so neither figure exists for them yet.</p>
 {counts}
 <p class="qlede">{gap}{fewer}</p>
+{figure}
 <p style="margin-top:1rem"><b>Open questions.</b> {n_prov + n_subst} of {m['total']}
 projects carry an unresolved flag, of two very different kinds:</p>
 <ul>

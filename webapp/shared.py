@@ -321,6 +321,34 @@ h2.rowtitle small { font-family: var(--font-sans); font-size: .7em;
     text-transform: uppercase; color: var(--teal); margin: 1.6rem 0 .2rem; }
 .qgroup:first-of-type { margin-top: .8rem; }
 .qlede { font-size: .85rem; color: var(--type-3); margin: 0 0 .8rem; max-width: 42rem; }
+
+/* The one figure. It sits inside a card, so it carries no border of its own --
+   a second box inside the first is the boxed-in-a-box the design system's
+   Section 09 warns about. The SVG scales to the measure; the container is not
+   given a fixed height, so the axis band can never be cropped into a nested
+   scrollbar. */
+.fig { margin: 1.2rem 0 .4rem; padding: 0; }
+.fig figcaption { font-size: .85rem; color: var(--type-2); margin: 0 0 .5rem;
+     max-width: 42rem; }
+.fig figcaption small { display: block; color: var(--type-3); font-size: .78rem;
+     margin-top: .25rem; line-height: 1.5; }
+.fig svg { display: block; max-width: 100%; height: auto; }
+.figbar { display: flex; gap: .4rem; margin: .5rem 0 0; }
+.figsave { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+     text-transform: uppercase; padding: .25rem .7rem; color: var(--type-2); }
+.figdetails { margin-top: .6rem; }
+.figdetails > summary { cursor: pointer; font-family: var(--font-mono);
+     font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+     color: var(--type-3); }
+.figtable { border-collapse: collapse; margin-top: .5rem; font-size: .82rem; }
+.figtable th, .figtable td { text-align: left; padding: .25rem .9rem .25rem 0;
+     border-bottom: 0.5px solid var(--rule-soft); }
+.figtable th { font-family: var(--font-mono); font-size: 10px;
+     letter-spacing: .1em; text-transform: uppercase; color: var(--type-3);
+     font-weight: 500; }
+/* tabular-nums here and nowhere else: these columns align vertically. */
+.figtable td:nth-child(n+2) { font-family: var(--font-mono);
+     font-variant-numeric: tabular-nums; color: var(--type-2); }
 /* A label with a definition behind it says so, rather than relying on a reader
    hovering over something that looks like plain text. What the number is
    measured FROM is the part a label cannot carry, and it decides whether two

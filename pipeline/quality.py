@@ -42,7 +42,9 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import statistics
 
+from pipeline import settings as _criteria
 from pipeline.dates import interpret_date
 from pipeline.schema_check import check_url
 
@@ -149,7 +151,8 @@ def measure(conn: sqlite3.Connection) -> dict:
             "missing": [r["id"] for r in rows if r["id"] not in set(ids)],
         })
 
-    return {"total": total, "gates": gates, "findings": findings(conn), "flags": flags}
+    return {"total": total, "gates": gates, "findings": findings(conn),
+            "flags": flags, "lag_by_sector": lag_by_sector(conn)}
 
 
 def findings(conn: sqlite3.Connection) -> dict:
@@ -200,6 +203,54 @@ def findings(conn: sqlite3.Connection) -> dict:
     for key, ids in (("lag", lag), ("slip", slip)):
         out[key] = dict(FINDING_LABELS[key], key=key, n=len(ids), ids=ids)
     return out
+
+
+# A median of one project is that project, and a median of two is their
+# midpoint. Neither is a summary, and drawing one invites a reader to rank a
+# sector on a single plant. Below this many observations the chart shows the
+# dots and no median at all -- the honest version of "flag anything with a
+# small n", because the flag is the absence of the statistic.
+MEDIAN_MIN_N = 3
+
+
+def lag_by_sector(conn: sqlite3.Connection) -> list[dict]:
+    """Gestation lag per sector, as the individual observations.
+
+    Every sector in the active vocabulary comes back, including ones with no
+    produced projects at all. A sector missing from the chart and a sector with
+    nothing in it are different facts, and only one of them is about the world.
+
+    Which rows count is decided the same way `findings` decides it -- both ends
+    resolved -- never by the sign of lag_years, because the sentinels are
+    themselves negative floats. See the comment there.
+    """
+    rows = conn.execute("SELECT * FROM verify_verified").fetchall()
+    per: dict[str, list] = {s: [] for s in sorted(_criteria.active().sectors)}
+    for r in rows:
+        if not (r["actual_first_output_dt"] and r["announced_dt"]):
+            continue
+        sector = (r["sector"] or "").strip() or "Other"
+        per.setdefault(sector, []).append((float(r["lag_years"]), r["project"]))
+
+    out = []
+    for sector, obs in per.items():
+        obs.sort()
+        vals = [v for v, _ in obs]
+        out.append({
+            "sector": sector,
+            "observations": obs,
+            "n": len(vals),
+            "median": statistics.median(vals) if len(vals) >= MEDIAN_MIN_N else None,
+            "min": min(vals) if vals else None,
+            "max": max(vals) if vals else None,
+        })
+    # Sectors that carry a median rank by it, longest first, because that is the
+    # comparison the chart is for. The rest keep the vocabulary's own order
+    # below them: ranking a sector on one project is the reading to avoid.
+    ranked = sorted((d for d in out if d["median"] is not None),
+                    key=lambda d: -d["median"])
+    thin = [d for d in out if d["median"] is None]
+    return ranked + thin
 
 
 def render_bar(pct: float, width: int = 22) -> str:
