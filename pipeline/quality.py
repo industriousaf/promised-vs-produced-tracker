@@ -46,7 +46,7 @@ import statistics
 
 from pipeline import settings as _criteria
 from pipeline.dates import interpret_date
-from pipeline.schema_check import check_url
+from pipeline.schema_check import blocks_promotion, check_url
 
 # The two findings, defined once, because the dashboard and `tracker.py quality`
 # both state them and a reader comparing the two must not find two definitions.
@@ -127,7 +127,9 @@ def measure(conn: sqlite3.Connection) -> dict:
         if (_has_url(r["promise_source"]) and _has_url(r["status_source"])
                 and (not pds or _has_url(pds))):
             hits["sourced"].append(rid)
-        if latest.get(rid) != "FAIL":
+        # Promotability, not the absence of one word. The gate has always meant
+        # "the checker does not stop this row", and that is now three words.
+        if not blocks_promotion(latest.get(rid)):
             hits["clean"].append(rid)
         if r["project"] in published:
             hits["publishable"].append(rid)

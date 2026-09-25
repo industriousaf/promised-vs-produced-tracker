@@ -9,7 +9,9 @@ The machine has already done its part. `screen-check` (Screen pt-2) checks the
 **shape** of a row: required cells present, `announced` is a real `YYYY-MM`
 anchor, sector/state in vocabulary, the inclusion floor of the row's own phase
 is cleared, date cells parse, tiers are valid tokens, sources look like URLs, and
-any open `flag` is surfaced. A `FAIL` there blocks promotion — fix it first.
+any open `flag` is surfaced. Anything but `CLEAN` or `PASS` blocks promotion.
+Only `FAIL` means the row is broken; `SIZE_UNKNOWN` and `OUT_OF_SCOPE` are the
+size floor, and neither is repaired by editing the row.
 
 So this review is **not** re-checking shape. It is the one thing the checker
 can't do: reading each source and confirming it actually supports the claim.
@@ -109,7 +111,7 @@ honest answer was always V1. `V2` is a deliberate act. Go find the second source
 then publish that project with `verify-promote --screen-id N --tier V2` by
 hand, where N is the Screen id. `--screen-id` is required, so the command
 without it fails. The `flag` is rewritten into a resolution record on the way
-in. A `FAIL`ing row is blocked unless you pass `--force` — reserve that for when
+in. A row that is not `CLEAN` or `PASS` is blocked unless you pass `--force` — reserve that for when
 you've verified the row by hand and disagree with the checker.
 
 ## Collaborating on the Tracker

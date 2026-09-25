@@ -391,6 +391,18 @@ button.primary:hover { background: var(--teal-dark); border-color: var(--teal-da
                  font-size: .9em; font-weight: 600; letter-spacing: .06em; }
 .verdict-CLEAN { color: var(--success); font-family: var(--font-mono);
                  font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+/* Neither size verdict is a fault, so neither wears --danger. Red on a project
+   that is merely too small was the whole complaint: it read as something to go
+   and fix, and there is nothing to fix. SIZE_UNKNOWN takes body ink because it
+   is an open question someone could still close; OUT_OF_SCOPE takes muted ink
+   because it is settled. */
+.verdict-SIZE_UNKNOWN { color: var(--type-2); font-family: var(--font-mono);
+                 font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+.verdict-OUT_OF_SCOPE { color: var(--type-3); font-family: var(--font-mono);
+                 font-size: .9em; font-weight: 600; letter-spacing: .06em; }
+/* The token always carries its definition, so it is always hoverable. */
+.verdict-CLEAN[title], .verdict-PASS[title], .verdict-FAIL[title],
+.verdict-SIZE_UNKNOWN[title], .verdict-OUT_OF_SCOPE[title] { cursor: help; }
 
 /* ---- the pane's loading state ------------------------------------------ */
 /* The pane is a server-side fetch of somebody else's site, so between click
@@ -930,7 +942,7 @@ def _verdict_span(v: str | None, chk=None) -> str:
     The token stays because it is the stored `result_status` and the CLI and
     the docs use it. It just never appears alone.
     """
-    if v not in ("FAIL", "PASS", "CLEAN"):
+    if v not in VERDICT_MEANING:
         return '<span class="verdict-none">not checked</span>'
     n_err = n_warn = 0
     if chk is not None:
@@ -939,12 +951,18 @@ def _verdict_span(v: str | None, chk=None) -> str:
         except (KeyError, IndexError, TypeError):
             pass
     if v == "FAIL":
-        gloss = f"blocked, {n_err} error(s)" if n_err else "blocked from Verify"
+        gloss = f"malformed, {n_err} error(s)" if n_err else "malformed"
+    elif v == "SIZE_UNKNOWN":
+        gloss = "no source states the size"
+    elif v == "OUT_OF_SCOPE":
+        gloss = "under this phase's floor"
     elif v == "PASS":
         gloss = f"{n_warn} open flag(s)" if n_warn else "a flag to settle"
     else:
         gloss = "nothing open"
-    return (f'<span class="verdict-{v}">{esc(v)}</span>'
+    # The definition travels with the token, so the word is never on its own.
+    return (f'<span class="verdict-{v}" title="{esc(VERDICT_MEANING[v][1])}">'
+            f'{esc(VERDICT_LABEL.get(v, v))}</span>'
             f'<span class="verdict-gloss">{esc(gloss)}</span>')
 
 
@@ -1028,17 +1046,40 @@ def _stage_toggle(path: str, show: str, labels: dict[str, str]) -> str:
     ) + "</div>"
 
 
+# Underscores are the stored token; a reader gets the words.
+VERDICT_LABEL = {"SIZE_UNKNOWN": "SIZE UNKNOWN", "OUT_OF_SCOPE": "OUT OF SCOPE"}
+
 VERDICT_MEANING = {
-    # Ordered best to worst, which is NOT how the names sort. Stated once, here,
-    # and rendered wherever the three appear together.
+    # Ordered by what they ask of the reader, which is NOT how the names sort:
+    # nothing, settle a flag, fix a cell, go and look, leave it alone.
+    #
+    # Three of these used to be one word. FAIL said "blocked" and glossed itself
+    # as "usually figures that clear neither half of the size floor", which is
+    # the admission that the word was wrong: a project being too small is not a
+    # schema error and no edit repairs it. The dashboard reported 8 failures on
+    # a Tracker in which nothing was broken, and the reader could not tell which
+    # of three different jobs any of them wanted.
     "CLEAN": ("nothing open",
               "Shaped correctly, in range, and no flag left for a person."),
     "PASS":  ("a flag to settle",
               "Shaped correctly and in range, with a note the extraction left. "
               "Verifiable: verifying is what settles the flag."),
-    "FAIL":  ("blocked",
-              "A schema error. Usually figures that clear neither half of the "
-              "size floor. Cannot be verified until it is fixed."),
+    "FAIL":  ("the row is malformed",
+              "A cell is the wrong shape — a date that is not YYYY-MM, a sector "
+              "outside the vocabulary, a source cell that is not a URL. This is "
+              "the only verdict that means something is broken, and a person "
+              "can fix it. Blocked from Verify until they do."),
+    "SIZE_UNKNOWN": ("nobody published the figure",
+              "No source states the capital or jobs figure the size floor needs, "
+              "so the project cannot be shown to be in scope. Nothing is wrong "
+              "with the row — the number was never published. A source found "
+              "later settles it; `tracker.py screen-size` records either "
+              "outcome. Blocked from Verify meanwhile."),
+    "OUT_OF_SCOPE": ("does not belong in this phase",
+              "Both size figures are known and both are under this phase's "
+              "floor, so the project is not in the Tracker. Nothing to fix and "
+              "no edit changes it — the only thing that would is lowering the "
+              "floor in pipeline/settings.py. Blocked from Verify permanently."),
 }
 
 
@@ -1060,7 +1101,7 @@ def _verdict_legend(counts, active: str | None, show: str) -> str:
         cells.append(
             f'<a class="vkey{on}" href="{href}" title="{esc(long)}">'
             f'<span class="vkey-n">{n}</span>'
-            f'<span class="verdict-{v}">{v}</span>'
+            f'<span class="verdict-{v}">{esc(VERDICT_LABEL.get(v, v))}</span>'
             f'<span class="vkey-g">{esc(short)}</span></a>')
     clear = (f'<a class="vkey-clear" href="{base}">clear</a>' if active else "")
     return ('<div class="vlegend"><span class="vlegend-l">check results</span>'

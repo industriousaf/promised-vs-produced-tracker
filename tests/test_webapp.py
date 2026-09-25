@@ -75,6 +75,60 @@ class TestFlagOnlyReason(unittest.TestCase):
         self.assertIsNone(flag_only_reason({}, "x"))
 
 
+@unittest.skipUnless(HAVE_WEBAPP, "the web interface needs FastAPI installed")
+class TestEveryVerdictCarriesItsDefinition(unittest.TestCase):
+    """A vocabulary the reader has to already know is not a vocabulary.
+
+    "8 fail" sent someone looking for a fault in a Tracker where nothing was
+    broken, because the word arrived with no definition attached. Every verdict
+    now carries its meaning as a hover title wherever it is rendered.
+    """
+
+    def test_every_verdict_has_a_short_and_a_long_form(self):
+        from webapp import shared
+        from pipeline import schema_check as sc
+        self.assertEqual(sorted(shared.VERDICT_MEANING), sorted(sc.VERDICTS),
+                         "a verdict without a definition can reach a reader")
+        for v, (short, long) in shared.VERDICT_MEANING.items():
+            self.assertTrue(short and long, v)
+            self.assertGreater(len(long), 40, f"{v} needs a real definition")
+
+    def test_the_two_size_verdicts_say_what_to_do(self):
+        """Each names a different act: leave it, or go and look."""
+        from webapp import shared
+        self.assertIn("nothing to fix",
+                      shared.VERDICT_MEANING["OUT_OF_SCOPE"][1].lower())
+        self.assertIn("screen-size", shared.VERDICT_MEANING["SIZE_UNKNOWN"][1])
+        self.assertIn("malformed", shared.VERDICT_MEANING["FAIL"][1].lower() +
+                      shared.VERDICT_MEANING["FAIL"][0].lower())
+
+    def test_the_token_is_never_rendered_without_its_meaning(self):
+        from webapp import shared
+        for v in shared.VERDICT_MEANING:
+            html = shared._verdict_span(v, None)
+            self.assertIn('title="', html, f"{v} renders with no tooltip")
+            self.assertIn(shared.VERDICT_MEANING[v][1][:28], html)
+
+    def test_the_stored_token_is_shown_as_words(self):
+        """OUT_OF_SCOPE is the value in the column; a reader gets the words."""
+        from webapp import shared
+        html = shared._verdict_span("OUT_OF_SCOPE", None)
+        self.assertIn(">OUT OF SCOPE<", html)
+        self.assertIn("SIZE UNKNOWN", shared._verdict_span("SIZE_UNKNOWN", None))
+
+    def test_neither_size_verdict_is_painted_as_a_fault(self):
+        """Red is for the one verdict that means something is broken. Painting a
+        project red for being small is what started this."""
+        from webapp import shared
+        css = shared.CSS if hasattr(shared, "CSS") else ""
+        if not css:
+            import inspect
+            css = inspect.getsource(shared)
+        for v in ("SIZE_UNKNOWN", "OUT_OF_SCOPE"):
+            block = css.split(f".verdict-{v}")[1].split("}")[0]
+            self.assertNotIn("--danger", block, f"{v} must not wear the fault colour")
+
+
 # Deliberately NOT skipped without FastAPI: webapp/charts.py imports only the
 # standard library, so the figure's correctness is checkable in a bare venv. If
 # this class ever needs a skip, the chart has grown a dependency it should not
@@ -738,7 +792,8 @@ class TestDashboardIsAPipeline(unittest.TestCase):
             "status": "under construction", "promise_source": "https://example.com/p",
             "status_source": "https://example.com/s", "verification_tier": "P",
         }, source_collected_id=lead)
-        self.assertEqual(pscreen.run_check(conn, small)["result_status"], "FAIL")
+        self.assertEqual(pscreen.run_check(conn, small)["result_status"], "OUT_OF_SCOPE",
+                         "the verdict itself now says it, not just the caption")
         conn.commit(); conn.close()
 
         b = self._body()
@@ -900,14 +955,16 @@ class TestOneVocabularyPerTransition(unittest.TestCase):
                 f"bare verdict token at offset {m.start()}: {tail!r}")
         self.assertGreater(seen, 0)
 
-    def test_the_legend_defines_all_three_with_counts(self):
-        """Defined where they are used, not in a glossary somewhere else."""
+    def test_the_legend_defines_every_verdict_with_counts(self):
+        """Defined where they are used, not in a glossary somewhere else. It
+        walks the vocabulary rather than naming members, so a verdict added
+        later cannot appear in the data and be missing from the legend."""
+        from webapp import shared
         b = self._screen()
         self.assertIn('class="vlegend"', b)
-        for v in ("CLEAN", "PASS", "FAIL"):
-            self.assertIn(f'>{v}</span>', b)
+        for v in shared.VERDICT_MEANING:
+            self.assertIn(f'>{shared.VERDICT_LABEL.get(v, v)}</span>', b)
         self.assertIn("nothing open", b)
-        self.assertIn("blocked", b)
 
     def test_each_verdict_filters(self):
         from fastapi.testclient import TestClient

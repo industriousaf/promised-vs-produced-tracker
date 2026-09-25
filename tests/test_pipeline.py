@@ -323,8 +323,8 @@ class TestQualityAndQueue(Base):
             self.conn, a_row(project="Small", promised_capital_usd=900_000_000,
                              promised_jobs=1100),
             source_collected_id=self.lead())
-        for rid in (malformed, small):
-            self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, malformed)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, small)["result_status"], "OUT_OF_SCOPE")
 
         q = screen.review_queue(self.conn)
         self.assertEqual([r["id"] for r in q["blocked"]], [malformed])
@@ -339,9 +339,10 @@ class TestQualityAndQueue(Base):
             self.conn, a_row(project="Unknown", promised_capital_usd=None,
                              promised_jobs=600),
             source_collected_id=self.lead())
-        self.assertEqual(screen.run_check(self.conn, unknown)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, unknown)["result_status"], "SIZE_UNKNOWN")
         q = screen.review_queue(self.conn)
-        self.assertEqual([r["id"] for r in q["blocked"]], [unknown])
+        self.assertEqual([r["id"] for r in q["size_unknown"]], [unknown])
+        self.assertEqual(q["blocked"], [], "nothing here is malformed")
         self.assertEqual(q["out_of_scope"], [])
 
     def test_an_out_of_scope_row_still_cannot_be_published(self):
@@ -352,7 +353,7 @@ class TestQualityAndQueue(Base):
             self.conn, a_row(project="Small", promised_capital_usd=900_000_000,
                              promised_jobs=1100),
             source_collected_id=self.lead())
-        screen.run_check(self.conn, small)
+        self.assertEqual(screen.run_check(self.conn, small)["result_status"], "OUT_OF_SCOPE")
         with self.assertRaises(verify.PromotionBlocked):
             verify.promote(self.conn, small, verification_tier="V1")
 
@@ -670,6 +671,107 @@ class TestAFlagBeginningWithNoneIsStillAFlag(unittest.TestCase):
         self.assertEqual(warns, [])
 
 
+class TestFailMeansBroken(Base):
+    """FAIL used to mean three unrelated things, and the word said "fault" for
+    all three.
+
+    A malformed cell, a project under the size floor, and a figure nobody ever
+    published want completely different acts -- fix it, leave it alone, go and
+    look -- and the dashboard reported 8 failures on a Tracker in which nothing
+    was broken. These tests pin each word to one meaning.
+    """
+
+    def row(self, **over):
+        return a_row(**over)
+
+    def test_fail_is_now_only_a_malformed_row(self):
+        v = sc.check_row(self.row(announced="2022"))["result_status"]
+        self.assertEqual(v, "FAIL", "a date in the wrong shape is a real fault")
+
+    def test_a_project_under_the_floor_is_not_a_fault(self):
+        v = sc.check_row(self.row(promised_capital_usd=900_000_000,
+                                  promised_jobs=1100))["result_status"]
+        self.assertEqual(v, "OUT_OF_SCOPE")
+
+    def test_a_figure_nobody_published_is_not_a_fault_either(self):
+        v = sc.check_row(self.row(promised_capital_usd=None,
+                                  promised_jobs=600))["result_status"]
+        self.assertEqual(v, "SIZE_UNKNOWN")
+
+    def test_out_of_scope_outranks_a_malformed_cell(self):
+        """Correcting a date on a project that is not going into the Tracker is
+        work that buys nothing, so the verdict says the thing worth acting on."""
+        v = sc.check_row(self.row(promised_capital_usd=900_000_000,
+                                  promised_jobs=1100,
+                                  announced="2022"))["result_status"]
+        self.assertEqual(v, "OUT_OF_SCOPE")
+
+    def test_a_malformed_cell_outranks_an_unknown_size(self):
+        """The other way round: a bad date is fixable today, and an unpublished
+        figure may never be. The fixable thing is the one to surface."""
+        v = sc.check_row(self.row(promised_capital_usd=None, promised_jobs=600,
+                                  announced="2022"))["result_status"]
+        self.assertEqual(v, "FAIL")
+
+    def test_splitting_the_word_did_not_open_a_door(self):
+        """Three of the five verdicts are not faults. None of them publishes."""
+        for cells, expected in (
+            ({"announced": "2022"}, "FAIL"),
+            ({"promised_capital_usd": 900_000_000, "promised_jobs": 1100}, "OUT_OF_SCOPE"),
+            ({"promised_capital_usd": None, "promised_jobs": 600}, "SIZE_UNKNOWN"),
+        ):
+            rid = screen.insert_extracted(self.conn, a_row(project=f"P{expected}", **cells),
+                                          source_collected_id=self.lead())
+            self.assertEqual(screen.run_check(self.conn, rid)["result_status"], expected)
+            with self.assertRaises(verify.PromotionBlocked, msg=expected):
+                verify.promote(self.conn, rid, verification_tier="V1")
+
+    def test_only_clean_and_pass_are_promotable(self):
+        self.assertEqual(sorted(sc.PROMOTABLE), ["CLEAN", "PASS"])
+        for v in sc.VERDICTS:
+            self.assertEqual(sc.blocks_promotion(v), v not in sc.PROMOTABLE)
+        self.assertTrue(sc.blocks_promotion(None), "an unchecked row is not promotable")
+
+    def test_the_refusal_names_the_act_the_verdict_calls_for(self):
+        """A reader who is told "fix it" about a project that is merely too
+        small goes looking for a defect that is not there."""
+        small = screen.insert_extracted(
+            self.conn, a_row(project="Small", promised_capital_usd=900_000_000,
+                             promised_jobs=1100), source_collected_id=self.lead())
+        screen.run_check(self.conn, small)
+        with self.assertRaises(verify.PromotionBlocked) as caught:
+            verify.promote(self.conn, small, verification_tier="V1")
+        self.assertIn("nothing to fix", str(caught.exception))
+
+        unknown = screen.insert_extracted(
+            self.conn, a_row(project="Unknown", promised_capital_usd=None,
+                             promised_jobs=600), source_collected_id=self.lead())
+        screen.run_check(self.conn, unknown)
+        with self.assertRaises(verify.PromotionBlocked) as caught:
+            verify.promote(self.conn, unknown, verification_tier="V1")
+        self.assertIn("screen-size", str(caught.exception),
+                      "the refusal should name the command that records either outcome")
+
+    def test_the_queue_routes_each_verdict_to_the_right_pile(self):
+        ids = {}
+        for cells, key in (
+            ({"announced": "2022"}, "FAIL"),
+            ({"promised_capital_usd": 900_000_000, "promised_jobs": 1100}, "OUT_OF_SCOPE"),
+            ({"promised_capital_usd": None, "promised_jobs": 600}, "SIZE_UNKNOWN"),
+            ({}, "CLEAN"),
+        ):
+            rid = screen.insert_extracted(self.conn, a_row(project=f"Q{key}", **cells),
+                                          source_collected_id=self.lead())
+            screen.run_check(self.conn, rid)
+            ids[key] = rid
+        q = screen.review_queue(self.conn)
+        self.assertEqual([r["id"] for r in q["out_of_scope"]], [ids["OUT_OF_SCOPE"]])
+        self.assertEqual([r["id"] for r in q["blocked"]], [ids["FAIL"]],
+                         "blocked is malformed-and-fixable, nothing else")
+        self.assertEqual([r["id"] for r in q["size_unknown"]], [ids["SIZE_UNKNOWN"]])
+        self.assertIn(ids["CLEAN"], [r["id"] for r in q["ready"]])
+
+
 class TestSizeBackfill(Base):
     """screen-size -- the narrow writer for the rows whose size floor cannot be
     established.
@@ -695,7 +797,7 @@ class TestSizeBackfill(Base):
         cells.update(over)
         rid = screen.insert_extracted(self.conn, a_row(**cells),
                                       source_collected_id=sid)
-        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "SIZE_UNKNOWN")
         return rid
 
     def test_a_found_figure_clears_the_check(self):
@@ -788,7 +890,8 @@ class TestSizeBackfill(Base):
         self.assertIsNone(row["promised_capital_usd"])
         self.assertEqual(row["promised_jobs"], 600)
         self.assertIn(screen.SIZE_UNRESOLVED_MARKER, row["flag"])
-        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "SIZE_UNKNOWN",
+                         "still not publishable, and still not a fault")
 
     def test_unresolved_needs_a_reason(self):
         rid = self.unestablished()
@@ -804,7 +907,7 @@ class TestSizeBackfill(Base):
         measured = screen.insert_extracted(
             self.conn, a_row(project="Measured Fab", promised_capital_usd=700_000_000,
                              promised_jobs=400), source_collected_id=self.lead())
-        self.assertEqual(screen.run_check(self.conn, measured)["result_status"], "FAIL")
+        self.assertEqual(screen.run_check(self.conn, measured)["result_status"], "OUT_OF_SCOPE")
         unestablished = self.unestablished(project="Unestablished Fab")
         self.assertEqual([r["id"] for r in screen.unestablished_size(self.conn)],
                          [unestablished])
@@ -1297,7 +1400,8 @@ class TestCriteria(Base):
         would silently invalidate everything collected above it."""
         small = a_row(promised_capital_usd=300_000_000, promised_jobs=500)
         self.assertEqual(sc.check_row(small, settings.PHASES["100M-or-200-jobs"])["result_status"], "CLEAN")
-        self.assertEqual(sc.check_row(small, settings.PHASES["1B-or-2000-jobs"])["result_status"], "FAIL")
+        self.assertEqual(sc.check_row(small, settings.PHASES["1B-or-2000-jobs"])["result_status"],
+                         "OUT_OF_SCOPE")
 
     def test_stored_rows_carry_their_phase(self):
         sid = self.lead()
@@ -1565,9 +1669,12 @@ class TestCheckVerdicts(Base):
         _, v = self._verdict(_n=2, flag="announcement states no production-start date")
         self.assertEqual(v, "PASS")
 
-    def test_clearing_neither_floor_is_fail(self):
+    def test_clearing_neither_floor_is_out_of_scope_not_a_fault(self):
+        """Both figures known, both under the floor. The row is not broken -- the
+        project is too small -- so the verdict must not be the one that means a
+        person has something to repair."""
         _, v = self._verdict(_n=3, promised_capital_usd=700_000_000, promised_jobs=400)
-        self.assertEqual(v, "FAIL")
+        self.assertEqual(v, "OUT_OF_SCOPE")
 
     def test_pass_is_promotable_and_promotion_resolves_the_flag(self):
         """The reason PASS must not block: promotion is the only thing that can
@@ -1581,9 +1688,11 @@ class TestCheckVerdicts(Base):
         self.assertTrue(got.lower().startswith("resolved"), got)
         self.assertIn("first output not yet confirmed", got)
 
-    def test_fail_blocks_promotion_but_force_gets_through(self):
+    def test_every_unpromotable_verdict_blocks_but_force_gets_through(self):
+        """Splitting FAIL into three words must not open a door. Out of scope is
+        not a fault and is still not publishable."""
         rid, v = self._verdict(_n=5, promised_capital_usd=700_000_000, promised_jobs=400)
-        self.assertEqual(v, "FAIL")
+        self.assertEqual(v, "OUT_OF_SCOPE")
         with self.assertRaises(verify.PromotionBlocked):
             verify.promote(self.conn, rid, verification_tier="V1")
         self.assertTrue(verify.promote(self.conn, rid, verification_tier="V1", force=True))

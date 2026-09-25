@@ -55,7 +55,10 @@ from webapp import (  # noqa: E402
     source as source_pages,
     verify as verify_pages,
 )
-from webapp.shared import PROJECT_NAME, _conn, _page, esc, preload_status  # noqa: E402
+from webapp.shared import (  # noqa: E402
+    PROJECT_NAME, VERDICT_LABEL, VERDICT_MEANING, _conn, _page, esc,
+    preload_status,
+)
 
 app = FastAPI(title=f"{PROJECT_NAME} — Source → Verify Pipeline")
 
@@ -228,7 +231,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
         conn.close()
 
     n_ready, n_blocked = len(q["ready"]), len(q["blocked"])
-    n_out = len(q["out_of_scope"])
+    n_unknown, n_out = len(q["size_unknown"]), len(q["out_of_scope"])
 
     # Five tiles, one per TABLE, is not what the pipeline is. screen_check is
     # exactly one row per screen_extracted row by construction, so "173" next
@@ -248,9 +251,13 @@ def dashboard(request: Request, msg: Optional[str] = None):
         return (f'<div class="gate"><span class="gate-n">{n}</span>'
                 f'<span class="gate-l">{label}</span></div>')
 
+    # Every verdict, each carrying its own definition on hover. The line used to
+    # name three and would have silently dropped a fourth; it now walks the
+    # vocabulary itself, so a verdict cannot exist without appearing here.
     verdict_bits = " \u00b7 ".join(
-        f'<span class="verdict-{k}">{verdicts.get(k, 0)} {k.lower()}</span>'
-        for k in ("CLEAN", "PASS", "FAIL") if verdicts.get(k))
+        f'<span class="verdict-{k}" title="{esc(VERDICT_MEANING[k][1])}">'
+        f'{verdicts.get(k, 0)} {esc(VERDICT_LABEL.get(k, k).lower())}</span>'
+        for k in VERDICT_MEANING if verdicts.get(k))
 
     cta = ""
     if n_ready:
@@ -279,6 +286,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
 
   {_gate(n_eligible, 'eligible to publish'
          + (f', {n_blocked} blocked by a failing check' if n_blocked else '')
+         + (f', {n_unknown} size unknown' if n_unknown else '')
          + (f', {n_out} out of scope' if n_out else ''))}
 
   <div class="stage stage-end">
@@ -293,7 +301,7 @@ def dashboard(request: Request, msg: Optional[str] = None):
 </div>
 """
 
-    if not n_ready and not n_blocked and not n_out:
+    if not n_ready and not n_blocked and not n_unknown and not n_out:
         if not c["verify_verified"]:
             body += """
 <div class="card"><h2>Nothing here yet</h2>
@@ -324,6 +332,16 @@ is complete. First up: <a href="/screen/{top['id']}/inspect"><b>{esc(top['projec
 <p><small>{n_blocked} project(s) cannot be published until a failing check is fixed:
 {links}.</small></p>"""
 
+    unknown_bit = ""
+    if n_unknown:
+        links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
+                          for r in q["size_unknown"][:8])
+        unknown_bit = f"""
+<p><small>{n_unknown} project(s) cannot be shown to meet the size floor because
+no source states the figure: {links}. Nothing is wrong with what was
+collected — the number was never published. <code>tracker.py screen-size</code>
+records a figure found, or that none exists.</small></p>"""
+
     out_bit = ""
     if n_out:
         links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
@@ -333,7 +351,7 @@ is complete. First up: <a href="/screen/{top['id']}/inspect"><b>{esc(top['projec
 publish: {links}. Both size figures are known and both are under the floor, so
 there is nothing to fix.</small></p>"""
 
-    body += f'<div class="card">{ready_bit}{blocked_bit}{out_bit}</div>'
+    body += f'<div class="card">{ready_bit}{blocked_bit}{unknown_bit}{out_bit}</div>'
     body += _quality_card(qual)
     return _page("Dashboard", body, msg)
 

@@ -113,13 +113,17 @@ def _print_your_move(conn) -> None:
     table does not show. So say it.
     """
     q = screen.review_queue(conn)
-    ready, blocked, out_of_scope = q["ready"], q["blocked"], q["out_of_scope"]
+    ready, blocked = q["ready"], q["blocked"]
+    size_unknown, out_of_scope = q["size_unknown"], q["out_of_scope"]
     colour = _use_colour()
     cyan = (lambda t: f"{_ANSI['cyan']}{t}{_ANSI['off']}") if colour else (lambda t: t)
     bold = (lambda t: f"{_ANSI['bold']}{t}{_ANSI['off']}") if colour else (lambda t: t)
 
     print()
-    if not ready and not blocked:
+    # The short-circuit used to ask only about `ready` and `blocked`, so once the
+    # queue drained it announced that nothing was waiting while eight projects
+    # sat unpublished for reasons nobody was being told.
+    if not ready and not blocked and not size_unknown and not out_of_scope:
         if not q["published"]:
             print("This database is empty. Collect some projects first:")
             print(f"  N=5 bash {cyan('collect/all.sh')}")
@@ -148,6 +152,13 @@ def _print_your_move(conn) -> None:
         print(f"  {len(blocked)} row(s) cannot be published until a failing check is")
         print(f"  fixed -- {ids}{more}. See what is wrong with:")
         print(f"      {ENTRY} {cyan('screen-check')} --id {blocked[0]['id']}")
+    if size_unknown:
+        ids = ", ".join(f"#{r['id']}" for r in size_unknown[:5])
+        more = "" if len(size_unknown) <= 5 else f" (+{len(size_unknown) - 5} more)"
+        print()
+        print(f"  {len(size_unknown)} row(s) cannot be shown to meet the size floor:")
+        print(f"  no source states the figure -- {ids}{more}. Nothing is broken.")
+        print(f"      {ENTRY} {cyan('screen-size')} --id {size_unknown[0]['id']} --help")
     if out_of_scope:
         ids = ", ".join(f"#{r['id']}" for r in out_of_scope[:5])
         more = "" if len(out_of_scope) <= 5 else f" (+{len(out_of_scope) - 5} more)"
@@ -1692,13 +1703,22 @@ def _command_examples() -> dict:
   {ENTRY} screen-check --id 57    one row
   {ENTRY} screen-check --all      every Screen row
 
-  CLEAN is best, then PASS, then FAIL -- the names do not sort that way.
+  Five verdicts. Only the first two publish; the other three each want a
+  different act, which is why they are three words and not one.
 
-  CLEAN  nothing to say: shaped correctly, in range, no open questions.
-  PASS   shaped correctly and in range, with warnings. Usually an open
-         `flag` the extractor left. Promotable: verify-promote is what
-         rewrites a flag into a resolution record.
-  FAIL   a schema error. Blocks promotion unless you pass --force.
+  CLEAN         nothing to say: shaped correctly, in range, no open questions.
+  PASS          shaped correctly and in range, with warnings. Usually an open
+                `flag` the extractor left. Promotable: verify-promote is what
+                rewrites a flag into a resolution record.
+  FAIL          the row is malformed -- a bad date, a sector outside the
+                vocabulary, a source cell that is not a URL. The only verdict
+                that means something is broken. Fix it.
+  SIZE_UNKNOWN  no source states the capital or jobs figure the size floor
+                needs. Nothing is wrong with what was collected. Go and look:
+                screen-size records a figure found, or that none exists.
+  OUT_OF_SCOPE  both figures are known and both are under the floor, so the
+                project does not belong in this phase. Nothing to fix; only
+                lowering the floor in settings.py would change it.
 
   The check never opens the source links. Reading those happens at
   verify-promote, by a person.

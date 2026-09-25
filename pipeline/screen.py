@@ -25,7 +25,7 @@ from pipeline.schema_check import (
     V0_COLUMNS,
     INT_COLUMNS,
     check_int,
-    is_out_of_scope,
+    blocks_promotion,
     NULL_STRINGS,
     DATE_COLUMN_NULL_STRINGS,
     DERIVED_DATE_COLUMNS,
@@ -645,13 +645,13 @@ def review_queue(conn: sqlite3.Connection) -> dict:
     review is meant to proceed in: the Tracker is made complete from the top
     down, so wherever review stops, the claim above that point is intact.
 
-    `blocked` and `out_of_scope` are both rows whose check FAILs, and promotion
-    refuses both. They are separated because only one of them is work. A blocked
-    row is malformed and a person can fix it; an out-of-scope row is correctly
-    reporting a project that does not meet the phase's size floor, and no edit
-    resolves that. Eleven rows were listed as blocked and three of them could
-    never be unblocked, so the number told a person to go and fix something that
-    was not broken. See schema.OUT_OF_SCOPE.
+    The three unpromotable piles are separated because each wants a different
+    act, and one word for all of them sent people looking for faults that were
+    not there. `blocked` is malformed and fixable. `size_unknown` is a project
+    nobody published a figure for -- not broken, possibly never resolvable, and
+    a search either closes it or records that it cannot be closed.
+    `out_of_scope` is measured and under the floor, which no edit changes. The
+    piles are exactly the verdicts: FAIL, SIZE_UNKNOWN, OUT_OF_SCOPE.
 
     Every surface that tells a human what to do next asks this, so `status`, the
     bare-invocation landing page, the web dashboard and `review` itself cannot
@@ -659,18 +659,22 @@ def review_queue(conn: sqlite3.Connection) -> dict:
     """
     published = {r["project"] for r in conn.execute(
         "SELECT project FROM verify_verified")}
-    ready, blocked, out = [], [], []
+    ready, blocked, unknown, out = [], [], [], []
     for row in list_extracted(conn, by_capital=True):
         if row["project"] in published:
             continue
         chk = latest_check(conn, row["id"])
-        if chk and chk["result_status"] == "FAIL":
-            report = json.loads(chk["report"] or "[]")
-            (out if is_out_of_scope(report) else blocked).append(row)
-        else:
+        verdict = chk["result_status"] if chk else None
+        if not blocks_promotion(verdict):
             ready.append(row)
-    return {"ready": ready, "blocked": blocked, "out_of_scope": out,
-            "published": len(published)}
+        elif verdict == "OUT_OF_SCOPE":
+            out.append(row)
+        elif verdict == "SIZE_UNKNOWN":
+            unknown.append(row)
+        else:
+            blocked.append(row)
+    return {"ready": ready, "blocked": blocked, "size_unknown": unknown,
+            "out_of_scope": out, "published": len(published)}
 
 
 def list_extracted(conn: sqlite3.Connection,

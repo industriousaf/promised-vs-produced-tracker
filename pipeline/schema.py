@@ -143,6 +143,26 @@ KNOWN_COLUMNS = set(REQUIRED_COLUMNS) | set(PROVENANCE_COLUMNS)
 # in docs/schema.md rather than left for a reader to discover.
 OUT_OF_SCOPE = "inclusion rule fails"
 
+# The other half of the size floor, and a different fact. Here a cell the floor
+# depends on is EMPTY: the project may or may not qualify and nobody has
+# published the figure that would say. That is an open question, not a defect in
+# the row and not a decision about the project -- a source found tomorrow closes
+# it. Four rows are in this state, and all four have been searched.
+UNESTABLISHED = "size floor cannot be established"
+
+
+def _has_error(report, prefix: str) -> bool:
+    for issue in (report or []):
+        if (issue.get("level") == ERROR
+                and str(issue.get("message", "")).startswith(prefix)):
+            return True
+    return False
+
+
+def is_unestablished(report) -> bool:
+    """Does a stored report say the size floor could not be established?"""
+    return _has_error(report, UNESTABLISHED)
+
 
 def is_out_of_scope(report) -> bool:
     """Does a stored `screen_check` report say the project does not belong?
@@ -590,7 +610,7 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
                              ("promised_jobs", jobs)):
                 if val is None:
                     add(col, ERROR,
-                        f"size floor cannot be established: phase {crit.id!r} "
+                        f"{UNESTABLISHED}: phase {crit.id!r} "
                         f"needs {crit.describe()}, and {known} is below it with "
                         f"this cell empty")
 

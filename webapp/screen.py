@@ -29,6 +29,7 @@ from pipeline.db import (  # noqa: E402
 )
 from pipeline.settings import active as _crit  # noqa: E402
 from pipeline.dates import lag_label, measured_spans  # noqa: E402
+from pipeline.schema_check import blocks_promotion  # noqa: E402
 from pipeline.schema_check import (  # noqa: E402
     V0_COLUMNS,
     DERIVED_DATE_COLUMNS,
@@ -96,7 +97,7 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
         # card something other than the "first up" the dashboard names, and the
         # first click a dead end.
         staged.sort(key=lambda r: all_checks[r["id"]] is not None
-                    and all_checks[r["id"]]["result_status"] == "FAIL")
+                    and blocks_promotion(all_checks[r["id"]]["result_status"]))
     finally:
         conn.close()
 
@@ -186,16 +187,22 @@ def screen_page(request: Request, msg: Optional[str] = None, show: Optional[str]
     # an unexplained 23.
     q = queue
     n_ready, n_blocked = len(q["ready"]), len(q["blocked"])
-    n_out = len(q["out_of_scope"])
-    if n_ready or n_blocked or n_out:
+    n_unknown, n_out = len(q["size_unknown"]), len(q["out_of_scope"])
+    if n_ready or n_blocked or n_unknown or n_out:
         blocked_note = ""
         if n_blocked:
             links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
                               for r in q["blocked"][:8])
             blocked_note = (f" A further <b>{n_blocked}</b> cannot be verified until a "
                             f"failing check is fixed: {links}.")
-        # Kept apart from the blocked note on purpose. Both are unverifiable, but
-        # one is a queue of work and the other is a decision already made.
+        # Each kept apart on purpose. All three are unverifiable, but one is a
+        # queue of work, one is a search that may find nothing, and one is a
+        # decision already made.
+        if n_unknown:
+            links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
+                              for r in q["size_unknown"][:8])
+            blocked_note += (f" <b>{n_unknown}</b> cannot be shown to meet the size "
+                             f"floor because no source states the figure: {links}.")
         if n_out:
             links = ", ".join(f'<a href="/screen/{r["id"]}/inspect">#{r["id"]}</a>'
                               for r in q["out_of_scope"][:8])

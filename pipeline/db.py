@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS screen_check (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     datetime              TEXT NOT NULL,                 -- checked-at
     screen_extracted_id   INTEGER NOT NULL REFERENCES screen_extracted(id),
-    result_status         TEXT NOT NULL,                 -- FAIL | PASS | CLEAN
+    result_status         TEXT NOT NULL,                 -- see schema_check.VERDICTS
     n_errors              INTEGER NOT NULL DEFAULT 0,
     n_warnings            INTEGER NOT NULL DEFAULT 0,
     report                TEXT                           -- JSON list of issue objects

@@ -182,17 +182,20 @@ is the same exporter as a command; `--out-dir` works there too.
 | Stage | Holds | Who does it |
 |---|---|---|
 | **Source** | the source links and a one-line summary. No figures are recorded yet. | AI or human |
-| **Screen** | the 20-column row extracted from those links, plus a schema check returning `FAIL`, `PASS`, or `CLEAN` | AI or human, then the checker |
+| **Screen** | the 20-column row extracted from those links, plus a schema check returning one of five verdicts | AI or human, then the checker |
 | **Verify** | the published row. Later corrections are logged with a reason. | human only |
 
 The check returns one of three verdicts. **`CLEAN` is the best of them, then
-`PASS`, then `FAIL`** — the names do not sort that way, so read them once:
+`PASS`, then the three that do not publish** — the names do not sort that way,
+and three of the five do not mean anything is wrong, so read them once:
 
 | verdict | what it means | promotable |
 |---|---|---|
 | `CLEAN` | shaped correctly, in range, nothing left open | yes |
 | `PASS` | shaped correctly and in range, with a warning. Almost always an open `flag` the extraction left for a person | yes |
-| `FAIL` | a schema error — a bad type, a bad enum, or figures that clear neither half of the size floor | no, unless forced |
+| `FAIL` | the row is malformed — a bad type, a bad enum, a source cell that is not a URL. The only verdict that means something is broken | no, unless forced |
+| `SIZE_UNKNOWN` | no source states the capital or jobs figure the size floor needs, so the project cannot be shown to be in scope. Nothing is wrong with what was collected | no, unless forced |
+| `OUT_OF_SCOPE` | both figures are known and both are under this phase's floor, so the project does not belong. Nothing to fix | no, unless forced |
 
 A `PASS` is promotable on purpose. The usual warning is an open `flag`, no
 command edits a flag on a Screen row, and `verify-promote` is what rewrites it

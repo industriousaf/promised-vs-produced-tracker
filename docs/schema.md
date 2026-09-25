@@ -33,7 +33,7 @@ later is a mechanical translation.
 ## What the check returns
 
 `screen_check.result_status` is one of three tokens. **`CLEAN` is the best of
-them, then `PASS`, then `FAIL`.** The names do not sort that way and have been
+them, then `PASS`, then the three that do not publish.** The names do not sort that way and have been
 read backwards, so the ordering is stated here rather than left to inference.
 
 The verdict is derived from two severities, which `schema.py` assigns per cell
@@ -50,7 +50,9 @@ From those, in `pipeline/schema_check.py`:
 
 | verdict | condition | `screen_check` counts | blocks `verify-promote` |
 |---|---|---|---|
-| `FAIL` | one or more `ERROR` | `n_errors` > 0 | yes, unless `--force` |
+| `FAIL` | an `ERROR` that is not about the size floor | `n_errors` > 0 | yes, unless `--force` |
+| `SIZE_UNKNOWN` | the size floor cannot be established: a cell it depends on is empty | `n_errors` > 0 | yes, unless `--force` |
+| `OUT_OF_SCOPE` | both size figures are known and both are under the floor | `n_errors` > 0 | yes, unless `--force` |
 | `PASS` | no `ERROR`, one or more `WARN` | `n_warnings` > 0 | no |
 | `CLEAN` | neither | both 0 | no |
 

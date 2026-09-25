@@ -23,6 +23,7 @@ from pipeline.db import now_iso
 from pipeline.dates import enrich as enrich_dates, DATE_TRIPLES
 from pipeline.schema_check import (
     V0_COLUMNS,
+    blocks_promotion,
     INT_COLUMNS,
     DERIVED_DATE_COLUMNS,
     RAW_DATE_COLUMNS,
@@ -162,10 +163,21 @@ def promote(
             f"screen row {screen_extracted_id} has no screen_check yet -- "
             "run the check first, or promote with force=True"
         )
-    if chk is not None and chk["result_status"] == "FAIL" and not force:
+    if chk is not None and blocks_promotion(chk["result_status"]) and not force:
+        # Naming the verdict split did not open a door: OUT_OF_SCOPE and
+        # SIZE_UNKNOWN are not faults, but neither is publishable, and each
+        # wants a different act from the reader.
+        why = {
+            "OUT_OF_SCOPE": ("is out of scope for this phase -- both size figures "
+                             "are known and both are under the floor, so there is "
+                             "nothing to fix"),
+            "SIZE_UNKNOWN": ("cannot be shown to meet the size floor -- no source "
+                             "states the figure. Find one (see screen-size) or "
+                             "leave it"),
+        }.get(chk["result_status"],
+              f"FAILs its schema check ({chk['n_errors']} error(s)) -- fix it")
         raise PromotionBlocked(
-            f"screen row {screen_extracted_id} FAILs its schema check "
-            f"({chk['n_errors']} error(s)) -- fix it or promote with force=True"
+            f"screen row {screen_extracted_id} {why}, or promote with force=True"
         )
 
     # Build the verify row from the screen cells, applying human overrides.

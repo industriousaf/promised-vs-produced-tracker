@@ -114,7 +114,7 @@ Each stage is a small module the two interfaces share:
 - `source.py` — insert and list Source leads.
 - `screen.py` — insert extracted rows; `run_check()` is Screen part two.
 - `schema_check.py` — **is** `screen_check`: it loads the canonical `schema.py`
-  and runs its row validator, returning the `FAIL / PASS / CLEAN` verdict and the
+  and runs its row validator, returning one of the five verdicts and the
   issue list.
 - `settings.py` — **every setting**: the inclusion phases (what counts as a
   project — the size floor, the date window, the countries, the sector
@@ -191,7 +191,7 @@ cp outputs/tracker.db /tmp/try.db
 # 1. What is in it
 python3 tracker.py --db /tmp/try.db status
 python3 tracker.py --db /tmp/try.db screen-list
-#   -> each row shows check=CLEAN / PASS / FAIL
+#   -> each row shows check=CLEAN / PASS / FAIL / SIZE_UNKNOWN / OUT_OF_SCOPE
 
 # 2. Act as the human gate: publish a row that passed its check
 python3 tracker.py --db /tmp/try.db verify-promote --screen-id 42 --tier V1 \

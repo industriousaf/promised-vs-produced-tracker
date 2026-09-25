@@ -64,6 +64,24 @@ check_int = pvp_schema.check_int
 # instead of pattern-matching its prose in four places.
 OUT_OF_SCOPE = pvp_schema.OUT_OF_SCOPE
 is_out_of_scope = pvp_schema.is_out_of_scope
+UNESTABLISHED = pvp_schema.UNESTABLISHED
+is_unestablished = pvp_schema.is_unestablished
+
+# The five verdicts, and the two that a person can do something about.
+#
+# FAIL used to carry all three of "this row is malformed", "this project does
+# not belong" and "nobody published the figure". They call for completely
+# different acts -- fix it, leave it alone, go and look -- and the word said
+# fault for all three. It reported 8 failures when nothing in the Tracker was
+# broken.
+VERDICTS = ("CLEAN", "PASS", "FAIL", "SIZE_UNKNOWN", "OUT_OF_SCOPE")
+PROMOTABLE = frozenset({"CLEAN", "PASS"})
+
+
+def blocks_promotion(status: str | None) -> bool:
+    """Verify is a gate on the row AND on the project, so everything but the two
+    promotable verdicts stops here. Splitting the words did not open a door."""
+    return status not in PROMOTABLE
 DATE_COLUMN_NULL_STRINGS = pvp_schema.DATE_COLUMN_NULL_STRINGS
 # The promised-date sentinel set. Re-exported so the attestation rule tells an
 # absence from a value in the checker's own vocabulary, not a copy of it.
@@ -136,7 +154,7 @@ def check_row(row: dict, crit=None) -> dict:
     as empty). Returns the persisted `screen_check` shape:
 
         {
-          "result_status": "FAIL" | "PASS" | "CLEAN",
+          "result_status": one of VERDICTS,
           "n_errors": int,
           "n_warnings": int,
           "report": [ {"column": str, "level": "ERROR"|"WARN", "message": str}, ... ],
@@ -166,8 +184,33 @@ def check_row(row: dict, crit=None) -> dict:
     errors = [i for i in issues if i.level == ERROR]
     warnings = [i for i in issues if i.level == WARN]
 
-    if errors:
+    # Precedence, and the reasoning for it:
+    #
+    #   OUT_OF_SCOPE first. Both size figures are known and both are under the
+    #   floor, so the project is not going into the Tracker. Nothing else about
+    #   the row matters -- correcting a date on a project that does not belong
+    #   is work that buys nothing -- so this outranks a malformed cell.
+    #
+    #   FAIL next, and ONLY for errors that are not about the size floor. This
+    #   is the word's original meaning: the row is malformed and a person can
+    #   fix it. Today no row in the Tracker is in this state.
+    #
+    #   SIZE_UNKNOWN last of the three. A cell the floor depends on is empty, so
+    #   the row is not admissible, but nothing is wrong with it -- the figure was
+    #   never published. A source found tomorrow settles it. It ranks below FAIL
+    #   because a malformed cell is fixable now and this may never be.
+    err_msgs = [i.message for i in errors]
+    out_of_scope = any(m.startswith(OUT_OF_SCOPE) for m in err_msgs)
+    unestablished = any(m.startswith(UNESTABLISHED) for m in err_msgs)
+    other_errors = [m for m in err_msgs
+                    if not m.startswith((OUT_OF_SCOPE, UNESTABLISHED))]
+
+    if out_of_scope:
+        status = "OUT_OF_SCOPE"
+    elif other_errors:
         status = "FAIL"
+    elif unestablished:
+        status = "SIZE_UNKNOWN"
     elif warnings:
         status = "PASS"
     else:
