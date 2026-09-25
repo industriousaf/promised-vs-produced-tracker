@@ -111,7 +111,7 @@ all_sectors = pvp_schema.all_sectors
 V0_COLUMNS: list[str] = list(REQUIRED_COLUMNS) + list(PROVENANCE_COLUMNS)
 
 # The two columns stored as integers in SQL.
-INT_COLUMNS = {"promised_capital_usd", "promised_jobs"}
+INT_COLUMNS = {"promised_capital_usd", "promised_jobs", "promised_capital_max"}
 
 # lag_years / slip_years are now stored as REAL floats: they're computed
 # deterministically by pipeline/dates.py (with -1.0 "to be completed" / -2.0

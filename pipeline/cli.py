@@ -714,17 +714,19 @@ def cmd_screen_size(conn, args):
     because a row in this queue is right everywhere except the one cell that
     decides whether the project is in the Tracker at all.
     """
-    gave_figure = args.capital is not None or args.jobs is not None
+    gave_figure = (args.capital is not None or args.jobs is not None
+                   or args.under is not None)
     if bool(args.unresolved) == gave_figure:
         raise SystemExit(
-            "screen-size records one of two outcomes: a figure that was found "
-            "(--capital and/or --jobs, with --source), or that none is stated "
-            "anywhere (--unresolved REASON). Give exactly one."
+            "screen-size records one of two outcomes: something a source states "
+            "(--capital / --jobs / --under, with --source), or that nothing is "
+            "stated anywhere (--unresolved REASON). Give exactly one."
         )
     if gave_figure and not args.source:
         raise SystemExit(
-            "--capital/--jobs need --source: this is the cell the inclusion "
-            "rule reads, and an uncited figure admits a project on faith."
+            "--capital/--jobs/--under need --source: these are the cells the "
+            "inclusion rule reads, and an uncited one admits or removes a "
+            "project on faith."
         )
     try:
         if args.unresolved:
@@ -734,7 +736,8 @@ def cmd_screen_size(conn, args):
             print("  the row still fails the size check, now having been searched.")
             return
         r = screen.set_size(conn, args.id, source=args.source, capital=args.capital,
-                            jobs=args.jobs, raw=args.raw, force=args.force)
+                            jobs=args.jobs, under=args.under, raw=args.raw,
+                            force=args.force)
     except (screen.SizeOverwriteBlocked, screen.RemovalBlocked) as e:
         raise SystemExit(f"refused: {e}")
     except ValueError as e:
@@ -742,9 +745,11 @@ def cmd_screen_size(conn, args):
     b, a = r["before"], r["after"]
     print(f"screen #{r['id']} ({r['project']})")
     for col, label in (("promised_capital_usd", "promised_capital_usd"),
-                       ("promised_jobs", "promised_jobs      ")):
-        if b[col] != a[col]:
-            print(f"  {label} {_fmt_size(col, b[col])} -> {_fmt_size(col, a[col])}")
+                       ("promised_jobs", "promised_jobs      "),
+                       ("promised_capital_max", "capital bounded under")):
+        if b.get(col) != a.get(col):
+            print(f"  {label} {_fmt_size('promised_capital_usd' if 'capital' in col else col, b.get(col))}"
+                  f" -> {_fmt_size('promised_capital_usd' if 'capital' in col else col, a.get(col))}")
     print(f"  re-run the check to see the verdict:  "
           f"tracker.py screen-check --id {r['id']}")
 
@@ -1922,6 +1927,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--id", type=int, required=True, help="the screen_extracted id")
     s.add_argument("--capital", type=int, help="promised capital in whole USD, digits only")
     s.add_argument("--jobs", type=int, help="promised DIRECT jobs, digits only")
+    s.add_argument("--under", type=int, metavar="USD",
+                   help="no figure was published, but a source bounds capital "
+                        "below this (e.g. --under 1000000000 for \"below $1 billion\"). "
+                        "Only ever rules a project OUT, and only at or under the floor")
     s.add_argument("--source", help="URL that states the figure (size_source)")
     s.add_argument("--raw", help="the verbatim sentence the figure was read from")
     s.add_argument("--unresolved", metavar="REASON",

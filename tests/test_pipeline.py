@@ -671,6 +671,95 @@ class TestAFlagBeginningWithNoneIsStillAFlag(unittest.TestCase):
         self.assertEqual(warns, [])
 
 
+class TestACapitalBound(Base):
+    """A source can rule the floor out without ever stating a figure.
+
+    OCI's groundbreaking release says "Total investment cost for OCI expected to
+    be below $1 billion". That settles the question, and promised_capital_usd
+    cannot hold it, being an integer. The row therefore sat at SIZE_UNKNOWN --
+    a verdict that reads as an open question -- and two people searched it
+    before this column existed, reaching the same answer both times.
+    """
+
+    def row(self, **over):
+        cells = {"promised_capital_usd": None, "promised_jobs": 60,
+                 "size_source": "https://e.test/size"}
+        cells.update(over)
+        return a_row(**cells)
+
+    def test_a_bound_at_the_floor_puts_the_project_out(self):
+        v = sc.check_row(self.row(promised_capital_max=1_000_000_000))["result_status"]
+        self.assertEqual(v, "OUT_OF_SCOPE")
+
+    def test_a_bound_above_the_floor_settles_nothing(self):
+        """"Under $2 billion" excludes no project from a $1B floor. A bound only
+        ever proves a project out, and only when it reaches the floor."""
+        v = sc.check_row(self.row(promised_capital_max=2_000_000_000))["result_status"]
+        self.assertEqual(v, "SIZE_UNKNOWN")
+
+    def test_a_bound_settles_nothing_while_jobs_are_unknown(self):
+        """The floor is an OR, so both legs have to fail. A project with no jobs
+        figure could still clear on jobs."""
+        v = sc.check_row(self.row(promised_jobs=None,
+                                  promised_capital_max=1_000_000_000))["result_status"]
+        self.assertEqual(v, "SIZE_UNKNOWN")
+
+    def test_a_bound_cannot_beat_a_jobs_figure_that_clears(self):
+        v = sc.check_row(self.row(promised_jobs=3000,
+                                  promised_capital_max=1_000_000_000))["result_status"]
+        self.assertEqual(v, "CLEAN")
+
+    def test_an_uncited_bound_cannot_remove_a_project(self):
+        """The bug this nearly shipped with. The uncited-bound ERROR fired, but
+        OUT_OF_SCOPE outranks everything, so the rule meant to stop an
+        uncheckable claim from removing a project did exactly the opposite. An
+        uncited bound is not usable at all."""
+        r = sc.check_row(self.row(promised_capital_max=1_000_000_000, size_source=""))
+        self.assertEqual(r["result_status"], "FAIL",
+                         "the row is malformed, and the project is NOT excluded")
+        self.assertTrue(any("needs size_source" in i["message"]
+                            for i in r["report"]))
+
+    def test_a_bound_and_a_figure_is_a_contradiction(self):
+        """A bound exists because the figure does not."""
+        r = sc.check_row(self.row(promised_capital_usd=5_000_000_000,
+                                  promised_capital_max=1_000_000_000))
+        self.assertEqual(r["result_status"], "FAIL")
+
+    def test_the_writer_refuses_a_bound_beside_a_figure(self):
+        rid = screen.insert_extracted(self.conn, self.row(), source_collected_id=self.lead())
+        with self.assertRaises(ValueError):
+            screen.set_size(self.conn, rid, source="https://e.test/s",
+                            capital=2_000_000_000, under=1_000_000_000)
+
+    def test_the_writer_records_the_bound_and_the_verdict_moves(self):
+        rid = screen.insert_extracted(self.conn, a_row(promised_capital_usd=None,
+                                                       promised_jobs=60),
+                                      source_collected_id=self.lead())
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "SIZE_UNKNOWN")
+        screen.set_size(self.conn, rid, source="https://e.test/size",
+                        under=1_000_000_000, raw="expected to be below $1 billion")
+        row = screen.get_extracted(self.conn, rid)
+        self.assertEqual(row["promised_capital_max"], 1_000_000_000)
+        self.assertIsNone(row["promised_capital_usd"], "a bound is not a figure")
+        self.assertEqual(screen.run_check(self.conn, rid)["result_status"], "OUT_OF_SCOPE")
+
+    def test_the_bound_leaves_the_size_queue(self):
+        """The point of the column: the pile stops asking a question that has
+        been answered."""
+        rid = screen.insert_extracted(self.conn, a_row(promised_capital_usd=None,
+                                                       promised_jobs=60),
+                                      source_collected_id=self.lead())
+        screen.run_check(self.conn, rid)
+        self.assertIn(rid, [r["id"] for r in screen.unestablished_size(self.conn)])
+        screen.set_size(self.conn, rid, source="https://e.test/size", under=1_000_000_000)
+        screen.run_check(self.conn, rid)
+        self.assertEqual(screen.unestablished_size(self.conn), [])
+        q = screen.review_queue(self.conn)
+        self.assertEqual([r["id"] for r in q["out_of_scope"]], [rid])
+        self.assertEqual(q["size_unknown"], [])
+
+
 class TestFailMeansBroken(Base):
     """FAIL used to mean three unrelated things, and the word said "fault" for
     all three.
@@ -919,6 +1008,11 @@ class TestSizeBackfill(Base):
         searched = self.unestablished(project="Searched Fab")
         untouched = self.unestablished(project="Untouched Fab")
         screen.set_size(self.conn, resolved, source="https://e.com/c", capital=4_000_000_000)
+        # Re-check, because the queue reads the stored verdict rather than
+        # re-deriving the floor -- which is what `screen-size` tells you to do
+        # and what stops the queue and the checker being two implementations of
+        # one rule.
+        screen.run_check(self.conn, resolved)
         screen.mark_size_unresolved(self.conn, searched, "nothing states it")
 
         self.assertEqual([r["id"] for r in screen.unestablished_size(self.conn)],

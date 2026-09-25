@@ -315,6 +315,23 @@ guessing.
   The real fix is to stop storing codes in a numeric column at all, now that
   every row carries a `status` word that says the same thing in a cell of its
   own. That is a migration of every stored row and has not been done.
+- **`promised_capital_max` is a bound, for when a source rules the floor out
+  without stating a figure.** OCI's groundbreaking release says "Total
+  investment cost for OCI expected to be below $1 billion", which settles the
+  question and which `promised_capital_usd` cannot hold, being an integer. The
+  row sat at `SIZE_UNKNOWN` — a verdict that reads as an open question — and two
+  people searched it before this column existed, reaching the same answer both
+  times. The pile should stop asking.
+
+  A bound only ever proves a project **out**, never in, and only when three
+  things hold: it is at or under the floor (*under $2 billion* excludes nothing
+  from a $1B floor), the jobs figure is known and also under (the floor is an
+  OR, so both legs must fail), and it carries a `size_source`. That last one is
+  part of the test, not a nicety: an uncited bound is simply not used, because
+  this is the cell that removes a project and an uncheckable claim must not do
+  that. Setting both the figure and the bound is a contradiction and an ERROR —
+  a bound exists because the figure does not. `screen-size --under` is the
+  writer.
 - **Sectors are a closed vocabulary:** the checker ERRORs on a sector outside it. Add a
   genuinely new manufacturing sector by editing `SECTORS` in `pipeline/settings.py` — a
   code change on purpose, so what counts as in scope cannot move at runtime without a

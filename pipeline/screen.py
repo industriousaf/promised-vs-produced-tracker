@@ -403,7 +403,9 @@ def _size_update(conn: sqlite3.Connection, screen_id: int, changes: dict) -> dic
         raise ValueError(f"no screen_extracted row with id {screen_id}")
 
     before = {"promised_capital_usd": row["promised_capital_usd"],
-              "promised_jobs": row["promised_jobs"]}
+              "promised_jobs": row["promised_jobs"],
+              "promised_capital_max": (row["promised_capital_max"]
+                                       if "promised_capital_max" in row.keys() else None)}
     cols = list(changes)
     conn.execute(
         f"UPDATE screen_extracted SET {', '.join(c + ' = ?' for c in cols)} WHERE id = ?",
@@ -416,7 +418,7 @@ def _size_update(conn: sqlite3.Connection, screen_id: int, changes: dict) -> dic
 
 
 def set_size(conn: sqlite3.Connection, screen_id: int, source: str,
-             capital: object = None, jobs: object = None,
+             capital: object = None, jobs: object = None, under: object = None,
              raw: str | None = None, force: bool = False) -> dict:
     """Put a promised capital and/or jobs figure, and the page that states it,
     on one Screen row.
@@ -427,7 +429,7 @@ def set_size(conn: sqlite3.Connection, screen_id: int, source: str,
     row, and a row here is already right in twenty cells and empty in one.
 
     The refusals are this backfill's own failure modes:
-      * neither figure given -- there is nothing to cite,
+      * nothing given -- there is nothing to cite,
       * a figure that is not a positive integer -- capital is dollars and jobs
         are people; a float, a string or a negative is a parse that went wrong,
       * a `source` that is not URL-shaped, or absent. The citation is the whole
@@ -436,14 +438,19 @@ def set_size(conn: sqlite3.Connection, screen_id: int, source: str,
       * a cell that is already filled, unless `force`. Every row in the queue
         has the cell empty, so landing on a filled one means the id is wrong.
     """
-    if capital is None and jobs is None:
-        raise ValueError("give --capital, --jobs, or both: there is nothing to cite otherwise.")
+    if capital is None and jobs is None and under is None:
+        raise ValueError("give --capital, --jobs or --under: there is nothing to cite otherwise.")
+    if under is not None and capital is not None:
+        raise ValueError(
+            "--under is for when no figure was published. You gave one, so record "
+            "it with --capital alone.")
     if not (source or "").strip():
         raise ValueError("--source is required: an uncited size figure admits a project on faith.")
     if msg := check_url(source or ""):
         raise ValueError(f"--source: {msg}")
 
-    figures = {"promised_capital_usd": capital, "promised_jobs": jobs}
+    figures = {"promised_capital_usd": capital, "promised_jobs": jobs,
+               "promised_capital_max": under}
     for col, val in figures.items():
         if val is None:
             continue
@@ -473,7 +480,9 @@ def set_size(conn: sqlite3.Connection, screen_id: int, source: str,
                 )
 
     said = " and ".join(
-        f"{col} {val:,}" for col, val in figures.items() if val is not None)
+        (f"capital bounded below {val:,}" if col == "promised_capital_max"
+         else f"{col} {val:,}")
+        for col, val in figures.items() if val is not None)
     note = f"Resolved: {said} from size_source."
     if raw:
         note += f' Source text: "{raw.strip()}"'
@@ -522,19 +531,16 @@ def unestablished_size(conn: sqlite3.Connection,
     already carrying the marker -- re-offering a dead end costs exactly what the
     first search cost, to learn the same thing.
     """
-    crit = criteria.active()
     out = []
     for r in conn.execute("SELECT * FROM screen_extracted ORDER BY id").fetchall():
-        # `check_int`, not a local parse: the queue must answer the floor
-        # question exactly as the checker asks it, or a cell the two read
-        # differently is a row that appears here and does not fail, or fails
-        # and never appears.
-        cap, _ = check_int(str(r["promised_capital_usd"] or ""))
-        jobs, _ = check_int(str(r["promised_jobs"] or ""))
-        if crit.clears(cap, jobs):
+        # Ask the stored verdict, do not re-derive the floor. This used to
+        # recompute it from the two figure cells, which meant the queue and the
+        # checker were two implementations of one rule -- and when a capital
+        # BOUND was added, only the checker learned about it, so a project whose
+        # size was settled kept being offered for search.
+        chk = latest_check(conn, r["id"])
+        if not chk or chk["result_status"] != "SIZE_UNKNOWN":
             continue
-        if cap is not None and jobs is not None:
-            continue                       # measured, and out of scope
         if published_as(conn, r["id"]):
             continue
         if not include_searched and SIZE_UNRESOLVED_MARKER in (r["flag"] or ""):

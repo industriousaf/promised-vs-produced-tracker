@@ -551,7 +551,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     # were blocked for want of the figure it cites.
     date_partner_cols = (list(DERIVED_DATE_COLUMNS) + list(RAW_DATE_COLUMNS)
                          + ["actual_date_source", "country", "criteria_id",
-                            "status", "size_source"])
+                            "status", "size_source", "promised_capital_max"])
     for table in ("screen_extracted", "verify_verified"):
         _ensure_columns(conn, table, date_partner_cols)
     # Source gained a provenance column (which entry path collected the lead);

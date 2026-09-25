@@ -112,6 +112,19 @@ PROVENANCE_COLUMNS = [
     "promised_date_source",
     "actual_date_source",
     "size_source",
+    # An UPPER BOUND on promised capital, for the case where a source rules the
+    # floor out without ever stating a figure. OCI's groundbreaking release says
+    # "Total investment cost for OCI expected to be below $1 billion" -- which
+    # settles the question, and which `promised_capital_usd` cannot hold, being
+    # an integer. Without somewhere to put it the row sat as SIZE_UNKNOWN, a
+    # verdict that reads as an open question and invites the next person to go
+    # and search again. Two people searched it before this column existed.
+    #
+    # A bound only ever proves a project OUT, never in, and only when it is at
+    # or under the floor: "under $2 billion" excludes nothing. It is a value
+    # rather than a citation, unlike its neighbours here, and it lives in this
+    # list because this list is really "the optional columns".
+    "promised_capital_max",
     # WHICH RULES ADMITTED THIS ROW. The Tracker is built by sweeping at a
     # high threshold and lowering it later, and without this stamp a later,
     # looser sweep is indistinguishable from the earlier one -- "no $300M plants
@@ -579,8 +592,10 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
     # OR, not about where the floor sits, so it survives the floor moving.
     cap_raw = str(row.get("promised_capital_usd", "") or "").strip()
     jobs_raw = str(row.get("promised_jobs", "") or "").strip()
+    max_raw = str(row.get("promised_capital_max", "") or "").strip()
     capital, cap_err = check_int(cap_raw)
     jobs, jobs_err = check_int(jobs_raw)
+    cap_max, max_err = check_int(max_raw)
 
     # A cell that HOLDS something unreadable is always an error -- that is a bad
     # value, not a missing one, and no other cell can excuse it.
@@ -588,16 +603,52 @@ def validate_row(rownum: int, row: dict[str, str], has_prov: dict[str, bool],
         add("promised_capital_usd", ERROR, cap_err)
     if jobs_raw and jobs_err:
         add("promised_jobs", ERROR, jobs_err)
+    if max_raw and max_err:
+        add("promised_capital_max", ERROR, max_err)
+    # A bound is a claim about a source, so it carries the source. Everywhere
+    # else an uncited cell merely weakens a row; here it decides whether a
+    # project is in the Tracker at all.
+    if cap_max is not None and not str(row.get("size_source", "") or "").strip():
+        add("promised_capital_max", ERROR,
+            "a capital bound needs size_source: it is the cell that excludes a "
+            "project, and an uncited one excludes it on faith")
+    # Both cells filled is a contradiction: a bound exists because the figure
+    # does not.
+    if cap_max is not None and capital is not None:
+        add("promised_capital_max", ERROR,
+            f"promised_capital_usd is already ${capital:,}, so there is nothing "
+            f"for a bound to say -- clear one of the two")
 
     # An EMPTY cell is fatal only when the row cannot be shown to be in scope
     # without it. One figure over its floor is the whole test.
     clears = crit.clears(capital, jobs)
+    # A bound disproves the capital leg when it sits at or under the floor.
+    # "below $1 billion" against a $1B floor does; "under $2 billion" does not,
+    # because the project could still be over.
+    # The citation is part of the test, not a separate nicety. Without it the
+    # uncited-bound ERROR fired and the row was excluded anyway, because
+    # OUT_OF_SCOPE outranks everything -- so the rule that was meant to stop an
+    # unciteable claim from removing a project did the opposite. An uncited
+    # bound is simply not usable, and the row falls back to SIZE_UNKNOWN.
+    capital_ruled_out = (capital is None and cap_max is not None
+                         and cap_max <= crit.capital_usd
+                         and bool(str(row.get("size_source", "") or "").strip()))
+    # The floor is an OR, so BOTH legs have to fail for a project to be out. A
+    # bound on capital settles nothing while the jobs figure is still unknown.
+    jobs_ruled_out = jobs is not None and jobs < crit.jobs
     if not clears:
         if capital is not None and jobs is not None:
             add(
                 "promised_capital_usd", ERROR,
                 f"{OUT_OF_SCOPE}: phase {crit.id!r} requires "
                 f"{crit.describe()}; got capital ${capital:,} and jobs {jobs:,}",
+            )
+        elif capital_ruled_out and jobs_ruled_out:
+            add(
+                "promised_capital_max", ERROR,
+                f"{OUT_OF_SCOPE}: phase {crit.id!r} requires "
+                f"{crit.describe()}; no capital figure is published but a source "
+                f"bounds it below ${cap_max:,}, and jobs {jobs:,} is under too",
             )
         else:
             # Neither known figure clears the floor and at least one is missing,

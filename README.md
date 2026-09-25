@@ -194,7 +194,7 @@ and three of the five do not mean anything is wrong, so read them once:
 | `CLEAN` | shaped correctly, in range, nothing left open | yes |
 | `PASS` | shaped correctly and in range, with a warning. Almost always an open `flag` the extraction left for a person | yes |
 | `FAIL` | the row is malformed — a bad type, a bad enum, a source cell that is not a URL. The only verdict that means something is broken | no, unless forced |
-| `SIZE_UNKNOWN` | no source states the capital or jobs figure the size floor needs, so the project cannot be shown to be in scope. Nothing is wrong with what was collected | no, unless forced |
+| `SIZE_UNKNOWN` | no source states the capital or jobs figure the size floor needs, so the project cannot be shown to be in scope. Nothing is wrong with what was collected. A source that *bounds* the figure below the floor settles it — see `promised_capital_max` in [docs/schema.md](docs/schema.md) | no, unless forced |
 | `OUT_OF_SCOPE` | both figures are known and both are under this phase's floor, so the project does not belong. Nothing to fix | no, unless forced |
 
 A `PASS` is promotable on purpose. The usual warning is an open `flag`, no
