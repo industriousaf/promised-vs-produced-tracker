@@ -1,0 +1,61 @@
+name: Correction
+description: A figure, date or status on the Promised vs. Produced Tracker is wrong, or a project is missing.
+title: "Correction: "
+labels: ["correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We check every correction against a public source before it changes the register. Accepted changes are logged, with the reason, in [tracker_verify_edits.csv](https://github.com/industriousaf/promised-vs-produced-tracker/blob/main/outputs/csv_tables/tracker_verify_edits.csv).
+  - type: input
+    id: project
+    attributes:
+      label: Project
+      description: The name as it appears on the tracker. If the project is missing, name it here.
+      placeholder: Samsung Taylor Fab
+    validations:
+      required: true
+  - type: dropdown
+    id: what
+    attributes:
+      label: What needs fixing?
+      options:
+        - Status
+        - Capital
+        - Jobs
+        - Dates
+        - Location
+        - Sector
+        - The project is missing from the tracker
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: What it should say
+      description: The right figure, date or status, in a sentence or two. For a missing project, its capital, jobs and announcement date.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: A public link that supports the correction. We can't change a row without one.
+      placeholder: https://
+    validations:
+      required: true
+  - type: dropdown
+    id: relation
+    attributes:
+      label: Your connection to the project (optional)
+      options:
+        - I work for the company
+        - Government or economic development
+        - Journalist or researcher
+        - Other
+  - type: input
+    id: row
+    attributes:
+      label: Register ID
+      description: Filled in automatically when you arrive from a row on the tracker. Otherwise leave it blank.
