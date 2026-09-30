@@ -45,7 +45,7 @@ For a sentence or a chart caption:
 
 In full, for a paper or report:
 
-> Lalendran, A., & Zurbuchen, L. (2026). *Promised vs. Produced Tracker* (Version 1.6) [Data set]. IndustriousAF. https://industriousaf.org/data/promised-vs-produced/
+> IndustriousAF. (2026). *Promised vs. Produced Tracker* (Version 1.6) [Data set]. https://industriousaf.org/data/promised-vs-produced/
 
 GitHub's "Cite this repository" button gives the same citation in APA and BibTeX, from [`CITATION.cff`](CITATION.cff).
 

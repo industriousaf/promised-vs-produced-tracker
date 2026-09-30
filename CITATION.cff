@@ -32,14 +32,8 @@ preferred-citation:
   type: data
   title: "Promised vs. Produced Tracker"
   authors:
-    - family-names: Lalendran
-      given-names: Ashwin
-      orcid: "https://orcid.org/0009-0003-7179-6907"
-    - family-names: Zurbuchen
-      given-names: Lucas
-      orcid: "https://orcid.org/0009-0004-8439-8788"
-  publisher:
-    name: IndustriousAF
+    - name: IndustriousAF
+      website: "https://industriousaf.org/"
   version: "1.6"
   year: 2026
   date-released: "2026-09-30"
