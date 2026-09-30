@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        We check every correction against a public source before it changes the register. Accepted changes are logged, with the reason, in [tracker_verify_edits.csv](https://github.com/industriousaf/promised-vs-produced-tracker/blob/main/outputs/csv_tables/tracker_verify_edits.csv).
+        We check every correction against a public source before it changes the Tracker. Accepted changes are logged, with the reason, in [tracker_verify_edits.csv](https://github.com/industriousaf/promised-vs-produced-tracker/blob/main/outputs/csv_tables/tracker_verify_edits.csv).
   - type: input
     id: project
     attributes:
@@ -41,7 +41,7 @@ body:
     id: source
     attributes:
       label: Source
-      description: A public link that supports the correction. We can't change a row without one.
+      description: A public link that supports the correction. We can't change a project without one.
       placeholder: https://
     validations:
       required: true
@@ -57,5 +57,5 @@ body:
   - type: input
     id: row
     attributes:
-      label: Register ID
-      description: Filled in automatically when you arrive from a row on the tracker. Otherwise leave it blank.
+      label: Project ID
+      description: Filled in automatically when you arrive from a project on the Tracker. Otherwise leave it blank.

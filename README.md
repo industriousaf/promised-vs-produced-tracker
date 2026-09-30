@@ -2,9 +2,9 @@
 
 The Promised vs. Produced Tracker follows America's biggest factory promises until they produce. For each promised factory it records what was announced (capital, jobs, the promised date of first output) next to what happened (the actual date of first output and the current status), with a public source for each. A person checks every published figure against its source.
 
-This repository holds the Tracker's data. The Tracker itself, with a page per state and the full method, is at **[industriousaf.org/pvp](https://industriousaf.org/pvp)**. How projects are chosen and checked: [methodology](https://industriousaf.org/data/promised-vs-produced/methodology).
+This repository holds the Tracker's data. The Tracker itself, with a page per state and the full method, is at **[industriousaf.org/data/promised-vs-produced](https://industriousaf.org/data/promised-vs-produced/)**. How projects are chosen and checked: [methodology](https://industriousaf.org/data/promised-vs-produced/methodology).
 
-Data as of 2026-09-29. 162 projects, 52 corrections, 3 retracted.
+Data as of 2026-09-30. 162 projects, 55 corrections, 3 retracted.
 
 ## Files
 
@@ -22,7 +22,7 @@ A project is on the Tracker if it is a single factory site in a U.S. state, anno
 
 | Column | Meaning |
 |---|---|
-| `id` | The project's ID on the Tracker, the "Register ID" in the correction form |
+| `id` | The project's ID on the Tracker, the "Project ID" in the correction form |
 | `project`, `sector`, `state`, `country` | What and where |
 | `announced` | When the project was first announced, as precisely as the source says |
 | `promised_capital_usd` | Promised capital in U.S. dollars. `promised_capital_max` holds the upper figure when the announcement gave a range |
@@ -45,11 +45,11 @@ For a sentence or a chart caption:
 
 In full, for a paper or report:
 
-> Lalendran, A., & Zurbuchen, L. (2026). *Promised vs. Produced Tracker* (Version 1.6, data as of 2026-09-29) [Data set]. IndustriousAF. https://github.com/industriousaf/promised-vs-produced-tracker
+> Lalendran, A., & Zurbuchen, L. (2026). *Promised vs. Produced Tracker* (Version 1.6) [Data set]. IndustriousAF. https://industriousaf.org/data/promised-vs-produced/
 
 GitHub's "Cite this repository" button gives the same citation in APA and BibTeX, from [`CITATION.cff`](CITATION.cff).
 
-When you publish online, please link to [industriousaf.org/pvp](https://industriousaf.org/pvp).
+When you publish online, please link to [industriousaf.org/data/promised-vs-produced](https://industriousaf.org/data/promised-vs-produced/).
 
 ## Report an error
 
