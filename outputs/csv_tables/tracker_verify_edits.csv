@@ -1,0 +1,53 @@
+id,date,project_id,description
+1,2026-09-13,1,promised first output comes from the status source as it was before
+2,2026-09-13,4,"""These investments are expected to bring Qcells' total solar panel production capacity in Georgia to 8.4 gigawatts by 2024"" in the promised link. implies production by 2024."
+3,2026-09-13,5,"""the initial 10 years of operation, beginning in 2025"" in the promised link."
+4,2026-09-13,8,"the ""2027"" value for promise is real and traceable — but it belongs to the status_source"
+5,2026-09-13,16,ramping up from 3.5 GW annual capacity to 14 GW (stated in produced source)
+6,2026-09-13,17,promise date not stated in promise article. actual first output found in this source: https://www.cnbc.com/2025/11/12/toyota-battery-plant-north-carolina.html
+7,2026-09-13,27,https://w.media/micron-begins-vertical-construction-at-clay-fab-ahead-of-schedule/ : one factory expected production mid-2027 but whole thing slated for 2030s (so made the promised date n/a)
+8,2026-09-14,34,Anduril commited $910.5 million but $1B initially promised
+9,2026-09-14,35,first output date supposed 2031 but not found on either source.
+10,2026-09-14,36,"https://www.prnewswire.com/news-releases/the-jm-smucker-co-celebrates-opening-of-the-newest-uncrustables-manufacturing-facility-in-mccalla-alabama-302299372.html supports Nov 7, 2024 opening date. talks about production levels since then, likely implying that output started then."
+12,2026-09-14,39,"2027 ""promised date"" is actually sourced to produced flag, not promised."
+14,2026-09-14,45,2029 promised date is coming from status source and not promised source so marked as n/a
+17,2026-09-14,56,https://www.electronicdesign.com/technologies/analog/article/21247302/electronic-design-us-foundry-bets-on-subsidies-to-build-18-billion-fab-in-indiana  --- spokesperson promised production in 2-3 years time after 2023
+18,2026-09-14,58,"From status source, calendar date and news context of grand opening implies that production started around this time too."
+19,2026-09-14,64,"2030 mentioned as the end of the construction phase in promise source, not the beginning of the output phase."
+20,2026-09-15,65,"the status is reasonably inferred from the status source, but not 100% directly stated"
+21,2026-09-15,66,second half of current status comes from promised source so removed it
+22,2026-09-15,67,"promised date not stated in promised though it's meant to be 2025 by the time of status source. also removed ""STALLED"" because it's not stated in status source."
+24,2026-09-15,72,"""PRE-CONSTRUCTION; planned deployment"" removed from current status because the terms are too specific for what's stated in the article"
+25,2026-09-15,76,"status source says nothing about FEED or FID, removed them (comes from promise). just speaks about de-risking as: ""The project is de-risked, with the site secured, detailed engineering with a preferred contractor and permitting in process with experienced local consultants"""
+26,2026-09-15,84,"status source also ties 2024-01-24 opening to production with ""The Fab 9 and Fab 11x facilities in Rio Rancho represent the first operational site for mass production of Intel's 3D advanced packaging technology"""
+28,2026-09-16,90,"Announcement made official by Micron on May 22, 2026, so can assume it was by the month of may that the first output was"
+29,2026-09-16,92,"""March 2026"" promised date actually in status source"
+30,2026-09-16,95,Promised 200 jobs but in the status source not the promised source
+31,2026-09-16,97,"date of late 2021 promise in 2020-10, not 2020-01 (needs to be beginning promise)"
+36,2026-09-17,129,"2026 ""promise date"" is actually in status source"
+37,2026-09-18,137,2023 announcement (not 2022) says construction is set to finish 2025 and thus doesn't count for production
+38,2026-09-18,142,"2028 ""promised date"" actually in status source so therefore removed"
+39,2026-09-18,146,"2026 ""promised date"" comes from status source"
+42,2026-09-19,162,"Capital and jobs re-aligned to the Jan 2025 anchor: jobs 3300->1500 (promise_source), capital 600M->1.2B (senators' Jan 22, 2025 statement). 600M/3300 were the Oct 2025 re-plan figures, mixed into a Jan 2025 anchor."
+43,2026-09-19,162,"Second promise source added: CBS Chicago (Jan 22, 2025) carries the $1.2B figure from Sens. Durbin/Duckworth, the provenance for promised_capital_usd."
+44,2026-09-19,9,"The promised Gen 10.5 LCD fab was never built, so first output is never rather than unconfirmed, and the status is cancelled. FOX6 Milwaukee (4 Oct 2021): plans never materialized to build flat LCD screens, and the original 13,000-job deal was scrapped in April 2021. What the site builds now belongs to the later, smaller contracts already recorded in notes as re-announcements, not to the promise this project tracks."
+45,2026-09-24,72,"status word set to 'announced'. Neither cited source stated the stage, which is why the earlier 'PRE-CONSTRUCTION; planned deployment' wording was removed on 15 Sep. HIF's own project page states the stage in its own words -- 'Fully permitted to begin construction', with pre-FEED and FEED complete -- so construction has not started and the row is 'announced' rather than 'under construction'. That page is added to status_source and its wording carried into current_status. The slipped timeline (construction was expected 2023, then 2024) is a delay, not a status."
+46,2026-09-25,163,Stating promised capital is $10 billion -- no promise stated but clear it exceeds $1 billion. $10 billion explicitly stated here though not promised: https://insideclimatenews.org/news/14032024/texas-petrochemical-tax-breaks/
+48,2026-09-25,165,Getting promise source from 2018 and not 2025 -- changes some details
+49,2026-09-27,32,"Notes say why the announced date is Aug 2026, not the Mar 2026 Terafab launch, which was for the Giga Texas site. Sources: https://electrek.co/2026/03/22/tesla-spacex-terafab-chip-factory-ai-desperation/ and https://www.kbtx.com/2026/06/06/grimes-county-officially-releases-spacex-terafab-agreement-documents/"
+50,2026-09-27,48,"First output month from Redwood's Nov 6, 2025 release, which record 85 carried. 85 is the same project and is retracted."
+51,2026-09-27,85,"Retracted: Duplicate of #48: the same Dec 2022 release (Camp Hall, Ridgeville, SC, $3.5B, 1,500 jobs), published twice under two names."
+52,2026-09-27,90,"First output was the May 2026 start of 1-alpha DRAM, which belongs to the Dec 2024 modernization, not the 2018 promise. No source confirms when the 2018 expansion first produced; Micron's CEO forecast the end of 2021. Sources: https://www.insidenova.com/headlines/semiconductor-push-comes-to-manassas/article_d5bc2902-bf04-11eb-a0a3-0b2f315e158f.html and https://www.nist.gov/news-events/news/2024/12/department-commerce-awards-chips-incentives-micron-idaho-and-new-york"
+53,2026-09-29,164,"Paused, not cancelled. Additional source is https://www.energyintel.com/0000019a-b72c-d9d2-a1be-f77d83890000"
+54,2026-09-29,22,"changed to producing, date known (added source)"
+55,2026-09-29,3,"Replacing wiki with 10-K for status source, contains the same information"
+56,2026-09-29,28,"LGES confirmed plans march 2022 actually, in a very gradual process (then they said ""mass production in 2024"". invested 5.5 billion later."
+57,2026-09-29,45,changed to 2022 annoucement instead of 2025
+58,2026-09-29,43,changing from CANCELLED to PAUSED because it fits the current status better
+59,2026-09-29,78,Make status for this under construction and not cancelled (we are looking at fab production in general)
+60,2026-09-29,28,"Sized and sourced from the first announcement, per the methodology: Arizona Commerce Authority, April 2022, $1.4B, production in 2024. The $5.5B 2023 expansion stays in the notes."
+61,2026-09-29,3,"Steel Dynamics' 2021 10-K on sec.gov: coating lines commissioned in the second half of 2021, the rest of the mill from early 2022."
+62,2026-09-29,22,"U.S. Steel's Oct 31, 2024 earnings release (8-K) reports first coil at BR2; its 2024 10-K replaces the wiki as the status source."
+63,2026-09-29,158,Retracted: Below the bar on its real promise. The cited 2025 release marks the plant's opening; Merck's July 2019 promise was up to $650M and 391 jobs.
+64,2026-09-29,143,"Retracted: No figure for this site meets the bar. GSK's $1.2B covers five new U.S. plants, not this one alone."
+65,2026-09-29,78,Status text described the dropped EV plan as under construction.

@@ -1,0 +1,72 @@
+                 THE PROMISED VS. PRODUCED TRACKER
+                        DATA LICENSE
+
+SPDX-License-Identifier: CC-BY-4.0
+
+Copyright (c) 2026 IndustriousAF
+
+
+WHAT THIS COVERS
+----------------
+
+The Tracker's published data, and the README that describes it:
+
+    outputs/csv_tables/*.csv
+    README.md
+
+These are licensed to you under the Creative Commons Attribution 4.0
+International License ("CC BY 4.0").
+
+    Human-readable summary   https://creativecommons.org/licenses/by/4.0/
+    Full legal code          https://creativecommons.org/licenses/by/4.0/legalcode
+
+The full legal code at that second address is the license. It is incorporated
+here by reference and governs in full.
+
+Version 4.0 is chosen deliberately over earlier versions: it grants the
+European Union sui generis database right alongside copyright, which the 3.0
+licenses did not. Contributors and readers of this project are in the EU.
+
+
+WHAT THIS DOES NOT COVER
+------------------------
+
+Third-party material. The projects cite news articles and company statements
+by URL. Those pages remain the property of their publishers and are not
+redistributed here. These files hold facts, links, and notes written for this
+project. No article text is copied into them.
+
+Trademarks and names. This license grants no rights in the IndustriousAF name,
+in "The Promised vs. Produced Tracker", or in any other mark, logo or
+brand element of IndustriousAF. Creative Commons licenses never convey
+trademark rights; this paragraph says so out loud so that no reuse can be
+presented as licensed, endorsed, or approved by IndustriousAF.
+
+
+HOW TO ATTRIBUTE
+----------------
+
+CC BY 4.0 requires attribution. This satisfies it:
+
+    The Promised vs. Produced Tracker, IndustriousAF.
+    CC BY 4.0. https://github.com/industriousaf/promised-vs-produced-tracker
+
+If you are citing the data in a paper, use CITATION.cff in the repository
+root. It carries the authors and the version.
+
+If you publish a figure or a number drawn from these files, name the Tracker
+in the caption or the sentence. That is the whole ask, and it is the reason
+this license was chosen over a public domain dedication.
+
+
+A NOTE ON WHAT IS ACTUALLY PROTECTED
+------------------------------------
+
+Under Feist v. Rural Telephone (US 1991) facts are not copyrightable, and a
+thin factual compilation attracts thin protection. So in the United States
+this license is closer to a stated norm and a citation request than to an
+enforceable property claim over every cell. That is understood and it is
+fine. The labor worth crediting is the selection, the checking, and the human
+sign-off on every published project, and the norm is what carries that
+credit. In the EU the sui generis database right does more work, which is the
+other reason for 4.0.
