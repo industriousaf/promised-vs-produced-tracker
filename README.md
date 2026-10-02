@@ -4,7 +4,7 @@ The Promised vs. Produced Tracker follows America's biggest factory promises unt
 
 This repository holds the Tracker's data. The Tracker itself, with a page per state and the full method, is at **[industriousaf.org/data/promised-vs-produced](https://industriousaf.org/data/promised-vs-produced/)**. How projects are chosen and checked: [methodology](https://industriousaf.org/data/promised-vs-produced/methodology).
 
-Data as of 2026-10-02. 160 projects, 85 corrections, 5 retracted.
+Data as of 2026-10-02. 165 projects, 1098 checks, 87 corrections, 5 retracted.
 
 ## Files
 
@@ -13,6 +13,7 @@ Data as of 2026-10-02. 160 projects, 85 corrections, 5 retracted.
 | `outputs/csv_tables/tracker_verify.csv` | The published projects, one line each |
 | `outputs/csv_tables/tracker_verify_edits.csv` | Every correction made after a project was published: the date, the project's `id` and the reason |
 | `outputs/csv_tables/tracker_verify_retracted.csv` | Projects taken off the Tracker, with the date and the reason. A retracted project keeps its `id`, and the `id` is never reused |
+| `outputs/csv_tables/tracker_verify_checks.csv` | Every check a person made of a published figure against its source: who, when, which page, and what they found |
 
 ## What counts
 
@@ -36,6 +37,25 @@ A project is on the Tracker if it is a single factory site in a U.S. state, anno
 | `slip_years` | Years from the promised to the actual date of first output. Positive means late, negative means early. Blank unless both dates are known |
 | `promise_source`, `status_source` | Links to the announcement and to the source for the current status. A cell can hold more than one link, separated by spaces or semicolons |
 | `promised_date_source`, `actual_date_source`, `size_source` | Where a date or a size figure came from, when that is not the promise source |
+| `checked_by` | Who checked the project's published figures against their sources. More than one address is separated by semicolons |
+| `last_checked` | The newest date among those checks |
+
+## Who checked what: `tracker_verify_checks.csv`
+
+A person checks each of six figures on every project against its source before it is published, and again when a figure changes: `announced`, `promised_capital_usd`, `promised_jobs`, `promised_first_output`, `actual_first_output` and `current_status`. Each check is one line. A model may help find a page, but only a person saves a check.
+
+| Column | Meaning |
+|---|---|
+| `id` | The check's number. Checks are never edited or deleted |
+| `date` | When the check was saved |
+| `project_id` | The project's `id` in `tracker_verify.csv` |
+| `field` | Which figure was checked, named as the column in `tracker_verify.csv` |
+| `result` | `confirmed`: the page states the value. `not stated on the page`: the person read the page and it does not state one. That is how a blank figure, such as `promised_jobs` or an `n/a` promised date, is checked |
+| `value_checked` | The value the figure held when it was checked |
+| `page` | The page that was open when the check was saved. Blank when the app did not record it; the project's own source links say which pages it was checked against |
+| `matches` | How many times the page showed the value. Blank when not counted |
+| `checked_by` | Who saved the check |
+| `backs_current_value` | `yes` for the check that stands behind the figure as published today. `no` for a check later redone, or made on a value since corrected; the correction is in `tracker_verify_edits.csv` |
 
 ## Cite it
 
@@ -45,7 +65,7 @@ For a sentence or a chart caption:
 
 In full, for a paper or report:
 
-> IndustriousAF. (2026). *Promised vs. Produced Tracker* (Version 1.7) [Data set]. https://industriousaf.org/data/promised-vs-produced/
+> IndustriousAF. (2026). *Promised vs. Produced Tracker* (Version 1.8) [Data set]. https://industriousaf.org/data/promised-vs-produced/
 
 GitHub's "Cite this repository" button gives the same citation in APA and BibTeX, from [`CITATION.cff`](CITATION.cff).
 

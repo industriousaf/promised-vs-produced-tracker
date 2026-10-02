@@ -17,7 +17,7 @@ authors:
     given-names: Lucas
     orcid: "https://orcid.org/0009-0004-8439-8788"
     affiliation: IndustriousAF
-version: "1.7"
+version: "1.8"
 date-released: "2026-10-02"
 license: CC-BY-4.0
 url: "https://industriousaf.org/data/promised-vs-produced/"
@@ -34,7 +34,7 @@ preferred-citation:
   authors:
     - name: IndustriousAF
       website: "https://industriousaf.org/"
-  version: "1.7"
+  version: "1.8"
   year: 2026
   date-released: "2026-10-02"
   license: CC-BY-4.0
