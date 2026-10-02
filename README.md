@@ -4,7 +4,7 @@ The Promised vs. Produced Tracker follows America's biggest factory promises unt
 
 This repository holds the Tracker's data. The Tracker itself, with a page per state and the full method, is at **[industriousaf.org/data/promised-vs-produced](https://industriousaf.org/data/promised-vs-produced/)**. How projects are chosen and checked: [methodology](https://industriousaf.org/data/promised-vs-produced/methodology).
 
-Data as of 2026-09-30. 162 projects, 55 corrections, 3 retracted.
+Data as of 2026-10-02. 160 projects, 85 corrections, 5 retracted.
 
 ## Files
 

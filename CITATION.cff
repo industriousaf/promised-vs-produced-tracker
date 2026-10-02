@@ -18,7 +18,7 @@ authors:
     orcid: "https://orcid.org/0009-0004-8439-8788"
     affiliation: IndustriousAF
 version: "1.6"
-date-released: "2026-09-30"
+date-released: "2026-10-02"
 license: CC-BY-4.0
 url: "https://industriousaf.org/data/promised-vs-produced/"
 repository: "https://github.com/industriousaf/promised-vs-produced-tracker"
@@ -36,7 +36,7 @@ preferred-citation:
       website: "https://industriousaf.org/"
   version: "1.6"
   year: 2026
-  date-released: "2026-09-30"
+  date-released: "2026-10-02"
   license: CC-BY-4.0
   url: "https://industriousaf.org/data/promised-vs-produced/"
   repository: "https://github.com/industriousaf/promised-vs-produced-tracker"
