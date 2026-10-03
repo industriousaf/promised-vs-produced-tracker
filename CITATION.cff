@@ -18,7 +18,8 @@ authors:
     orcid: "https://orcid.org/0009-0004-8439-8788"
     affiliation: IndustriousAF
 version: "1.8"
-date-released: "2026-10-02"
+doi: 10.5281/zenodo.23116675
+date-released: "2026-10-03"
 license: CC-BY-4.0
 url: "https://industriousaf.org/data/promised-vs-produced/"
 repository: "https://github.com/industriousaf/promised-vs-produced-tracker"
@@ -35,8 +36,9 @@ preferred-citation:
     - name: IndustriousAF
       website: "https://industriousaf.org/"
   version: "1.8"
+  doi: 10.5281/zenodo.23116675
   year: 2026
-  date-released: "2026-10-02"
+  date-released: "2026-10-03"
   license: CC-BY-4.0
   url: "https://industriousaf.org/data/promised-vs-produced/"
   repository: "https://github.com/industriousaf/promised-vs-produced-tracker"
