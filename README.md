@@ -11,8 +11,8 @@ Data as of 2026-10-03. 165 projects, 1098 checks, 88 corrections, 5 retracted.
 | File | What it holds |
 |---|---|
 | `outputs/csv_tables/tracker_verify.csv` | The published projects, one line each |
-| `outputs/csv_tables/tracker_verify_edits.csv` | Every correction made after a project was published: the date, the project's `id` and the reason |
-| `outputs/csv_tables/tracker_verify_retracted.csv` | Projects taken off the Tracker, with the date and the reason. A retracted project keeps its `id`, and the `id` is never reused |
+| `outputs/csv_tables/tracker_verify_edits.csv` | Every correction made after a project was published: the date, the project's `id` and the reason (`date`, `project_id`, `description`) |
+| `outputs/csv_tables/tracker_verify_retracted.csv` | Projects taken off the Tracker, with the date and the reason (`retracted_at`, `retracted_reason`). A retracted project keeps its `id`, and the `id` is never reused |
 | `outputs/csv_tables/tracker_verify_checks.csv` | Every check a person made of a published figure against its source: who, when, which page, and what they found |
 
 ## What counts
